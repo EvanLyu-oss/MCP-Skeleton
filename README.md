@@ -25,6 +25,7 @@ If you are new to this repo, read these in order:
 
 For current website-oriented product packaging, also see:
 
+- `/Users/carwynmac/ai-cl/BRAND_DISTINCTION_PHASE_REVIEW_20260417.md`
 - `/Users/carwynmac/ai-cl/PROJECT_STATE_REVIEW_20260409.md`
 - `/Users/carwynmac/ai-cl/PROJECT_STATE_REVIEW_20260408.md`
 - `/Users/carwynmac/ai-cl/PROJECT_STATE_REVIEW_20260406.md`
