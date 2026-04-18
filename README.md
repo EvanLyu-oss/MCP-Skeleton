@@ -1,8 +1,12 @@
 # AI-CL
 
-AI-CL is the current AIL platform mainline.
+![Status](https://img.shields.io/badge/status-alpha%20builder%20preview-cf6f2e)
+![CLI Checks](https://img.shields.io/badge/cli%20checks-207%2F207%20passing-2f855a)
+![License](https://img.shields.io/badge/license-MIT-1f6feb)
 
-It is best understood today as an **alpha / builder preview** for:
+**CLI-first website generation, durable customization, and structured handoff workflows for AIL.**
+
+AI-CL is the current AIL platform mainline. It is best understood today as an **alpha / builder preview** for:
 
 - structured website generation workflows
 - CLI-first website evaluation and handoff
@@ -11,6 +15,8 @@ It is best understood today as an **alpha / builder preview** for:
 
 This repository is already strong enough for external testers to run, inspect, and give feedback on.
 It is **not** yet packaged as a stable end-user product.
+
+**Start here:** [`OPEN_SOURCE_STATUS.md`](OPEN_SOURCE_STATUS.md) · [`QUICKSTART_OPEN_SOURCE.md`](QUICKSTART_OPEN_SOURCE.md) · [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md)
 
 ## Current Status
 
