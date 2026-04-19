@@ -24,6 +24,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 ### Why this matters
 
 - Windows testers should no longer hit the original first-run failure caused by a hardcoded macOS repo path
+- Windows validation has now confirmed successful `workspace summary` and `website check` runs
 - the repository now describes its current cross-platform state more honestly
 - the main setup path is easier to follow across Unix-like shells and PowerShell
 

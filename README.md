@@ -36,6 +36,10 @@ Current validation anchor:
 - `testing/results/cli_smoke_results.json`
   - `status = ok`
   - `207 / 207` checks passing
+- Windows validation:
+  - `workspace summary` confirmed working on Windows
+  - `website check` confirmed working on Windows
+  - successful output confirmed under `output_projects/`
 
 Current strongest proof baselines:
 
