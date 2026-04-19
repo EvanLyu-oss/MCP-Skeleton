@@ -27,6 +27,27 @@ EXIT_VALIDATION = 3
 EXIT_CONFLICT = 4
 EXIT_REMOTE = 5
 REPO_ROOT = Path(__file__).resolve().parents[1]
+LEGACY_REPO_ROOT = "/Users/carwynmac/ai-cl"
+REPO_ROOT_STR = str(REPO_ROOT)
+BUILD_WEBSITE_DELIVERY_ASSETS_SH = str((REPO_ROOT / "testing" / "build_website_delivery_assets.sh").resolve())
+RUN_READINESS_SNAPSHOT_SH = str((REPO_ROOT / "testing" / "run_readiness_snapshot.sh").resolve())
+RUN_RC_CHECKS_SH = str((REPO_ROOT / "testing" / "run_rc_checks.sh").resolve())
+
+
+def _portable_payload(value: Any) -> Any:
+    if isinstance(value, str):
+        return value.replace(LEGACY_REPO_ROOT, REPO_ROOT_STR)
+    if isinstance(value, dict):
+        return {key: _portable_payload(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_portable_payload(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_portable_payload(item) for item in value)
+    return value
+
+
+def _print_json_payload(payload: Any, *, file: Any = sys.stdout) -> None:
+    print(json.dumps(_portable_payload(payload), indent=2, ensure_ascii=False), file=file)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -121,7 +142,7 @@ def cmd_website(args: argparse.Namespace) -> int:
     if getattr(args, "website_command", None) == "preview":
         payload, exit_code = _build_website_preview_payload(pack_id=getattr(args, "pack_id", None))
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Website preview")
             print(f"- status: {payload['status']}")
@@ -136,7 +157,7 @@ def cmd_website(args: argparse.Namespace) -> int:
     if getattr(args, "website_command", None) == "run-inspect-command":
         payload, exit_code = _build_website_run_inspect_command_payload(pack_id=getattr(args, "pack_id", None))
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Website run-inspect-command")
             print(f"- status: {payload['status']}")
@@ -154,7 +175,7 @@ def cmd_website(args: argparse.Namespace) -> int:
     if getattr(args, "website_command", None) == "export-handoff":
         payload, exit_code = _build_website_export_handoff_payload(pack_id=getattr(args, "pack_id", None))
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Website export-handoff")
             print(f"- status: {payload['status']}")
@@ -169,7 +190,7 @@ def cmd_website(args: argparse.Namespace) -> int:
     if getattr(args, "website_command", None) == "inspect-asset":
         payload, exit_code = _build_website_inspect_asset_payload(pack_id=getattr(args, "pack_id", None))
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Website inspect-asset")
             print(f"- status: {payload['status']}")
@@ -187,7 +208,7 @@ def cmd_website(args: argparse.Namespace) -> int:
     if getattr(args, "website_command", None) == "open-asset":
         payload, exit_code = _build_website_open_asset_payload(pack_id=getattr(args, "pack_id", None))
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Website open-asset")
             print(f"- status: {payload['status']}")
@@ -204,7 +225,7 @@ def cmd_website(args: argparse.Namespace) -> int:
     if getattr(args, "website_command", None) == "go":
         payload, exit_code = _run_website_go()
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Website go")
             print(f"- route_taken: {payload['route_taken']}")
@@ -219,7 +240,7 @@ def cmd_website(args: argparse.Namespace) -> int:
     if getattr(args, "website_command", None) == "summary":
         payload, exit_code = _build_website_summary_payload()
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Website summary")
             print(f"- status: {payload['status']}")
@@ -238,7 +259,7 @@ def cmd_website(args: argparse.Namespace) -> int:
     if getattr(args, "website_command", None) == "assets":
         payload, exit_code = _build_website_assets_payload(pack_id=getattr(args, "pack_id", None))
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Website assets")
             print(f"- status: {payload['status']}")
@@ -267,7 +288,7 @@ def cmd_website(args: argparse.Namespace) -> int:
     )
 
     if args.json:
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        _print_json_payload(payload)
     else:
         print("Website check")
         print(f"- support_level: {payload['support_level']}")
@@ -298,7 +319,7 @@ def cmd_rc_check(args: argparse.Namespace) -> int:
     if refresh_result is not None:
         payload["refresh"] = refresh_result
     if args.json:
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        _print_json_payload(payload)
     else:
         print("RC check")
         print(f"- rc_status: {payload['rc']['status']}")
@@ -322,7 +343,7 @@ def cmd_rc_go(args: argparse.Namespace) -> int:
     if refresh_result is not None:
         payload["refresh"] = refresh_result
     if args.json:
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        _print_json_payload(payload)
     else:
         print("RC go")
         print(f"- route_taken: {payload['route_taken']}")
@@ -349,7 +370,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
     if getattr(args, "workspace_command", None) == "hooks":
         payload = _build_workspace_hooks_payload()
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Workspace hooks")
             print(f"- repo_root: {payload['repo_root']}")
@@ -390,7 +411,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
             payload["run_command"] = preferred_run_command or None
             payload["run_command_requires_confirmation"] = True
             payload["run_command_confirmed"] = bool(getattr(args, "yes", False))
-            payload["run_command_confirm_command"] = "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-guide --run-command --yes --json"
+            payload["run_command_confirm_command"] = f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli workspace hook-guide --run-command --yes --json"
             if getattr(args, "yes", False):
                 if preferred_run_command:
                     ran_ok, run_stdout, run_stderr, run_exit_code, run_result = _run_shell_command(preferred_run_command)
@@ -414,7 +435,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
                 payload["run_result"] = None
                 payload["run_command_warning"] = "Confirmation required. Re-run with --yes to execute the preferred workspace hook-guide command."
         if getattr(args, "run_command", False) and args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
             return int(payload.get("run_command_exit_code", exit_code)) if payload.get("run_command_confirmed") else exit_code
         if getattr(args, "run_command", False):
             if payload.get("run_command_confirmed"):
@@ -458,7 +479,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
                 print(f"- fallback_command: {preferred_command}")
             return EXIT_USAGE
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Workspace hook-guide")
             print(f"- repo_root: {payload['repo_root']}")
@@ -489,7 +510,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
     if getattr(args, "workspace_command", None) == "export-handoff":
         payload, exit_code = _build_workspace_export_handoff_payload(base_url=args.base_url)
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Workspace export-handoff")
             print(f"- status: {payload['status']}")
@@ -514,7 +535,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
             base_url=args.base_url,
         )
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Workspace open-target")
             print(f"- status: {payload['status']}")
@@ -539,7 +560,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
             base_url=args.base_url,
         )
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Workspace inspect-target")
             print(f"- status: {payload['status']}")
@@ -577,7 +598,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
             base_url=args.base_url,
         )
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Workspace run-inspect-command")
             print(f"- status: {payload['status']}")
@@ -598,7 +619,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
     if getattr(args, "workspace_command", None) == "preview":
         payload, exit_code = _build_workspace_preview_payload(base_url=args.base_url)
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Workspace preview")
             print(f"- status: {payload['status']}")
@@ -619,7 +640,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
     if getattr(args, "workspace_command", None) == "doctor":
         payload, exit_code = _build_workspace_doctor_payload(base_url=args.base_url)
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Workspace doctor")
             print(f"- status: {payload['status']}")
@@ -637,7 +658,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
     if getattr(args, "workspace_command", None) == "continue":
         payload, exit_code = _run_workspace_continue(base_url=args.base_url)
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Workspace continue")
             print(f"- route_taken: {payload['route_taken']}")
@@ -664,7 +685,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
     if getattr(args, "workspace_command", None) == "summary":
         payload = _build_workspace_summary_payload(base_url=args.base_url)
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Workspace summary")
             print(f"- repo_root: {payload['repo_root']}")
@@ -970,7 +991,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
                 payload["run_result"] = None
                 payload["run_command_warning"] = "Confirmation required. Re-run with --yes to execute the selected hook-init next command."
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         elif getattr(args, "run_command", False):
             if payload.get("run_command_confirmed"):
                 if payload.get("ran_command"):
@@ -1528,7 +1549,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
                 payload["run_result"] = None
                 payload["run_command_warning"] = "Confirmation required. Re-run with --yes to execute the selected next command."
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             if getattr(args, "run_open_command", False):
                 if payload.get("run_open_command_confirmed"):
@@ -1906,7 +1927,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
     if getattr(args, "workspace_command", None) == "go":
         payload, exit_code = _run_workspace_go(base_url=args.base_url)
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Workspace go")
             print(f"- route_taken: {payload['route_taken']}")
@@ -1938,7 +1959,7 @@ def cmd_workspace(args: argparse.Namespace) -> int:
 
     payload = _build_workspace_status_payload(base_url=args.base_url)
     if args.json:
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        _print_json_payload(payload)
     else:
         print("Workspace status")
         print(f"- repo_root: {payload['repo_root']}")
@@ -2035,7 +2056,7 @@ def cmd_cloud(args: argparse.Namespace) -> int:
     payload["next_steps"] = preview_handoff["next_steps"]
 
     if args.json:
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        _print_json_payload(payload)
     else:
         project_data = payload.get("project") or {}
         latest_build = payload.get("latest_build") or {}
@@ -2235,7 +2256,7 @@ def cmd_project(args: argparse.Namespace) -> int:
         ctx = ProjectContext.discover()
         payload, exit_code = _run_project_go(ctx, base_url=args.base_url)
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print(f"Project go: {ctx.project_id}")
             print(f"- route_taken: {payload['route_taken']}")
@@ -2288,13 +2309,13 @@ def cmd_project(args: argparse.Namespace) -> int:
                         if key != "parsed"
                     },
                     "next_steps": [
-                        f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli diagnose {ctx.source_file} --json",
-                        f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli repair {ctx.source_file} --write --json",
+                        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli diagnose {ctx.source_file} --json",
+                        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli repair {ctx.source_file} --write --json",
                         "rerun project continue --diagnose-compile-sync after the source becomes a compile candidate",
                     ],
                 }
                 if args.json:
-                    print(json.dumps(payload, indent=2, ensure_ascii=False))
+                    _print_json_payload(payload)
                 else:
                     print(f"Project continue halted: {ctx.project_id}")
                     print("- action: diagnose_compile_sync")
@@ -2335,13 +2356,13 @@ def cmd_project(args: argparse.Namespace) -> int:
                             if key != "parsed"
                         },
                         "next_steps": [
-                            f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli diagnose {ctx.source_file} --json",
-                            f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project doctor --fix-plan --base-url {args.base_url or 'embedded://local'} --json",
+                            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli diagnose {ctx.source_file} --json",
+                            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project doctor --fix-plan --base-url {args.base_url or 'embedded://local'} --json",
                             "inspect the repaired source before attempting another compile-and-sync pass",
                         ],
                     }
                     if args.json:
-                        print(json.dumps(payload, indent=2, ensure_ascii=False))
+                        _print_json_payload(payload)
                     else:
                         print(f"Project continue halted: {ctx.project_id}")
                         print("- action: auto_repair_compile_sync")
@@ -2380,7 +2401,7 @@ def cmd_project(args: argparse.Namespace) -> int:
             }
             payload["diagnosis_after"] = diagnosis_after
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print(f"Project continue completed: {ctx.project_id}")
             print(f"- action: {payload['action']}")
@@ -2408,7 +2429,7 @@ def cmd_project(args: argparse.Namespace) -> int:
         payload = _build_project_check_payload(ctx, base_url=args.base_url)
 
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print(f"Project check: {ctx.project_id}")
             print(f"- status: {payload['status']}")
@@ -2472,7 +2493,7 @@ def cmd_project(args: argparse.Namespace) -> int:
         )
 
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print(f"Project doctor: {ctx.project_id}")
             print(f"- status: {payload['status']}")
@@ -2516,7 +2537,7 @@ def cmd_project(args: argparse.Namespace) -> int:
             project_id=getattr(args, "project_id", None),
         )
         if args.json:
-            print(json.dumps(summary, indent=2, ensure_ascii=False))
+            _print_json_payload(summary)
         else:
             print(f"Project summary: {summary['project_id']}")
             print(f"- project_root: {summary['project_root']}")
@@ -2549,7 +2570,7 @@ def cmd_project(args: argparse.Namespace) -> int:
             page_key=getattr(args, "page_key", None),
         )
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print(f"Project hooks: {payload['project_id']}")
             print(f"- project_root: {payload['project_root']}")
@@ -2593,7 +2614,7 @@ def cmd_project(args: argparse.Namespace) -> int:
             payload["run_command"] = preferred_run_command or None
             payload["run_command_requires_confirmation"] = True
             payload["run_command_confirmed"] = bool(getattr(args, "yes", False))
-            payload["run_command_confirm_command"] = "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-guide --run-command --yes --json"
+            payload["run_command_confirm_command"] = f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hook-guide --run-command --yes --json"
             if getattr(args, "yes", False):
                 if preferred_run_command:
                     ran_ok, run_stdout, run_stderr, run_exit_code, run_result = _run_shell_command(preferred_run_command)
@@ -2617,7 +2638,7 @@ def cmd_project(args: argparse.Namespace) -> int:
                 payload["run_result"] = None
                 payload["run_command_warning"] = "Confirmation required. Re-run with --yes to execute the preferred project hook-guide command."
         if getattr(args, "run_command", False) and args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
             return int(payload.get("run_command_exit_code", exit_code)) if payload.get("run_command_confirmed") else exit_code
         if getattr(args, "run_command", False):
             if payload.get("run_command_confirmed"):
@@ -2661,7 +2682,7 @@ def cmd_project(args: argparse.Namespace) -> int:
                 print(f"- fallback_command: {preferred_command}")
             return EXIT_USAGE
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print("Project hook-guide")
             print(f"- project_root: {payload['project_root']}")
@@ -2932,7 +2953,7 @@ def cmd_project(args: argparse.Namespace) -> int:
                 payload["run_result"] = None
                 payload["run_command_warning"] = "Confirmation required. Re-run with --yes to execute the selected hook-init next command."
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         elif getattr(args, "run_command", False):
             if payload.get("run_command_confirmed"):
                 if payload.get("ran_command"):
@@ -3332,7 +3353,7 @@ def cmd_project(args: argparse.Namespace) -> int:
             base_url=args.base_url,
         )
         if args.json:
-            print(json.dumps(preview, indent=2, ensure_ascii=False))
+            _print_json_payload(preview)
         else:
             print(f"Project preview: {preview['project_id']}")
             print(f"- project_root: {preview['project_root']}")
@@ -3361,7 +3382,7 @@ def cmd_project(args: argparse.Namespace) -> int:
             base_url=args.base_url,
         )
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print(f"Project open-target: {payload['project_id']}")
             print(f"- resolved_label: {payload['resolved_label']}")
@@ -3382,7 +3403,7 @@ def cmd_project(args: argparse.Namespace) -> int:
             base_url=args.base_url,
         )
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print(f"Project inspect-target: {payload['project_id']}")
             print(f"- status: {payload['status']}")
@@ -3417,7 +3438,7 @@ def cmd_project(args: argparse.Namespace) -> int:
             base_url=args.base_url,
         )
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print(f"Project run-inspect-command: {payload['project_id']}")
             print(f"- status: {payload['status']}")
@@ -3439,7 +3460,7 @@ def cmd_project(args: argparse.Namespace) -> int:
         ctx = ProjectContext.discover()
         payload, exit_code = _build_project_export_handoff_payload(ctx, base_url=args.base_url)
         if args.json:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            _print_json_payload(payload)
         else:
             print(f"Project export-handoff: {payload['project_id']}")
             print(f"- status: {payload['status']}")
@@ -3550,7 +3571,7 @@ def cmd_conflicts(args: argparse.Namespace) -> int:
     conflicts = engine.detect_conflicts(ctx, last_build, current_manifest)
     if not conflicts:
         if args.json:
-            print(json.dumps({"status": "ok", "conflicts": []}, indent=2, ensure_ascii=False))
+            _print_json_payload({"status": "ok", "conflicts": []})
         else:
             print("No sync conflicts detected.")
         return EXIT_OK
@@ -3611,11 +3632,11 @@ def cmd_trial_run(args: argparse.Namespace) -> int:
     )
 
     if args.json:
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        _print_json_payload(payload)
     else:
         if payload["status"] != "ok":
             print("Trial run failed: diagnose did not pass after repair", file=sys.stderr)
-            print(json.dumps(payload, indent=2, ensure_ascii=False), file=sys.stderr)
+            _print_json_payload(payload, file=sys.stderr)
         else:
             print(f"Trial run completed successfully at {ctx.root}")
             print(f"- scenario: {payload['scenario']}")
@@ -3712,7 +3733,7 @@ def cmd_repair(args: argparse.Namespace) -> int:
             payload["wrote"] = True
         else:
             payload["wrote"] = False
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        _print_json_payload(payload)
     elif args.write:
         ail_path.write_text(repaired.rstrip() + "\n", encoding="utf-8")
         print(f"Repaired AIL and wrote {ail_path}")
@@ -4359,18 +4380,18 @@ def _build_website_check_next_steps(
         return [
             "narrow the requirement back to one website-oriented pack",
             "remove app, CMS, dashboard, or platform behavior from the request",
-            f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli website check \"<narrowed website requirement>\" --base-url {effective_base_url} --json",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli website check \"<narrowed website requirement>\" --base-url {effective_base_url} --json",
         ]
 
     steps: list[str] = []
     if trial_project_path:
         steps.append(f"inspect {trial_project_path}")
         steps.append(
-            "run PYTHONPATH=/Users/carwynmac/ai-cl "
+            f"run PYTHONPATH={REPO_ROOT_STR} "
             f"python3 -m cli project preview --base-url {effective_base_url} --json"
         )
         steps.append(
-            "run PYTHONPATH=/Users/carwynmac/ai-cl "
+            f"run PYTHONPATH={REPO_ROOT_STR} "
             f"python3 -m cli project export-handoff --base-url {effective_base_url} --json"
         )
     if delivery_decision == "partial":
@@ -4462,16 +4483,16 @@ def _build_website_assets_payload(*, pack_id: str | None) -> tuple[dict[str, Any
             "requested_pack_id": pack_id or "",
             "available_pack_ids": [],
             "selected_pack": None,
-            "artifacts": {
-                "assets_summary_json": str(summary_path),
-                "assets_summary_md": str(summary_md_path),
-                "assets_dir": str(asset_dir),
-                "build_command": "bash /Users/carwynmac/ai-cl/testing/build_website_delivery_assets.sh",
-            },
-            "next_steps": [
-                "run bash /Users/carwynmac/ai-cl/testing/build_website_delivery_assets.sh",
-                "rerun website assets after the reusable delivery assets are rebuilt",
-            ],
+                "artifacts": {
+                    "assets_summary_json": str(summary_path),
+                    "assets_summary_md": str(summary_md_path),
+                    "assets_dir": str(asset_dir),
+                    "build_command": f"bash {BUILD_WEBSITE_DELIVERY_ASSETS_SH}",
+                },
+                "next_steps": [
+                    f"run bash {BUILD_WEBSITE_DELIVERY_ASSETS_SH}",
+                    "rerun website assets after the reusable delivery assets are rebuilt",
+                ],
         }
         return payload, EXIT_VALIDATION
 
@@ -4503,7 +4524,7 @@ def _build_website_assets_payload(*, pack_id: str | None) -> tuple[dict[str, Any
                 "next_steps": [
                     "list available website delivery asset pack ids",
                     "rerun website assets with one supported pack id",
-                    "inspect /Users/carwynmac/ai-cl/testing/results/website_delivery_assets_20260319.md",
+                    f"inspect {summary_md_path}",
                 ],
             }
             return payload, EXIT_VALIDATION
@@ -4545,7 +4566,7 @@ def _build_website_assets_payload(*, pack_id: str | None) -> tuple[dict[str, Any
             "assets_summary_json": str(summary_path),
             "assets_summary_md": str(summary_md_path),
             "assets_dir": str(asset_dir),
-            "build_command": "bash /Users/carwynmac/ai-cl/testing/build_website_delivery_assets.sh",
+            "build_command": f"bash {BUILD_WEBSITE_DELIVERY_ASSETS_SH}",
         },
         "next_steps": next_steps,
     }
@@ -4901,13 +4922,13 @@ def _build_website_summary_payload() -> tuple[dict[str, Any], int]:
 
     if assets_ok:
         recommended_website_action = "website_assets"
-        recommended_website_command = "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli website assets --json"
+        recommended_website_command = f'PYTHONPATH="{REPO_ROOT_STR}" python3 -m cli website assets --json'
         recommended_website_reason = (
             "Reusable website delivery assets are ready, so the highest-value next step is to consume the validated pack bundles directly."
         )
     else:
         recommended_website_action = "build_website_delivery_assets"
-        recommended_website_command = "bash /Users/carwynmac/ai-cl/testing/build_website_delivery_assets.sh"
+        recommended_website_command = f"bash {BUILD_WEBSITE_DELIVERY_ASSETS_SH}"
         recommended_website_reason = (
             "Website delivery assets are missing or stale, so rebuild the reusable website pack bundles before consuming them."
         )
@@ -4964,7 +4985,7 @@ def _run_website_go() -> tuple[dict[str, Any], int]:
     if executed_website_action == "website_assets":
         result_payload, exit_code = _build_website_assets_payload(pack_id=None)
     elif executed_website_action == "build_website_delivery_assets":
-        command = ["bash", "/Users/carwynmac/ai-cl/testing/build_website_delivery_assets.sh"]
+        command = ["bash", BUILD_WEBSITE_DELIVERY_ASSETS_SH]
         try:
             completed = subprocess.run(
                 command,
@@ -4978,7 +4999,7 @@ def _run_website_go() -> tuple[dict[str, Any], int]:
                 **result_payload,
                 "build_assets_result": {
                     "status": "ok",
-                    "command": "bash /Users/carwynmac/ai-cl/testing/build_website_delivery_assets.sh",
+                    "command": f"bash {BUILD_WEBSITE_DELIVERY_ASSETS_SH}",
                     "stdout": completed.stdout.strip(),
                     "stderr": completed.stderr.strip(),
                 },
@@ -4990,7 +5011,7 @@ def _run_website_go() -> tuple[dict[str, Any], int]:
                 "message": "Website delivery asset build failed.",
                 "build_assets_result": {
                     "status": "warning",
-                    "command": "bash /Users/carwynmac/ai-cl/testing/build_website_delivery_assets.sh",
+                    "command": f"bash {BUILD_WEBSITE_DELIVERY_ASSETS_SH}",
                     "stdout": (exc.stdout or "").strip(),
                     "stderr": (exc.stderr or "").strip(),
                     "exit_code": exc.returncode,
@@ -5426,7 +5447,7 @@ def _build_workspace_hooks_payload() -> dict[str, Any]:
     preferred_workspace_hook_command = ""
     preferred_workspace_hook_reason = ""
 
-    next_steps = ["run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hooks --json"]
+    next_steps = [f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli workspace hooks --json"]
     if projects:
         first_project = projects[0]
         first_page_key = str((first_project.get("available_page_keys") or [""])[0] or "")
@@ -5442,7 +5463,7 @@ def _build_workspace_hooks_payload() -> dict[str, Any]:
             )
         next_steps.extend(
             [
-                f"cd {first_project['project_root']} && PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hooks --json",
+                f"cd {first_project['project_root']} && PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hooks --json",
                 f"inspect {first_project['hook_catalog']['markdown_path']}",
             ]
         )
@@ -6439,7 +6460,7 @@ def _write_live_project_hook(
                 "message": "No starter example exists yet for this project. Rebuild the frontend override scaffold first.",
                 "next_steps": [
                     "rebuild the project so frontend/src/ail-overrides/components/examples is scaffolded",
-                    "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hooks --json",
+                    f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hooks --json",
                 ],
             },
             EXIT_VALIDATION,
@@ -6468,7 +6489,7 @@ def _write_live_project_hook(
                     "message": f"Unknown hook name: {normalized_hook_name}",
                     "next_steps": [
                         f"inspect {catalog['markdown_path']}",
-                        "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hooks --json",
+                        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hooks --json",
                     ],
                 },
                 EXIT_VALIDATION,
@@ -6606,7 +6627,7 @@ def _build_project_hook_pick_index_command(
     force: bool = False,
 ) -> str:
     parts = [
-        "PYTHONPATH=/Users/carwynmac/ai-cl",
+        f"PYTHONPATH={REPO_ROOT_STR}",
         "python3 -m cli project hook-init",
         shlex.quote(requested_hook_name or ""),
         "--suggest",
@@ -6645,7 +6666,7 @@ def _build_project_hook_init_command(
     force: bool = False,
 ) -> str:
     parts = [
-        "PYTHONPATH=/Users/carwynmac/ai-cl",
+        f"PYTHONPATH={REPO_ROOT_STR}",
         "python3 -m cli project hook-init",
     ]
     if requested_hook_name:
@@ -6715,7 +6736,7 @@ def _build_project_hook_suggest_command(
     slot_key_filter: str | None = None,
 ) -> str:
     parts = [
-        "PYTHONPATH=/Users/carwynmac/ai-cl",
+        f"PYTHONPATH={REPO_ROOT_STR}",
         "python3 -m cli project hook-init",
         shlex.quote(requested_hook_name or ""),
         "--suggest",
@@ -6754,7 +6775,7 @@ def _build_workspace_hook_init_command(
     force: bool = False,
 ) -> str:
     parts = [
-        "PYTHONPATH=/Users/carwynmac/ai-cl",
+        f"PYTHONPATH={REPO_ROOT_STR}",
         "python3 -m cli workspace hook-init",
     ]
     if follow_recommended:
@@ -6891,7 +6912,7 @@ def _build_workspace_hook_init_run_command(
 
 def _build_workspace_hook_continue_command(*, force: bool = False, broaden_to: str | None = None, dry_run: bool = False) -> str:
     parts = [
-        "PYTHONPATH=/Users/carwynmac/ai-cl",
+        f"PYTHONPATH={REPO_ROOT_STR}",
         "python3 -m cli workspace hook-continue",
     ]
     if broaden_to:
@@ -6906,7 +6927,7 @@ def _build_workspace_hook_continue_command(*, force: bool = False, broaden_to: s
 
 def _build_workspace_hook_continue_run_command(*, force: bool = False, broaden_to: str | None = None, dry_run: bool = False, yes: bool = False) -> str:
     parts = [
-        "PYTHONPATH=/Users/carwynmac/ai-cl",
+        f"PYTHONPATH={REPO_ROOT_STR}",
         "python3 -m cli workspace hook-continue",
     ]
     if broaden_to:
@@ -6924,7 +6945,7 @@ def _build_workspace_hook_continue_run_command(*, force: bool = False, broaden_t
 
 def _build_workspace_hook_continue_run_open_command(*, force: bool = False, broaden_to: str | None = None, dry_run: bool = False, yes: bool = False) -> str:
     parts = [
-        "PYTHONPATH=/Users/carwynmac/ai-cl",
+        f"PYTHONPATH={REPO_ROOT_STR}",
         "python3 -m cli workspace hook-continue",
     ]
     if broaden_to:
@@ -7122,7 +7143,7 @@ def _run_project_hook_init(
                 "hook_catalog": {key: value for key, value in catalog.items() if key != "pages"},
                 "next_steps": [
                     f"inspect {catalog['markdown_path']}",
-                    "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hooks --json",
+                    f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hooks --json",
                 ],
             },
             EXIT_OK,
@@ -7136,7 +7157,7 @@ def _run_project_hook_init(
         }
         if recent_suggestion_memory:
             recommended_next_command = (
-                "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init --reuse-last-suggest --pick-recommended --json"
+                f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hook-init --reuse-last-suggest --pick-recommended --json"
                 if int(recent_suggestion_memory.get("suggestion_count") or 0) > 0
                 else None
             )
@@ -7148,7 +7169,7 @@ def _run_project_hook_init(
                     "last_suggest": recent_suggestion_memory,
                     "recommended_next_command": recommended_next_command,
                     "next_steps": [
-                        "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init --reuse-last-suggest --pick-recommended --json",
+                        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hook-init --reuse-last-suggest --pick-recommended --json",
                         f"inspect {catalog['markdown_path']}",
                     ],
                 },
@@ -7161,7 +7182,7 @@ def _run_project_hook_init(
                 **payload,
                 "message": "No recent hook suggestion memory found yet. Run project hook-init --suggest first.",
                 "next_steps": [
-                    "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init home --suggest --json",
+                    f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hook-init home --suggest --json",
                     f"inspect {catalog['markdown_path']}",
                 ],
             },
@@ -7196,7 +7217,7 @@ def _run_project_hook_init(
                 "suggestions": [],
                 "recent_suggestion_memory_path": str(_last_hook_suggestions_path(ctx)),
                 "next_steps": [
-                    "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init home --suggest --json",
+                    f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hook-init home --suggest --json",
                     f"inspect {catalog['markdown_path']}",
                 ],
             },
@@ -7225,7 +7246,7 @@ def _run_project_hook_init(
                     "suggestions": [],
                     "next_steps": [
                         f"inspect {catalog['markdown_path']}",
-                        "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hooks --json",
+                        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hooks --json",
                     ],
                 },
                 EXIT_OK,
@@ -7356,7 +7377,7 @@ def _run_project_hook_init(
                         "suggestions": [],
                         "next_steps": [
                             f"inspect {catalog['markdown_path']}",
-                            "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hooks --json",
+                            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hooks --json",
                         ],
                     },
                     EXIT_OK,
@@ -7399,7 +7420,7 @@ def _run_project_hook_init(
                 next_steps.append("re-run with a narrower --page-key, --section-key, or --slot-key filter")
                 next_steps.append("or re-run project hook-init with one exact suggested hook name")
             else:
-                next_steps.append("run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hooks --json")
+                next_steps.append(f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hooks --json")
             return (
                 {
                     "status": "warning",
@@ -7497,7 +7518,7 @@ def _build_project_hooks_payload(ctx: ProjectContext, *, page_key: str | None = 
     catalog = _build_hook_catalog_summary(ctx)
     next_steps = [
         f"inspect {catalog['markdown_path']}",
-        "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project summary --json",
+        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project summary --json",
     ]
     if not catalog["exists"]:
         payload = {
@@ -7564,7 +7585,7 @@ def _build_project_hook_guide_payload(ctx: ProjectContext) -> tuple[dict[str, An
     recommended_suggest_command = (
         _build_project_hook_suggest_command(recommended_page_key, page_key_filter=recommended_page_key)
         if recommended_page_key
-        else "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hooks --json"
+        else f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hooks --json"
     )
     recommended_dry_run_command = _build_project_hook_init_command(
         recommended_hook_name,
@@ -7583,7 +7604,7 @@ def _build_project_hook_guide_payload(ctx: ProjectContext) -> tuple[dict[str, An
         {
             "label": "catalog",
             "summary": "Open the current project's hook catalog first when you want the full page/section/slot map.",
-            "command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init --open-catalog --json",
+            "command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hook-init --open-catalog --json",
         },
         {
             "label": "suggest",
@@ -7631,7 +7652,7 @@ def _build_workspace_hook_guide_payload() -> tuple[dict[str, Any], int]:
     cheat_sheet_path = REPO_ROOT / "CUSTOMIZATION_UX_OPERATOR_CHEAT_SHEET_20260406.md"
     recommended_suggest_command = (
         str(workspace_hooks.get("recommended_workspace_hook_suggest_command") or "")
-        or "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hooks --json"
+        or f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli workspace hooks --json"
     )
     preferred_command = str(workspace_hooks.get("preferred_workspace_hook_command") or "")
     if not preferred_command:
@@ -7649,7 +7670,7 @@ def _build_workspace_hook_guide_payload() -> tuple[dict[str, Any], int]:
         {
             "label": "workspace_hooks",
             "summary": "Scan every generated project that already has a hook catalog.",
-            "command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hooks --json",
+            "command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli workspace hooks --json",
         },
         {
             "label": "suggest",
@@ -7710,7 +7731,7 @@ def _build_project_summary_payload(ctx: ProjectContext, *, base_url: str | None,
     hook_catalog = _build_hook_catalog_summary(ctx)
     next_steps = list(handoff["next_steps"])
     if hook_catalog["exists"]:
-        hook_step = "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hooks --json"
+        hook_step = f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hooks --json"
         if hook_step not in next_steps:
             next_steps.append(hook_step)
     return {
@@ -7807,7 +7828,7 @@ def _build_project_open_target_payload(
             "available_labels": available_labels,
             "message": f"Unknown project preview target: {resolved_label}",
             "next_steps": [
-                "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project preview --base-url embedded://local --json",
+                f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project preview --base-url embedded://local --json",
                 "choose one of the available_labels values and rerun project open-target",
             ],
         }
@@ -7816,7 +7837,7 @@ def _build_project_open_target_payload(
     inspect_command = f"inspect {target['path']}"
     next_steps = [
         inspect_command,
-        "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project preview --base-url embedded://local --json",
+        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project preview --base-url embedded://local --json",
     ]
     if preview.get("recommended_primary_command"):
         next_steps.append(f"run {preview['recommended_primary_command']}")
@@ -8256,9 +8277,9 @@ def _build_workspace_website_surface_summary() -> dict[str, Any]:
             "Full Ecommerce Platform",
             "Full Application or Dashboard Product",
         ],
-        "frontier_summary_path": "/Users/carwynmac/ai-cl/WEBSITE_FRONTIER_SUMMARY_20260319.md",
-        "delivery_checklist_path": "/Users/carwynmac/ai-cl/WEBSITE_DELIVERY_CHECKLIST_20260319.md",
-        "demo_pack_path": "/Users/carwynmac/ai-cl/WEBSITE_DEMO_PACK_20260319.md",
+        "frontier_summary_path": str(REPO_ROOT / "WEBSITE_FRONTIER_SUMMARY_20260319.md"),
+        "delivery_checklist_path": str(REPO_ROOT / "WEBSITE_DELIVERY_CHECKLIST_20260319.md"),
+        "demo_pack_path": str(REPO_ROOT / "WEBSITE_DEMO_PACK_20260319.md"),
         "recommended_validation_flow": "trial-run -> project go -> project preview -> project export-handoff",
     }
 
@@ -8329,17 +8350,17 @@ def _build_preview_handoff(
     next_steps = [f"inspect {primary_target['path']}"]
     if build_id and include_build_artifact_step:
         next_steps.append(
-            "run PYTHONPATH=/Users/carwynmac/ai-cl "
+            f"run PYTHONPATH={REPO_ROOT_STR} "
             f"python3 -m cli build artifact {build_id} --base-url {effective_base_url} --json"
         )
     elif build_id:
         next_steps.append(
-            "run PYTHONPATH=/Users/carwynmac/ai-cl "
+            f"run PYTHONPATH={REPO_ROOT_STR} "
             f"python3 -m cli build show {build_id} --base-url {effective_base_url} --json"
         )
     elif project_id:
         next_steps.append(
-            "run PYTHONPATH=/Users/carwynmac/ai-cl "
+            f"run PYTHONPATH={REPO_ROOT_STR} "
             f"python3 -m cli cloud status {project_id} --base-url {effective_base_url} --json"
         )
     if source_path:
@@ -8536,33 +8557,33 @@ def _project_check_next_steps(
     if not checks["source_exists"]:
         return [
             f"create or regenerate {ctx.source_file}",
-            "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli generate \"<requirement>\"",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli generate \"<requirement>\"",
         ]
     if not checks["manifest_exists"]:
         return [
             f"reinitialize manifest at {ctx.manifest_file}",
-            f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli init {ctx.root}",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli init {ctx.root}",
         ]
     if sync_conflicts:
         return [
             "inspect the conflicting managed files listed above",
-            "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli conflicts --json",
-            "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli sync --backup-and-overwrite if the drift should be preserved",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli conflicts --json",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli sync --backup-and-overwrite if the drift should be preserved",
         ]
     if not checks["last_build_exists"] or not checks["cached_build_files_present"]:
         return [
-            "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project continue --compile-sync --base-url embedded://local",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project continue --compile-sync --base-url embedded://local",
             f"inspect {ctx.source_file}",
         ]
     if not cloud_status_available:
         return [
-            "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli cloud status --base-url embedded://local --json",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli cloud status --base-url embedded://local --json",
             "verify the cloud API is reachable for this environment",
         ]
     return [
         f"inspect {ctx.root / 'src/views/generated'}",
-        "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project summary --base-url embedded://local --json",
-        "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project continue --compile-sync --base-url embedded://local when source changes",
+        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project summary --base-url embedded://local --json",
+        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project continue --compile-sync --base-url embedded://local when source changes",
     ]
 
 
@@ -8623,30 +8644,30 @@ def _project_summary_recommendation(
     if doctor_status == "error":
         return {
             "recommended_primary_action": "project_doctor_apply_safe_fixes",
-            "recommended_primary_command": f"PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project doctor --apply-safe-fixes --base-url embedded://local --json",
+            "recommended_primary_command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project doctor --apply-safe-fixes --base-url embedded://local --json",
             "recommended_primary_reason": f"Restore missing local AIL structure under {ctx.ail_dir} before continuing.",
         }
     if doctor_status == "conflict":
         return {
             "recommended_primary_action": "project_doctor",
-            "recommended_primary_command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project doctor --fix-plan --base-url embedded://local --json",
+            "recommended_primary_command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project doctor --fix-plan --base-url embedded://local --json",
             "recommended_primary_reason": "Managed-file drift needs an explicit conflict-resolution decision before any safe continue path.",
         }
     if recommended_action == "repair_source":
         return {
             "recommended_primary_action": "project_doctor_apply_safe_fixes_and_continue",
-            "recommended_primary_command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project doctor --apply-safe-fixes --and-continue --base-url embedded://local --json",
+            "recommended_primary_command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project doctor --apply-safe-fixes --and-continue --base-url embedded://local --json",
             "recommended_primary_reason": "Current source is not yet a compile candidate; safe repair and continue is the shortest supported recovery path.",
         }
     if recommended_action == "refresh_build_state":
         return {
             "recommended_primary_action": "project_continue_diagnose_compile_sync",
-            "recommended_primary_command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local --json",
+            "recommended_primary_command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local --json",
             "recommended_primary_reason": "Source is healthy, but build or cloud state should be refreshed before further iteration.",
         }
     return {
         "recommended_primary_action": "project_continue_diagnose_compile_sync",
-        "recommended_primary_command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local --json",
+        "recommended_primary_command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local --json",
         "recommended_primary_reason": "Project is healthy; use the safe continue path as the default next iteration action after source changes.",
     }
 
@@ -8752,8 +8773,8 @@ def _run_project_diagnose_compile_sync(ctx: ProjectContext, *, base_url: str | N
                 if key != "parsed"
             },
             "next_steps": [
-                f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli diagnose {ctx.source_file} --json",
-                f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli repair {ctx.source_file} --write --json",
+                f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli diagnose {ctx.source_file} --json",
+                f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli repair {ctx.source_file} --write --json",
                 "rerun project continue --diagnose-compile-sync after the source becomes a compile candidate",
             ],
         }
@@ -8958,7 +8979,7 @@ def _run_workspace_go(*, base_url: str | None) -> tuple[dict[str, Any], int]:
             "entrypoint": "workspace-go",
             "reason": "workspace_not_ready_for_execution",
             "next_steps": [
-                "run bash /Users/carwynmac/ai-cl/testing/run_readiness_snapshot.sh",
+                f"run bash {RUN_READINESS_SNAPSHOT_SH}",
                 "review the latest readiness and RC artifacts before continuing",
             ],
         }
@@ -9001,7 +9022,7 @@ def _run_workspace_continue(*, base_url: str | None) -> tuple[dict[str, Any], in
             "executed_workspace_action": "project_continue_diagnose_compile_sync",
             "recommended_workspace_action": "project_continue_diagnose_compile_sync",
             "recommended_workspace_command": (
-                "PYTHONPATH=/Users/carwynmac/ai-cl "
+                f"PYTHONPATH={REPO_ROOT_STR} "
                 f"python3 -m cli project continue --diagnose-compile-sync --base-url {effective_base_url} --json"
             ),
             "recommended_workspace_reason": "Use the safe project continue path as the default follow-up action after source changes inside the current project.",
@@ -9027,7 +9048,7 @@ def _run_workspace_continue(*, base_url: str | None) -> tuple[dict[str, Any], in
             "executed_workspace_action": "workspace_go",
             "recommended_workspace_action": "workspace_go",
             "recommended_workspace_command": (
-                "PYTHONPATH=/Users/carwynmac/ai-cl "
+                f"PYTHONPATH={REPO_ROOT_STR} "
                 f"python3 -m cli workspace go --base-url {effective_base_url} --json"
             ),
             "recommended_workspace_reason": "Use the current repo-level workspace execution path when no active AIL project is open.",
@@ -9052,7 +9073,7 @@ def _run_workspace_continue(*, base_url: str | None) -> tuple[dict[str, Any], in
         "executed_workspace_action": "workspace_doctor",
         "recommended_workspace_action": "workspace_doctor",
         "recommended_workspace_command": (
-            "PYTHONPATH=/Users/carwynmac/ai-cl "
+            f"PYTHONPATH={REPO_ROOT_STR} "
             f"python3 -m cli workspace doctor --base-url {effective_base_url} --json"
         ),
         "recommended_workspace_reason": "Use workspace doctor when repo-level RC or readiness is not yet safe for direct execution.",
@@ -9084,7 +9105,7 @@ def _build_workspace_doctor_payload(*, base_url: str | None) -> tuple[dict[str, 
             "route_reason": "Current directory is already inside an initialized AIL project, so the workspace recovery path delegates to the project doctor workbench.",
             "recommended_workspace_action": "project_doctor",
             "recommended_workspace_command": (
-                "PYTHONPATH=/Users/carwynmac/ai-cl "
+                f"PYTHONPATH={REPO_ROOT_STR} "
                 f"python3 -m cli project doctor --fix-plan --base-url {effective_base_url} --json"
             ),
             "recommended_workspace_reason": "Use the project doctor to inspect fix plans, conflicts, and safe recovery paths for the current project.",
@@ -9117,7 +9138,7 @@ def _build_workspace_doctor_payload(*, base_url: str | None) -> tuple[dict[str, 
             "route_reason": "Workspace-level readiness and RC are green, so the safest next repo-level action is the canonical frozen-profile trial path.",
             "recommended_workspace_action": "trial_run_landing",
             "recommended_workspace_command": (
-                "PYTHONPATH=/Users/carwynmac/ai-cl "
+                f"PYTHONPATH={REPO_ROOT_STR} "
                 f"python3 -m cli trial-run --scenario landing --base-url {effective_base_url} --json"
             ),
             "recommended_workspace_reason": "Use the canonical landing trial to enter the current healthy repo-level workflow.",
@@ -9125,8 +9146,8 @@ def _build_workspace_doctor_payload(*, base_url: str | None) -> tuple[dict[str, 
             "rc_check": rc_payload,
             "findings": findings,
             "next_steps": [
-                "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli trial-run --scenario landing --base-url embedded://local --json",
-                "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace go --base-url embedded://local --json",
+                f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli trial-run --scenario landing --base-url embedded://local --json",
+                f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli workspace go --base-url embedded://local --json",
             ],
         }
         return payload, EXIT_OK
@@ -9146,7 +9167,7 @@ def _build_workspace_doctor_payload(*, base_url: str | None) -> tuple[dict[str, 
         "route_reason": "Workspace-level readiness or RC is not green, so the safest repo-level recovery action is to refresh and inspect the release-facing aggregates.",
         "recommended_workspace_action": "rc_check_refresh",
         "recommended_workspace_command": (
-            "PYTHONPATH=/Users/carwynmac/ai-cl "
+            f"PYTHONPATH={REPO_ROOT_STR} "
             f"python3 -m cli rc-check --refresh --base-url {effective_base_url} --json"
         ),
         "recommended_workspace_reason": "Refresh readiness before selecting another workspace execution path.",
@@ -9154,8 +9175,8 @@ def _build_workspace_doctor_payload(*, base_url: str | None) -> tuple[dict[str, 
         "rc_check": rc_payload,
         "findings": findings,
         "next_steps": [
-            "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli rc-check --refresh --base-url embedded://local --json",
-            "run bash /Users/carwynmac/ai-cl/testing/run_rc_checks.sh",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli rc-check --refresh --base-url embedded://local --json",
+            f"run bash {RUN_RC_CHECKS_SH}",
             "review the latest readiness and RC reports before retrying workspace go",
         ],
     }
@@ -9243,7 +9264,7 @@ def _build_workspace_preview_payload(*, base_url: str | None) -> tuple[dict[str,
             "route_reason": "Current directory is already inside an initialized AIL project, so workspace preview delegates to the project-level preview handoff.",
             "recommended_workspace_action": "project_preview",
             "recommended_workspace_command": (
-                "PYTHONPATH=/Users/carwynmac/ai-cl "
+                f"PYTHONPATH={REPO_ROOT_STR} "
                 f"python3 -m cli project preview --base-url {effective_base_url} --json"
             ),
             "recommended_workspace_reason": "Use the project-level preview handoff when an active project is already open.",
@@ -9286,8 +9307,8 @@ def _build_workspace_preview_payload(*, base_url: str | None) -> tuple[dict[str,
 
     next_steps = [
         f"inspect {primary_target['path']}",
-        f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace go --base-url {effective_base_url} --json",
-        f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli rc-check --refresh --base-url {effective_base_url} --json",
+        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli workspace go --base-url {effective_base_url} --json",
+        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli rc-check --refresh --base-url {effective_base_url} --json",
     ]
 
     payload = {
@@ -9340,7 +9361,7 @@ def _build_workspace_open_target_payload(
             "requested_label": label,
             "recommended_workspace_action": "project_open_target",
             "recommended_workspace_command": (
-                "PYTHONPATH=/Users/carwynmac/ai-cl "
+                f"PYTHONPATH={REPO_ROOT_STR} "
                 f"python3 -m cli project open-target{command_suffix} --base-url {effective_base_url} --json"
             ),
             "recommended_workspace_reason": "Resolve one concrete project preview target when an active project is already open.",
@@ -9381,7 +9402,7 @@ def _build_workspace_open_target_payload(
             "preview_handoff": handoff,
             "preview_hint": preview_payload.get("preview_hint", ""),
             "next_steps": [
-                f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace preview --base-url {effective_base_url} --json",
+                f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli workspace preview --base-url {effective_base_url} --json",
                 "choose one of the available_labels values and rerun workspace open-target",
             ],
         }
@@ -9390,7 +9411,7 @@ def _build_workspace_open_target_payload(
     inspect_command = f"inspect {target['path']}"
     next_steps = [
         inspect_command,
-        f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace preview --base-url {effective_base_url} --json",
+        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli workspace preview --base-url {effective_base_url} --json",
     ]
     if preview_payload.get("recommended_workspace_command"):
         next_steps.append(f"run {preview_payload['recommended_workspace_command']}")
@@ -9441,7 +9462,7 @@ def _build_workspace_inspect_target_payload(
             "requested_label": label,
             "recommended_workspace_action": "project_inspect_target",
             "recommended_workspace_command": (
-                "PYTHONPATH=/Users/carwynmac/ai-cl "
+                f"PYTHONPATH={REPO_ROOT_STR} "
                 f"python3 -m cli project inspect-target{command_suffix} --base-url {effective_base_url} --json"
             ),
             "recommended_workspace_reason": "Inspect one concrete project preview target when an active project is already open.",
@@ -9524,7 +9545,7 @@ def _build_workspace_export_handoff_payload(*, base_url: str | None) -> tuple[di
             "route_reason": "Current directory is already inside an initialized AIL project, so workspace export-handoff delegates to the consolidated project handoff bundle.",
             "recommended_workspace_action": "project_export_handoff",
             "recommended_workspace_command": (
-                "PYTHONPATH=/Users/carwynmac/ai-cl "
+                f"PYTHONPATH={REPO_ROOT_STR} "
                 f"python3 -m cli project export-handoff --base-url {effective_base_url} --json"
             ),
             "recommended_workspace_reason": "Use the consolidated project handoff bundle when an active project is already open.",
@@ -9627,7 +9648,7 @@ def _build_workspace_run_inspect_command_payload(
             "requested_label": label,
             "recommended_workspace_action": "project_run_inspect_command",
             "recommended_workspace_command": (
-                "PYTHONPATH=/Users/carwynmac/ai-cl "
+                f"PYTHONPATH={REPO_ROOT_STR} "
                 f"python3 -m cli project run-inspect-command{command_suffix} --base-url {effective_base_url} --json"
             ),
             "recommended_workspace_reason": "Execute the project-level preview inspection step directly when an active project is already open.",
@@ -9702,7 +9723,7 @@ def _build_rc_check_payload(*, base_url: str | None) -> dict[str, Any]:
     if rc_ok and readiness_ok:
         recommended_release_action = "workspace_go"
         recommended_release_command = (
-            "PYTHONPATH=/Users/carwynmac/ai-cl "
+            f'PYTHONPATH="{REPO_ROOT_STR}" '
             f"python3 -m cli workspace go --base-url {effective_base_url} --json"
         )
         recommended_release_reason = (
@@ -9710,7 +9731,7 @@ def _build_rc_check_payload(*, base_url: str | None) -> dict[str, Any]:
         )
     else:
         recommended_release_action = "run_rc_checks"
-        recommended_release_command = "bash /Users/carwynmac/ai-cl/testing/run_rc_checks.sh"
+        recommended_release_command = f"bash {RUN_RC_CHECKS_SH}"
         recommended_release_reason = (
             "RC or readiness is not green; refresh the release aggregate before taking the next trial or workbench action."
         )
@@ -9778,7 +9799,7 @@ def _run_rc_go(*, base_url: str | None) -> tuple[dict[str, Any], int]:
             "entrypoint": "rc-go",
             "reason": "rc_not_ready_for_execution",
             "next_steps": [
-                "run bash /Users/carwynmac/ai-cl/testing/run_rc_checks.sh",
+                f"run bash {RUN_RC_CHECKS_SH}",
                 "review the latest RC and readiness summaries before continuing",
             ],
         }
@@ -9807,7 +9828,7 @@ def _run_rc_go(*, base_url: str | None) -> tuple[dict[str, Any], int]:
 
 
 def _refresh_rc_check_sources() -> dict[str, Any]:
-    command = ["bash", "/Users/carwynmac/ai-cl/testing/run_readiness_snapshot.sh"]
+    command = ["bash", RUN_READINESS_SNAPSHOT_SH]
     try:
         completed = subprocess.run(
             command,
@@ -9820,7 +9841,7 @@ def _refresh_rc_check_sources() -> dict[str, Any]:
             "status": "ok",
             "refreshed_readiness": True,
             "refreshed_rc": False,
-            "command": "bash /Users/carwynmac/ai-cl/testing/run_readiness_snapshot.sh",
+            "command": f"bash {RUN_READINESS_SNAPSHOT_SH}",
             "reason": "Refreshed readiness snapshot before reading the current RC and readiness state.",
             "stdout": completed.stdout.strip(),
             "stderr": completed.stderr.strip(),
@@ -9830,7 +9851,7 @@ def _refresh_rc_check_sources() -> dict[str, Any]:
             "status": "warning",
             "refreshed_readiness": False,
             "refreshed_rc": False,
-            "command": "bash /Users/carwynmac/ai-cl/testing/run_readiness_snapshot.sh",
+            "command": f"bash {RUN_READINESS_SNAPSHOT_SH}",
             "reason": "Readiness refresh failed, so rc-check is reporting the latest existing artifacts instead.",
             "stdout": (exc.stdout or "").strip(),
             "stderr": (exc.stderr or "").strip(),
@@ -9865,7 +9886,7 @@ def _build_workspace_status_payload(*, base_url: str | None) -> dict[str, Any]:
     if current_project:
         recommended_workspace_action = "project_go"
         recommended_workspace_command = (
-            "PYTHONPATH=/Users/carwynmac/ai-cl "
+            f'PYTHONPATH="{REPO_ROOT_STR}" '
             f"python3 -m cli project go --base-url {effective_base_url} --json"
         )
         recommended_workspace_reason = (
@@ -9874,7 +9895,7 @@ def _build_workspace_status_payload(*, base_url: str | None) -> dict[str, Any]:
     elif readiness_snapshot.get("status") == "ok":
         recommended_workspace_action = "trial_run_landing"
         recommended_workspace_command = (
-            "PYTHONPATH=/Users/carwynmac/ai-cl "
+            f'PYTHONPATH="{REPO_ROOT_STR}" '
             f"python3 -m cli trial-run --scenario landing --base-url {effective_base_url} --json"
         )
         recommended_workspace_reason = (
@@ -9882,7 +9903,7 @@ def _build_workspace_status_payload(*, base_url: str | None) -> dict[str, Any]:
         )
     else:
         recommended_workspace_action = "run_readiness_snapshot"
-        recommended_workspace_command = "bash /Users/carwynmac/ai-cl/testing/run_readiness_snapshot.sh"
+        recommended_workspace_command = f"bash {RUN_READINESS_SNAPSHOT_SH}"
         recommended_workspace_reason = (
             "Workspace-level readiness is not fully green; refresh the readiness snapshot before choosing the next execution path."
         )
@@ -9926,29 +9947,29 @@ def _project_doctor_next_steps(
 ) -> list[str]:
     if recommended_action == "repair_project_structure":
         return [
-            f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli init {ctx.root}",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli init {ctx.root}",
             f"inspect {ctx.ail_dir}",
         ]
     if recommended_action == "resolve_sync_conflicts":
         return [
-            "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli conflicts --json",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli conflicts --json",
             "inspect the conflicting managed files reported by project check",
-            "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli sync --backup-and-overwrite only if preserving local drift is the right move",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli sync --backup-and-overwrite only if preserving local drift is the right move",
         ]
     if recommended_action == "repair_source":
         return [
-            f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli diagnose {ctx.source_file} --json",
-            f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli repair {ctx.source_file} --write --json",
-            "rerun PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli diagnose {ctx.source_file} --json",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli repair {ctx.source_file} --write --json",
+            f"rerun PYTHONPATH={REPO_ROOT_STR} python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local",
         ]
     if recommended_action == "refresh_build_state":
         return [
-            "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local",
-            "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli cloud status --base-url embedded://local --json",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli cloud status --base-url embedded://local --json",
         ]
     return [
-        "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project summary --base-url embedded://local --json",
-        "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local when the source changes",
+        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project summary --base-url embedded://local --json",
+        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local when the source changes",
         f"inspect {ctx.root / 'src/views/generated'}",
     ]
 
@@ -9959,13 +9980,13 @@ def _build_project_doctor_fix_plan(ctx: ProjectContext, recommended_action: str)
             {
                 "step": "1",
                 "title": "Recreate the local AIL project structure",
-                "command": f"PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli init {ctx.root}",
+                "command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli init {ctx.root}",
                 "rationale": "Restore missing .ail metadata before any higher-level recovery work.",
             },
             {
                 "step": "2",
                 "title": "Regenerate or restore the source of truth",
-                "command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli generate \"<requirement>\"",
+                "command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli generate \"<requirement>\"",
                 "rationale": "Recreate .ail/source.ail so the project can re-enter the mainline workflow.",
             },
         ],
@@ -9973,13 +9994,13 @@ def _build_project_doctor_fix_plan(ctx: ProjectContext, recommended_action: str)
             {
                 "step": "1",
                 "title": "Inspect the managed-file drift",
-                "command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli conflicts --json",
+                "command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli conflicts --json",
                 "rationale": "Confirm which generated files have local drift before overwriting anything.",
             },
             {
                 "step": "2",
                 "title": "Apply an explicit sync strategy",
-                "command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli sync --backup-and-overwrite",
+                "command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli sync --backup-and-overwrite",
                 "rationale": "Preserve local drift under .ail/conflicts before restoring managed-zone consistency.",
             },
         ],
@@ -9987,19 +10008,19 @@ def _build_project_doctor_fix_plan(ctx: ProjectContext, recommended_action: str)
             {
                 "step": "1",
                 "title": "Reconfirm the current source diagnosis",
-                "command": f"PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli diagnose {ctx.source_file} --json",
+                "command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli diagnose {ctx.source_file} --json",
                 "rationale": "Capture the exact validation failure before rewriting the source.",
             },
             {
                 "step": "2",
                 "title": "Repair the source in place",
-                "command": f"PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli repair {ctx.source_file} --write --json",
+                "command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli repair {ctx.source_file} --write --json",
                 "rationale": "Bring the source back inside the current supported system boundary.",
             },
             {
                 "step": "3",
                 "title": "Continue through the safe compile path",
-                "command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local",
+                "command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local",
                 "rationale": "Verify the repaired source and refresh generated output in one step.",
             },
         ],
@@ -10007,13 +10028,13 @@ def _build_project_doctor_fix_plan(ctx: ProjectContext, recommended_action: str)
             {
                 "step": "1",
                 "title": "Refresh the cached build and manifest",
-                "command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local",
+                "command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local",
                 "rationale": "Rebuild the current source and sync managed output back into a consistent state.",
             },
             {
                 "step": "2",
                 "title": "Recheck cloud status",
-                "command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli cloud status --base-url embedded://local --json",
+                "command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli cloud status --base-url embedded://local --json",
                 "rationale": "Confirm latest build and artifact metadata after the refresh.",
             },
         ],
@@ -10021,13 +10042,13 @@ def _build_project_doctor_fix_plan(ctx: ProjectContext, recommended_action: str)
             {
                 "step": "1",
                 "title": "Review the current project summary",
-                "command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project summary --base-url embedded://local --json",
+                "command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project summary --base-url embedded://local --json",
                 "rationale": "Start from a complete project-level view before the next iteration.",
             },
             {
                 "step": "2",
                 "title": "Use the safe continue path after editing source",
-                "command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local",
+                "command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project continue --diagnose-compile-sync --base-url embedded://local",
                 "rationale": "Keep diagnose, compile, and sync aligned during day-to-day iteration.",
             },
         ],
@@ -10038,7 +10059,7 @@ def _build_project_doctor_fix_plan(ctx: ProjectContext, recommended_action: str)
             {
                 "step": "1",
                 "title": "Review the current project summary",
-                "command": "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project summary --base-url embedded://local --json",
+                "command": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project summary --base-url embedded://local --json",
                 "rationale": "Use the project summary as the safest fallback starting point.",
             }
         ],
@@ -10089,7 +10110,7 @@ def _apply_project_doctor_safe_fixes(
                 "applied_fixes": applied_fixes,
                 "reason": "source_missing",
                 "updated_next_steps": [
-                    f"run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli init {ctx.root}",
+                    f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli init {ctx.root}",
                     "regenerate the source before attempting source repair",
                 ],
             }
@@ -10187,7 +10208,7 @@ def _apply_project_doctor_safe_fixes(
         "reason": "manual_decision_required",
         "updated_next_steps": [
             "review the fix plan before applying any destructive or conflict-resolution action",
-            "run PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project doctor --fix-plan --json",
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project doctor --fix-plan --json",
         ],
     }
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/Users/carwynmac/ai-cl"
+ROOT="${AIL_REPO_ROOT:-$(cd -- "$(dirname -- "$0")/.." && pwd)}"
+export AIL_REPO_ROOT="$ROOT"
 RESULTS_DIR="$ROOT/testing/results"
 RESULTS_JSON="$RESULTS_DIR/cli_smoke_results.json"
 TMP_ROOT="$(mktemp -d /tmp/ail_cli_smoke_gate.XXXXXX)"
@@ -229,6 +230,9 @@ write_results_json() {
   export CLI_SMOKE_RESULT_TMP_ROOT="$TMP_ROOT"
 
   python3 - "$RESULTS_JSON" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json
 import os
 import sys
@@ -300,6 +304,9 @@ python3 -m cli diagnose "$TMP_ROOT/bad_alias.ail" --requirement '做一个官网
 diagnose_exit=$?
 set -e
 python3 - "$diagnose_json" "$diagnose_exit" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 exit_code = int(sys.argv[2])
@@ -314,6 +321,9 @@ ok_diagnose_json=true
 repair_json="$TMP_ROOT/repair.json"
 python3 -m cli repair "$TMP_ROOT/bad_alias.ail" --requirement '做一个官网，包含客户评价、FAQ、联系我们。' --json --write > "$repair_json"
 python3 - "$repair_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -326,6 +336,9 @@ ok_repair_json=true
 post_repair_diagnose_json="$TMP_ROOT/post_repair_diagnose.json"
 python3 -m cli diagnose "$TMP_ROOT/bad_alias.ail" --requirement '做一个官网，包含客户评价、FAQ、联系我们。' --json > "$post_repair_diagnose_json"
 python3 - "$post_repair_diagnose_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -349,6 +362,9 @@ python3 -m cli project doctor --fix-plan --json > "$project_doctor_validation_js
 project_doctor_validation_exit=$?
 set -e
 python3 - "$project_doctor_validation_json" "$project_doctor_validation_exit" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 exit_code = int(sys.argv[2])
@@ -364,6 +380,9 @@ ok_project_doctor_validation_json=true
 project_doctor_apply_safe_repair_json="$TMP_ROOT/project_doctor_apply_safe_repair.json"
 python3 -m cli project doctor --apply-safe-fixes --json > "$project_doctor_apply_safe_repair_json"
 python3 - "$project_doctor_apply_safe_repair_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] in {'ok', 'warning'}, payload
@@ -388,6 +407,9 @@ EOF
 project_doctor_apply_safe_continue_repair_json="$TMP_ROOT/project_doctor_apply_safe_continue_repair.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project doctor --apply-safe-fixes --and-continue --json > "$project_doctor_apply_safe_continue_repair_json"
 python3 - "$project_doctor_apply_safe_continue_repair_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -413,6 +435,9 @@ EOF
 project_go_repair_json="$TMP_ROOT/project_go_repair.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project go --json > "$project_go_repair_json"
 python3 - "$project_go_repair_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -432,6 +457,9 @@ python3 -m cli repair .ail/source.ail --requirement '做一个官网，包含客
 compile_json="$TMP_ROOT/compile_ok.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli compile --cloud --json > "$compile_json"
 python3 - "$compile_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -448,6 +476,9 @@ AIL_CLOUD_BASE_URL=embedded://local python3 -m cli trial-run \
   --base-url embedded://local \
   --json > "$single_page_trial_json"
 python3 - "$single_page_trial_json" "$single_page_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 from pathlib import Path
 
@@ -531,6 +562,9 @@ AIL_CLOUD_BASE_URL=embedded://local python3 -m cli trial-run \
   --base-url embedded://local \
   --json > "$after_sales_trial_json"
 python3 - "$after_sales_trial_json" "$after_sales_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 from pathlib import Path
 
@@ -629,6 +663,9 @@ AIL_CLOUD_BASE_URL=embedded://local python3 -m cli trial-run \
   --project-dir "$ecom_checkout_project_dir" \
   --json >"$ecom_checkout_trial_json"
 python3 - "$ecom_checkout_trial_json" "$ecom_checkout_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 from pathlib import Path
 
@@ -687,6 +724,9 @@ AIL_CLOUD_BASE_URL=embedded://local python3 -m cli trial-run \
   --project-dir "$ecom_cart_project_dir" \
   --json >"$ecom_cart_trial_json"
 python3 - "$ecom_cart_trial_json" "$ecom_cart_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 from pathlib import Path
 
@@ -732,6 +772,9 @@ AIL_CLOUD_BASE_URL=embedded://local python3 -m cli trial-run \
   --project-dir "$ecom_product_project_dir" \
   --json >"$ecom_product_trial_json"
 python3 - "$ecom_product_trial_json" "$ecom_product_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 from pathlib import Path
 
@@ -802,6 +845,9 @@ AIL_CLOUD_BASE_URL=embedded://local python3 -m cli trial-run \
   --project-dir "$ecom_home_project_dir" \
   --json >"$ecom_home_trial_json"
 python3 - "$ecom_home_trial_json" "$ecom_home_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 from pathlib import Path
 
@@ -870,6 +916,9 @@ ok_ecom_home_surface_json=true
 website_check_json="$TMP_ROOT/website_check_ok.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli website check 'Create a company product website with a home page, features, FAQ, and contact page.' --json > "$website_check_json"
 python3 - "$website_check_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 from pathlib import Path
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
@@ -1089,6 +1138,9 @@ AIL_CLOUD_BASE_URL=embedded://local python3 -m cli website check '做一个带�
 website_check_out_of_scope_exit=$?
 set -e
 python3 - "$website_check_out_of_scope_json" "$website_check_out_of_scope_exit" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 exit_code = int(sys.argv[2])
@@ -1105,6 +1157,9 @@ ok_website_check_out_of_scope_json=true
 website_assets_json="$TMP_ROOT/website_assets.json"
 python3 -m cli website assets --json > "$website_assets_json"
 python3 - "$website_assets_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1118,6 +1173,9 @@ ok_website_assets_json=true
 website_assets_pack_json="$TMP_ROOT/website_assets_pack.json"
 python3 -m cli website assets company_product --json > "$website_assets_pack_json"
 python3 - "$website_assets_pack_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1133,6 +1191,9 @@ ok_website_assets_pack_json=true
 website_open_asset_json="$TMP_ROOT/website_open_asset.json"
 python3 -m cli website open-asset --json > "$website_open_asset_json"
 python3 - "$website_open_asset_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1146,6 +1207,9 @@ ok_website_open_asset_json=true
 website_open_asset_pack_json="$TMP_ROOT/website_open_asset_pack.json"
 python3 -m cli website open-asset company_product --json > "$website_open_asset_pack_json"
 python3 - "$website_open_asset_pack_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1160,6 +1224,9 @@ ok_website_open_asset_pack_json=true
 website_inspect_asset_json="$TMP_ROOT/website_inspect_asset.json"
 python3 -m cli website inspect-asset --json > "$website_inspect_asset_json"
 python3 - "$website_inspect_asset_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1174,6 +1241,9 @@ ok_website_inspect_asset_json=true
 website_inspect_asset_pack_json="$TMP_ROOT/website_inspect_asset_pack.json"
 python3 -m cli website inspect-asset company_product --json > "$website_inspect_asset_pack_json"
 python3 - "$website_inspect_asset_pack_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1189,6 +1259,9 @@ ok_website_inspect_asset_pack_json=true
 website_preview_json="$TMP_ROOT/website_preview.json"
 python3 -m cli website preview --json > "$website_preview_json"
 python3 - "$website_preview_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1204,6 +1277,9 @@ ok_website_preview_json=true
 website_preview_pack_json="$TMP_ROOT/website_preview_pack.json"
 python3 -m cli website preview company_product --json > "$website_preview_pack_json"
 python3 - "$website_preview_pack_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1219,6 +1295,9 @@ ok_website_preview_pack_json=true
 website_run_inspect_command_json="$TMP_ROOT/website_run_inspect_command.json"
 python3 -m cli website run-inspect-command --json > "$website_run_inspect_command_json"
 python3 - "$website_run_inspect_command_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1233,6 +1312,9 @@ ok_website_run_inspect_command_json=true
 website_run_inspect_command_pack_json="$TMP_ROOT/website_run_inspect_command_pack.json"
 python3 -m cli website run-inspect-command company_product --json > "$website_run_inspect_command_pack_json"
 python3 - "$website_run_inspect_command_pack_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1248,6 +1330,9 @@ ok_website_run_inspect_command_pack_json=true
 website_export_handoff_json="$TMP_ROOT/website_export_handoff.json"
 python3 -m cli website export-handoff --json > "$website_export_handoff_json"
 python3 - "$website_export_handoff_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1262,6 +1347,9 @@ ok_website_export_handoff_json=true
 website_export_handoff_pack_json="$TMP_ROOT/website_export_handoff_pack.json"
 python3 -m cli website export-handoff company_product --json > "$website_export_handoff_pack_json"
 python3 - "$website_export_handoff_pack_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1277,6 +1365,9 @@ ok_website_export_handoff_pack_json=true
 website_summary_json="$TMP_ROOT/website_summary.json"
 python3 -m cli website summary --json > "$website_summary_json"
 python3 - "$website_summary_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1293,6 +1384,9 @@ ok_website_summary_json=true
 website_go_json="$TMP_ROOT/website_go.json"
 python3 -m cli website go --json > "$website_go_json"
 python3 - "$website_go_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1307,6 +1401,9 @@ ok_website_go_json=true
 sync_json="$TMP_ROOT/sync_ok.json"
 python3 -m cli sync --json > "$sync_json"
 python3 - "$sync_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1318,6 +1415,9 @@ ok_sync_json=true
 project_check_json="$TMP_ROOT/project_check_ok.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project check --json > "$project_check_json"
 python3 - "$project_check_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1334,6 +1434,9 @@ ok_project_check_json=true
 project_summary_json="$TMP_ROOT/project_summary_ok.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project summary --json > "$project_summary_json"
 python3 - "$project_summary_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1362,6 +1465,9 @@ project_hooks_json="$TMP_ROOT/project_hooks_ok.json"
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hooks --json > "$project_hooks_json"
 )
 python3 - "$project_hooks_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'warning', payload
@@ -1379,6 +1485,9 @@ project_hooks_home_json="$TMP_ROOT/project_hooks_home_ok.json"
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hooks home --json > "$project_hooks_home_json"
 )
 python3 - "$project_hooks_home_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'warning', payload
@@ -1389,7 +1498,7 @@ PY
 ok_project_hooks_home_json=true
 
 hook_example_project_dir="$(mktemp -d /tmp/ail_cli_smoke_hook_example.XXXXXX)"
-cp -R /Users/carwynmac/ai-cl/output_projects/HookExampleGenerated/. "$hook_example_project_dir"/
+cp -R "$ROOT"/output_projects/HookExampleGenerated/. "$hook_example_project_dir"/
 rm -f "$hook_example_project_dir/frontend/src/ail-overrides/components/page.home.before.vue"
 rm -f "$hook_example_project_dir/frontend/src/ail-overrides/components/page.home.section.hero.after.html"
 
@@ -1399,6 +1508,9 @@ project_hook_guide_repo_json="$TMP_ROOT/project_hook_guide_repo.json"
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-guide --json > "$project_hook_guide_repo_json"
 )
 python3 - "$project_hook_guide_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1418,7 +1530,7 @@ project_hook_guide_emit_shell_repo_txt="$TMP_ROOT/project_hook_guide_emit_shell_
   cd "$hook_example_project_dir"
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-guide --emit-shell > "$project_hook_guide_emit_shell_repo_txt"
 )
-grep -q "^PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init home.before --dry-run --explain$" "$project_hook_guide_emit_shell_repo_txt"
+grep -q "^PYTHONPATH=${ROOT} python3 -m cli project hook-init home.before --dry-run --explain$" "$project_hook_guide_emit_shell_repo_txt"
 ok_project_hook_guide_emit_shell_repo=true
 
 project_hook_guide_copy_command_repo_txt="$TMP_ROOT/project_hook_guide_copy_command_repo.txt"
@@ -1429,8 +1541,8 @@ project_hook_guide_copy_command_repo_txt="$TMP_ROOT/project_hook_guide_copy_comm
   printf '%s\n' "$copied_project_hook_guide_command" > "$TMP_ROOT/project_hook_guide_copy_command_repo_pbpaste.txt"
 )
 grep -q "^Project hook-guide command copied$" "$project_hook_guide_copy_command_repo_txt"
-grep -q "^- copied_command: PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init home.before --dry-run --explain$" "$project_hook_guide_copy_command_repo_txt"
-grep -q "^PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init home.before --dry-run --explain$" "$TMP_ROOT/project_hook_guide_copy_command_repo_pbpaste.txt"
+grep -q "^- copied_command: PYTHONPATH=${ROOT} python3 -m cli project hook-init home.before --dry-run --explain$" "$project_hook_guide_copy_command_repo_txt"
+grep -q "^PYTHONPATH=${ROOT} python3 -m cli project hook-init home.before --dry-run --explain$" "$TMP_ROOT/project_hook_guide_copy_command_repo_pbpaste.txt"
 ok_project_hook_guide_copy_command_repo=true
 
 project_hook_guide_run_command_repo_json="$TMP_ROOT/project_hook_guide_run_command_repo.json"
@@ -1439,13 +1551,16 @@ project_hook_guide_run_command_repo_json="$TMP_ROOT/project_hook_guide_run_comma
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-guide --run-command --json > "$project_hook_guide_run_command_repo_json"
 )
 python3 - "$project_hook_guide_run_command_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['entrypoint'] == 'project-hook-guide', payload
-assert payload['run_command'] == 'PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init home --suggest --page-key home --json', payload
+assert payload['run_command'] == f'PYTHONPATH={ROOT} python3 -m cli project hook-init home --suggest --page-key home --json', payload
 assert payload['run_command_requires_confirmation'] is True, payload
 assert payload['run_command_confirmed'] is False, payload
-assert payload['run_command_confirm_command'] == 'PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-guide --run-command --yes --json', payload
+assert payload['run_command_confirm_command'] == f'PYTHONPATH={ROOT} python3 -m cli project hook-guide --run-command --yes --json', payload
 PY
 ok_project_hook_guide_run_command_repo=true
 
@@ -1455,6 +1570,9 @@ project_hook_guide_run_command_yes_repo_json="$TMP_ROOT/project_hook_guide_run_c
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-guide --run-command --yes --json > "$project_hook_guide_run_command_yes_repo_json"
 )
 python3 - "$project_hook_guide_run_command_yes_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['entrypoint'] == 'project-hook-guide', payload
@@ -1475,7 +1593,7 @@ grep -q "^Project hook-init compact$" "$project_hook_init_text_compact_repo_txt"
 grep -q "^- hook_name: page.home.before$" "$project_hook_init_text_compact_repo_txt"
 grep -q "^- target_relative_path: frontend/src/ail-overrides/components/page.home.before.vue$" "$project_hook_init_text_compact_repo_txt"
 grep -q "^- target_reason: " "$project_hook_init_text_compact_repo_txt"
-grep -q "^- runnable_next_command: PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init page.home.before --json$" "$project_hook_init_text_compact_repo_txt"
+grep -q "^- runnable_next_command: PYTHONPATH=${ROOT} python3 -m cli project hook-init page.home.before --json$" "$project_hook_init_text_compact_repo_txt"
 ok_project_hook_init_text_compact_repo=true
 
 project_hook_init_explain_repo_txt="$TMP_ROOT/project_hook_init_explain_repo.txt"
@@ -1484,7 +1602,7 @@ project_hook_init_explain_repo_txt="$TMP_ROOT/project_hook_init_explain_repo.txt
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home.before --dry-run --explain > "$project_hook_init_explain_repo_txt" || true
 )
 grep -q "^Project hook-init explain$" "$project_hook_init_explain_repo_txt"
-grep -q "^- runnable_next_command: PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init page.home.before --json$" "$project_hook_init_explain_repo_txt"
+grep -q "^- runnable_next_command: PYTHONPATH=${ROOT} python3 -m cli project hook-init page.home.before --json$" "$project_hook_init_explain_repo_txt"
 grep -q "^- message: Dry run only. No hook file was written.$" "$project_hook_init_explain_repo_txt"
 grep -q "^- selection: " "$project_hook_init_explain_repo_txt"
 grep -q "^- template: " "$project_hook_init_explain_repo_txt"
@@ -1497,7 +1615,7 @@ project_hook_init_emit_shell_repo_txt="$TMP_ROOT/project_hook_init_emit_shell_re
   cd "$hook_example_project_dir"
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home.before --dry-run --emit-shell > "$project_hook_init_emit_shell_repo_txt"
 )
-grep -q "^PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init page.home.before --json$" "$project_hook_init_emit_shell_repo_txt"
+grep -q "^PYTHONPATH=${ROOT} python3 -m cli project hook-init page.home.before --json$" "$project_hook_init_emit_shell_repo_txt"
 ok_project_hook_init_emit_shell_repo=true
 
 project_hook_init_copy_command_repo_txt="$TMP_ROOT/project_hook_init_copy_command_repo.txt"
@@ -1508,8 +1626,8 @@ project_hook_init_copy_command_repo_txt="$TMP_ROOT/project_hook_init_copy_comman
   printf '%s\n' "$copied_project_hook_init_command" > "$TMP_ROOT/project_hook_init_copy_command_repo_pbpaste.txt"
 )
 grep -q "^Project hook-init next command copied$" "$project_hook_init_copy_command_repo_txt"
-grep -q "^- copied_command: PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init page.home.before --json$" "$project_hook_init_copy_command_repo_txt"
-grep -q "^PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init page.home.before --json$" "$TMP_ROOT/project_hook_init_copy_command_repo_pbpaste.txt"
+grep -q "^- copied_command: PYTHONPATH=${ROOT} python3 -m cli project hook-init page.home.before --json$" "$project_hook_init_copy_command_repo_txt"
+grep -q "^PYTHONPATH=${ROOT} python3 -m cli project hook-init page.home.before --json$" "$TMP_ROOT/project_hook_init_copy_command_repo_pbpaste.txt"
 ok_project_hook_init_copy_command_repo=true
 
 project_hook_init_emit_confirm_shell_repo_txt="$TMP_ROOT/project_hook_init_emit_confirm_shell_repo.txt"
@@ -1517,7 +1635,7 @@ project_hook_init_emit_confirm_shell_repo_txt="$TMP_ROOT/project_hook_init_emit_
   cd "$hook_example_project_dir"
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home.before --dry-run --emit-confirm-shell > "$project_hook_init_emit_confirm_shell_repo_txt"
 )
-grep -q "^PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init page.home.before --json$" "$project_hook_init_emit_confirm_shell_repo_txt"
+grep -q "^PYTHONPATH=${ROOT} python3 -m cli project hook-init page.home.before --json$" "$project_hook_init_emit_confirm_shell_repo_txt"
 ok_project_hook_init_emit_confirm_shell_repo=true
 
 project_hook_init_copy_confirm_command_repo_txt="$TMP_ROOT/project_hook_init_copy_confirm_command_repo.txt"
@@ -1528,8 +1646,8 @@ project_hook_init_copy_confirm_command_repo_txt="$TMP_ROOT/project_hook_init_cop
   printf '%s\n' "$copied_project_hook_init_confirm" > "$TMP_ROOT/project_hook_init_copy_confirm_command_repo_pbpaste.txt"
 )
 grep -q "^Project hook-init confirm command copied$" "$project_hook_init_copy_confirm_command_repo_txt"
-grep -q "^- copied_confirm_command: PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init page.home.before --json$" "$project_hook_init_copy_confirm_command_repo_txt"
-grep -q "^PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init page.home.before --json$" "$TMP_ROOT/project_hook_init_copy_confirm_command_repo_pbpaste.txt"
+grep -q "^- copied_confirm_command: PYTHONPATH=${ROOT} python3 -m cli project hook-init page.home.before --json$" "$project_hook_init_copy_confirm_command_repo_txt"
+grep -q "^PYTHONPATH=${ROOT} python3 -m cli project hook-init page.home.before --json$" "$TMP_ROOT/project_hook_init_copy_confirm_command_repo_pbpaste.txt"
 ok_project_hook_init_copy_confirm_command_repo=true
 
 project_hook_init_emit_target_path_repo_txt="$TMP_ROOT/project_hook_init_emit_target_path_repo.txt"
@@ -1656,6 +1774,9 @@ project_hook_init_emit_target_bundle_repo_txt="$TMP_ROOT/project_hook_init_emit_
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home.before --dry-run --emit-target-bundle > "$project_hook_init_emit_target_bundle_repo_txt"
 )
 python3 - "$project_hook_init_emit_target_bundle_repo_txt" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 from pathlib import Path
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
@@ -1665,7 +1786,7 @@ assert payload['target_project_root'].startswith('/tmp/ail_cli_smoke_hook_exampl
 assert str(payload['target_project_name']) == Path(payload['target_project_root']).name, payload
 assert payload['target_relative_path'] == 'frontend/src/ail-overrides/components/page.home.before.vue', payload
 assert payload['open_command'].startswith('inspect '), payload
-assert payload['confirm_command'] == 'PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init page.home.before --json', payload
+assert payload['confirm_command'] == f'PYTHONPATH={ROOT} python3 -m cli project hook-init page.home.before --json', payload
 PY
 ok_project_hook_init_emit_target_bundle_repo=true
 
@@ -1678,6 +1799,9 @@ grep -q "^Project hook-init target bundle copied$" "$project_hook_init_copy_targ
 grep -q "^- copied_target_bundle: {" "$project_hook_init_copy_target_bundle_repo_txt"
 copied_project_hook_init_target_bundle="$(pbpaste)"
 PROJECT_HOOK_INIT_COPIED_TARGET_BUNDLE="$copied_project_hook_init_target_bundle" python3 - <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, os
 from pathlib import Path
 payload = json.loads(os.environ['PROJECT_HOOK_INIT_COPIED_TARGET_BUNDLE'])
@@ -1685,7 +1809,7 @@ assert payload['target_path'].endswith('/frontend/src/ail-overrides/components/p
 assert payload['target_dir'].endswith('/frontend/src/ail-overrides/components'), payload
 assert str(payload['target_project_name']) == Path(payload['target_project_root']).name, payload
 assert payload['target_relative_path'] == 'frontend/src/ail-overrides/components/page.home.before.vue', payload
-assert payload['confirm_command'] == 'PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init page.home.before --json', payload
+assert payload['confirm_command'] == f'PYTHONPATH={ROOT} python3 -m cli project hook-init page.home.before --json', payload
 PY
 ok_project_hook_init_copy_target_bundle_repo=true
 
@@ -1715,10 +1839,13 @@ project_hook_init_run_command_repo_json="$TMP_ROOT/project_hook_init_run_command
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home.before --dry-run --run-command --json > "$project_hook_init_run_command_repo_json"
 )
 python3 - "$project_hook_init_run_command_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['run_command'], payload
-assert payload['run_command'] == 'PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli project hook-init page.home.before --json', payload
+assert payload['run_command'] == f'PYTHONPATH={ROOT} python3 -m cli project hook-init page.home.before --json', payload
 assert payload['run_command_requires_confirmation'] is True, payload
 assert payload['run_command_confirmed'] is False, payload
 assert payload['ran_command'] is False, payload
@@ -1736,6 +1863,9 @@ project_hook_init_run_command_yes_repo_json="$TMP_ROOT/project_hook_init_run_com
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home.before --dry-run --run-command --yes --json > "$project_hook_init_run_command_yes_repo_json"
 )
 python3 - "$project_hook_init_run_command_yes_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['run_command_confirmed'] is True, payload
@@ -1758,6 +1888,9 @@ project_hook_init_run_open_command_repo_json="$TMP_ROOT/project_hook_init_run_op
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home.before --dry-run --run-open-command --json > "$project_hook_init_run_open_command_repo_json"
 )
 python3 - "$project_hook_init_run_open_command_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['run_open_command'], payload
@@ -1778,6 +1911,9 @@ project_hook_init_run_open_command_yes_repo_json="$TMP_ROOT/project_hook_init_ru
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home.before --dry-run --run-open-command --yes --json > "$project_hook_init_run_open_command_yes_repo_json"
 )
 python3 - "$project_hook_init_run_open_command_yes_repo_json" "$hook_example_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -1798,6 +1934,9 @@ project_hook_init_inspect_target_repo_json="$TMP_ROOT/project_hook_init_inspect_
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home.before --dry-run --inspect-target --json > "$project_hook_init_inspect_target_repo_json"
 )
 python3 - "$project_hook_init_inspect_target_repo_json" "$hook_example_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -1837,6 +1976,9 @@ project_hook_init_open_target_repo_json="$TMP_ROOT/project_hook_init_open_target
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home.before --dry-run --open-target --json > "$project_hook_init_open_target_repo_json"
 )
 python3 - "$project_hook_init_open_target_repo_json" "$hook_example_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -1862,6 +2004,9 @@ project_hook_init_open_now_repo_json="$TMP_ROOT/project_hook_init_open_now_repo.
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home.before --dry-run --open-now --json > "$project_hook_init_open_now_repo_json"
 )
 python3 - "$project_hook_init_open_now_repo_json" "$hook_example_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -1898,6 +2043,9 @@ project_hook_init_json="$TMP_ROOT/project_hook_init_ok.json"
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home.before --json > "$project_hook_init_json"
 )
 python3 - "$project_hook_init_json" "$hook_example_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 from pathlib import Path
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
@@ -1921,6 +2069,9 @@ project_hook_init_force_json="$TMP_ROOT/project_hook_init_force_ok.json"
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home.before --force --json > "$project_hook_init_force_json"
 )
 python3 - "$project_hook_init_force_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1936,6 +2087,9 @@ project_hook_init_suggest_json="$TMP_ROOT/project_hook_init_suggest_ok.json"
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home --suggest --json > "$project_hook_init_suggest_json"
 )
 python3 - "$project_hook_init_suggest_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1962,6 +2116,9 @@ project_hook_init_open_catalog_json="$TMP_ROOT/project_hook_init_open_catalog_ok
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init --open-catalog --json > "$project_hook_init_open_catalog_json"
 )
 python3 - "$project_hook_init_open_catalog_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1978,6 +2135,9 @@ project_hook_init_suggest_filtered_json="$TMP_ROOT/project_hook_init_suggest_fil
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home --suggest --page-key home --section-key hero --json > "$project_hook_init_suggest_filtered_json"
 )
 python3 - "$project_hook_init_suggest_filtered_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -1996,6 +2156,9 @@ project_hook_init_suggest_slot_filtered_json="$TMP_ROOT/project_hook_init_sugges
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home --suggest --page-key home --section-key hero --slot-key hero-actions --json > "$project_hook_init_suggest_slot_filtered_json"
 )
 python3 - "$project_hook_init_suggest_slot_filtered_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2016,6 +2179,9 @@ project_hook_init_suggest_slot_only_json="$TMP_ROOT/project_hook_init_suggest_sl
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home --suggest --slot-key hero-actions --json > "$project_hook_init_suggest_slot_only_json"
 )
 python3 - "$project_hook_init_suggest_slot_only_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2034,6 +2200,9 @@ rm -f "$hook_example_project_dir/frontend/src/ail-overrides/components/page.home
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home.before --suggest --pick --json > "$project_hook_init_pick_json"
 )
 python3 - "$project_hook_init_pick_json" "$hook_example_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -2056,6 +2225,9 @@ rm -f "$hook_example_project_dir/frontend/src/ail-overrides/components/page.home
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home --suggest --page-key home --section-key hero --slot-key hero-actions --pick-index 2 --json > "$project_hook_init_pick_index_json"
 )
 python3 - "$project_hook_init_pick_index_json" "$hook_example_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -2078,6 +2250,9 @@ rm -f "$hook_example_project_dir/frontend/src/ail-overrides/components/page.home
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init home --suggest --page-key home --section-key hero --slot-key hero-actions --pick-recommended --json > "$project_hook_init_pick_recommended_json"
 )
 python3 - "$project_hook_init_pick_recommended_json" "$hook_example_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -2105,6 +2280,9 @@ rm -f "$hook_example_project_dir/frontend/src/ail-overrides/components/page.home
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init --pick-index 1 --json > "$project_hook_init_recent_memory_pick_json"
 )
 python3 - "$project_hook_init_recent_memory_pick_json" "$hook_example_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -2130,6 +2308,9 @@ rm -f "$hook_example_project_dir/frontend/src/ail-overrides/components/page.home
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init --reuse-last-suggest --pick-index 1 --json > "$project_hook_init_reuse_last_suggest_json"
 )
 python3 - "$project_hook_init_reuse_last_suggest_json" "$hook_example_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -2150,6 +2331,9 @@ project_hook_init_last_suggest_json="$TMP_ROOT/project_hook_init_last_suggest_ok
   PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project hook-init --last-suggest --json > "$project_hook_init_last_suggest_json"
 )
 python3 - "$project_hook_init_last_suggest_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2168,6 +2352,9 @@ ok_project_hook_init_last_suggest_json=true
 project_preview_json="$TMP_ROOT/project_preview_ok.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project preview --json > "$project_preview_json"
 python3 - "$project_preview_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2192,6 +2379,9 @@ ok_project_preview_json=true
 project_open_target_json="$TMP_ROOT/project_open_target.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project open-target source_of_truth --json > "$project_open_target_json"
 python3 - "$project_open_target_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2207,6 +2397,9 @@ ok_project_open_target_json=true
 project_open_target_default_json="$TMP_ROOT/project_open_target_default.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project open-target --json > "$project_open_target_default_json"
 python3 - "$project_open_target_default_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2220,6 +2413,9 @@ ok_project_open_target_default_json=true
 project_inspect_target_json="$TMP_ROOT/project_inspect_target.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project inspect-target source_of_truth --json > "$project_inspect_target_json"
 python3 - "$project_inspect_target_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2235,6 +2431,9 @@ ok_project_inspect_target_json=true
 project_inspect_target_default_json="$TMP_ROOT/project_inspect_target_default.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project inspect-target --json > "$project_inspect_target_default_json"
 python3 - "$project_inspect_target_default_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2249,6 +2448,9 @@ ok_project_inspect_target_default_json=true
 project_run_inspect_command_json="$TMP_ROOT/project_run_inspect_command.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project run-inspect-command source_of_truth --json > "$project_run_inspect_command_json"
 python3 - "$project_run_inspect_command_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2264,6 +2466,9 @@ ok_project_run_inspect_command_json=true
 project_run_inspect_command_default_json="$TMP_ROOT/project_run_inspect_command_default.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project run-inspect-command --json > "$project_run_inspect_command_default_json"
 python3 - "$project_run_inspect_command_default_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2278,6 +2483,9 @@ ok_project_run_inspect_command_default_json=true
 project_export_handoff_json="$TMP_ROOT/project_export_handoff.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project export-handoff --json > "$project_export_handoff_json"
 python3 - "$project_export_handoff_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2299,6 +2507,9 @@ ok_project_export_handoff_json=true
 cloud_status_preview_json="$TMP_ROOT/cloud_status_preview.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli cloud status --json > "$cloud_status_preview_json"
 python3 - "$cloud_status_preview_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2314,6 +2525,9 @@ PY
 ok_cloud_status_preview_json=true
 
 build_id="$(python3 - <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json
 from pathlib import Path
 payload = json.loads(Path('.ail/last_build.json').read_text(encoding='utf-8'))
@@ -2323,6 +2537,9 @@ PY
 build_artifact_preview_json="$TMP_ROOT/build_artifact_preview.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli build artifact "$build_id" --json > "$build_artifact_preview_json"
 python3 - "$build_artifact_preview_json" "$build_id" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 build_id = sys.argv[2]
@@ -2339,6 +2556,9 @@ ok_build_artifact_preview_json=true
 project_go_json="$TMP_ROOT/project_go_ok.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project go --json > "$project_go_json"
 python3 - "$project_go_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2355,6 +2575,9 @@ ok_project_go_json=true
 workspace_status_repo_json="$TMP_ROOT/workspace_status_repo.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace status --json > "$workspace_status_repo_json"
 python3 - "$workspace_status_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2370,6 +2593,9 @@ ok_workspace_status_project_json=true
 workspace_hooks_project_json="$TMP_ROOT/workspace_hooks_project.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hooks --json > "$workspace_hooks_project_json"
 python3 - "$workspace_hooks_project_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2404,6 +2630,9 @@ rm -f "$hook_example_project_dir/frontend/src/ail-overrides/components/page.home
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --json > "$workspace_hook_init_project_json"
 )
 python3 - "$workspace_hook_init_project_json" "$hook_example_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -2424,6 +2653,9 @@ ok_workspace_hook_init_project_json=true
 workspace_summary_project_json="$TMP_ROOT/workspace_summary_project.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace summary --json > "$workspace_summary_project_json"
 python3 - "$workspace_summary_project_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2442,6 +2674,9 @@ ok_workspace_summary_project_json=true
 workspace_preview_project_json="$TMP_ROOT/workspace_preview_project.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace preview --json > "$workspace_preview_project_json"
 python3 - "$workspace_preview_project_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2457,6 +2692,9 @@ ok_workspace_preview_project_json=true
 workspace_open_target_project_json="$TMP_ROOT/workspace_open_target_project.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace open-target source_of_truth --json > "$workspace_open_target_project_json"
 python3 - "$workspace_open_target_project_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2472,6 +2710,9 @@ ok_workspace_open_target_project_json=true
 workspace_inspect_target_project_json="$TMP_ROOT/workspace_inspect_target_project.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace inspect-target source_of_truth --json > "$workspace_inspect_target_project_json"
 python3 - "$workspace_inspect_target_project_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2487,6 +2728,9 @@ ok_workspace_inspect_target_project_json=true
 workspace_run_inspect_command_project_json="$TMP_ROOT/workspace_run_inspect_command_project.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace run-inspect-command source_of_truth --json > "$workspace_run_inspect_command_project_json"
 python3 - "$workspace_run_inspect_command_project_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2501,6 +2745,9 @@ ok_workspace_run_inspect_command_project_json=true
 workspace_export_handoff_project_json="$TMP_ROOT/workspace_export_handoff_project.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace export-handoff --json > "$workspace_export_handoff_project_json"
 python3 - "$workspace_export_handoff_project_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2518,6 +2765,9 @@ ok_workspace_export_handoff_project_json=true
 workspace_go_project_json="$TMP_ROOT/workspace_go_project.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace go --json > "$workspace_go_project_json"
 python3 - "$workspace_go_project_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2533,6 +2783,9 @@ ok_workspace_go_project_json=true
 workspace_doctor_project_json="$TMP_ROOT/workspace_doctor_project.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace doctor --json > "$workspace_doctor_project_json"
 python3 - "$workspace_doctor_project_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2549,6 +2802,9 @@ ok_workspace_doctor_project_json=true
 workspace_continue_project_json="$TMP_ROOT/workspace_continue_project.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace continue --json > "$workspace_continue_project_json"
 python3 - "$workspace_continue_project_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2563,10 +2819,13 @@ ok_workspace_continue_project_json=true
 
 workspace_status_root_json="$TMP_ROOT/workspace_status_root.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace status --json > "$workspace_status_root_json"
 )
 python3 - "$workspace_status_root_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2580,16 +2839,19 @@ ok_workspace_status_repo_json=true
 
 workspace_hooks_root_json="$TMP_ROOT/workspace_hooks_root.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hooks --json > "$workspace_hooks_root_json"
 )
 python3 - "$workspace_hooks_root_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
 assert payload['entrypoint'] == 'workspace-hooks', payload
-assert payload['repo_root'] == '/Users/carwynmac/ai-cl', payload
-assert payload['output_projects_root'] == '/Users/carwynmac/ai-cl/output_projects', payload
+assert payload['repo_root'] == ROOT, payload
+assert payload['output_projects_root'] == f'{OUTPUT_PROJECTS_ROOT}', payload
 assert payload['scanned_project_count'] >= payload['catalog_project_count'] >= 0, payload
 assert isinstance(payload['available_projects'], list), payload
 if payload['catalog_project_count'] > 0:
@@ -2615,15 +2877,18 @@ ok_workspace_hooks_repo_json=true
 
 workspace_hook_project_dir="$ROOT/output_projects/WorkspaceHookInitSmoke"
 rm -rf "$workspace_hook_project_dir"
-cp -R /Users/carwynmac/ai-cl/output_projects/HookExampleGenerated/. "$workspace_hook_project_dir"/
+cp -R "$ROOT"/output_projects/HookExampleGenerated/. "$workspace_hook_project_dir"/
 rm -f "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.before.vue"
 
 workspace_hook_guide_repo_json="$TMP_ROOT/workspace_hook_guide_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-guide --json > "$workspace_hook_guide_repo_json"
 )
 python3 - "$workspace_hook_guide_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -2639,20 +2904,20 @@ ok_workspace_hook_guide_repo_json=true
 
 workspace_hook_guide_emit_shell_repo_txt="$TMP_ROOT/workspace_hook_guide_emit_shell_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-guide --emit-shell > "$workspace_hook_guide_emit_shell_repo_txt"
 )
 python3 - "$workspace_hook_guide_emit_shell_repo_txt" <<'PY'
 import sys
 text = open(sys.argv[1], 'r', encoding='utf-8').read().strip()
-assert text.startswith("PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-init "), text
+assert text.startswith("PYTHONPATH=${ROOT} python3 -m cli workspace hook-init "), text
 assert ("--use-last-project --pick-recommended --json" in text) or ("--follow-recommended --json" in text), text
 PY
 ok_workspace_hook_guide_emit_shell_repo=true
 
 workspace_hook_guide_copy_command_repo_txt="$TMP_ROOT/workspace_hook_guide_copy_command_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-guide --copy-command > "$workspace_hook_guide_copy_command_repo_txt"
   copied_workspace_hook_guide_command="$(pbpaste)"
   printf '%s\n' "$copied_workspace_hook_guide_command" > "$TMP_ROOT/workspace_hook_guide_copy_command_repo_pbpaste.txt"
@@ -2663,33 +2928,39 @@ import sys
 stdout = open(sys.argv[1], 'r', encoding='utf-8').read()
 pb = open(sys.argv[2], 'r', encoding='utf-8').read().strip()
 assert "copied_command: " in stdout, stdout
-assert pb.startswith("PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-init "), pb
+assert pb.startswith("PYTHONPATH=${ROOT} python3 -m cli workspace hook-init "), pb
 assert ("--use-last-project --pick-recommended --json" in pb) or ("--follow-recommended --json" in pb), pb
 PY
 ok_workspace_hook_guide_copy_command_repo=true
 
 workspace_hook_guide_run_command_repo_json="$TMP_ROOT/workspace_hook_guide_run_command_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-guide --run-command --json > "$workspace_hook_guide_run_command_repo_json"
 )
 python3 - "$workspace_hook_guide_run_command_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['entrypoint'] == 'workspace-hook-guide', payload
 assert payload['run_command_requires_confirmation'] is True, payload
 assert payload['run_command_confirmed'] is False, payload
-assert payload['run_command_confirm_command'] == 'PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-guide --run-command --yes --json', payload
-assert payload['run_command'].startswith('PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-init '), payload
+assert payload['run_command_confirm_command'] == f'PYTHONPATH={ROOT} python3 -m cli workspace hook-guide --run-command --yes --json', payload
+assert payload['run_command'].startswith(f'PYTHONPATH={ROOT} python3 -m cli workspace hook-init '), payload
 PY
 ok_workspace_hook_guide_run_command_repo=true
 
 workspace_hook_guide_run_command_yes_repo_json="$TMP_ROOT/workspace_hook_guide_run_command_yes_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-guide --run-command --yes --json > "$workspace_hook_guide_run_command_yes_repo_json"
 )
 python3 - "$workspace_hook_guide_run_command_yes_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['entrypoint'] == 'workspace-hook-guide', payload
@@ -2704,7 +2975,7 @@ ok_workspace_hook_guide_run_command_yes_repo=true
 
 workspace_hook_init_text_compact_repo_txt="$TMP_ROOT/workspace_hook_init_text_compact_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --text-compact > "$workspace_hook_init_text_compact_repo_txt" || true
 )
 grep -q "^Workspace hook-init compact$" "$workspace_hook_init_text_compact_repo_txt"
@@ -2712,17 +2983,17 @@ grep -q "^- route_taken: named_workspace_project$" "$workspace_hook_init_text_co
 grep -q "^- selected_project_name: WorkspaceHookInitSmoke$" "$workspace_hook_init_text_compact_repo_txt"
 grep -q "^- hook_name: page.home.before$" "$workspace_hook_init_text_compact_repo_txt"
 grep -q "^- target_relative_path: frontend/src/ail-overrides/components/page.home.before.vue$" "$workspace_hook_init_text_compact_repo_txt"
-grep -q "^- runnable_next_command: PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$workspace_hook_init_text_compact_repo_txt"
+grep -q "^- runnable_next_command: PYTHONPATH=${ROOT} python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$workspace_hook_init_text_compact_repo_txt"
 ok_workspace_hook_init_text_compact_repo=true
 
 workspace_hook_init_explain_repo_txt="$TMP_ROOT/workspace_hook_init_explain_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --explain > "$workspace_hook_init_explain_repo_txt" || true
 )
 grep -q "^Workspace hook-init explain$" "$workspace_hook_init_explain_repo_txt"
 grep -q "^- route_taken: named_workspace_project$" "$workspace_hook_init_explain_repo_txt"
-grep -q "^- runnable_next_command: PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$workspace_hook_init_explain_repo_txt"
+grep -q "^- runnable_next_command: PYTHONPATH=${ROOT} python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$workspace_hook_init_explain_repo_txt"
 grep -q "^- message: Dry run only. No hook file was written.$" "$workspace_hook_init_explain_repo_txt"
 grep -q "^- route: " "$workspace_hook_init_explain_repo_txt"
 grep -q "^- selection: " "$workspace_hook_init_explain_repo_txt"
@@ -2732,47 +3003,47 @@ ok_workspace_hook_init_explain_repo=true
 
 workspace_hook_init_emit_shell_repo_txt="$TMP_ROOT/workspace_hook_init_emit_shell_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --emit-shell > "$workspace_hook_init_emit_shell_repo_txt"
 )
-grep -q "^PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$workspace_hook_init_emit_shell_repo_txt"
+grep -q "^PYTHONPATH=${ROOT} python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$workspace_hook_init_emit_shell_repo_txt"
 ok_workspace_hook_init_emit_shell_repo=true
 
 workspace_hook_init_copy_command_repo_txt="$TMP_ROOT/workspace_hook_init_copy_command_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --copy-command > "$workspace_hook_init_copy_command_repo_txt"
   copied_workspace_hook_init_command="$(pbpaste)"
   printf '%s\n' "$copied_workspace_hook_init_command" > "$TMP_ROOT/workspace_hook_init_copy_command_repo_pbpaste.txt"
 )
 grep -q "^Workspace hook-init next command copied$" "$workspace_hook_init_copy_command_repo_txt"
-grep -q "^- copied_command: PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$workspace_hook_init_copy_command_repo_txt"
-grep -q "^PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$TMP_ROOT/workspace_hook_init_copy_command_repo_pbpaste.txt"
+grep -q "^- copied_command: PYTHONPATH=${ROOT} python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$workspace_hook_init_copy_command_repo_txt"
+grep -q "^PYTHONPATH=${ROOT} python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$TMP_ROOT/workspace_hook_init_copy_command_repo_pbpaste.txt"
 ok_workspace_hook_init_copy_command_repo=true
 
 workspace_hook_init_emit_confirm_shell_repo_txt="$TMP_ROOT/workspace_hook_init_emit_confirm_shell_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --emit-confirm-shell > "$workspace_hook_init_emit_confirm_shell_repo_txt"
 )
-grep -q "^PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$workspace_hook_init_emit_confirm_shell_repo_txt"
+grep -q "^PYTHONPATH=${ROOT} python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$workspace_hook_init_emit_confirm_shell_repo_txt"
 ok_workspace_hook_init_emit_confirm_shell_repo=true
 
 workspace_hook_init_copy_confirm_command_repo_txt="$TMP_ROOT/workspace_hook_init_copy_confirm_command_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --copy-confirm-command > "$workspace_hook_init_copy_confirm_command_repo_txt"
   copied_workspace_hook_init_confirm="$(pbpaste)"
   printf '%s\n' "$copied_workspace_hook_init_confirm" > "$TMP_ROOT/workspace_hook_init_copy_confirm_command_repo_pbpaste.txt"
 )
 grep -q "^Workspace hook-init confirm command copied$" "$workspace_hook_init_copy_confirm_command_repo_txt"
-grep -q "^- copied_confirm_command: PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$workspace_hook_init_copy_confirm_command_repo_txt"
-grep -q "^PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$TMP_ROOT/workspace_hook_init_copy_confirm_command_repo_pbpaste.txt"
+grep -q "^- copied_confirm_command: PYTHONPATH=${ROOT} python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$workspace_hook_init_copy_confirm_command_repo_txt"
+grep -q "^PYTHONPATH=${ROOT} python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json$" "$TMP_ROOT/workspace_hook_init_copy_confirm_command_repo_pbpaste.txt"
 ok_workspace_hook_init_copy_confirm_command_repo=true
 
 workspace_hook_init_emit_target_path_repo_txt="$TMP_ROOT/workspace_hook_init_emit_target_path_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --emit-target-path > "$workspace_hook_init_emit_target_path_repo_txt"
 )
 grep -q "/frontend/src/ail-overrides/components/page.home.before.vue$" "$workspace_hook_init_emit_target_path_repo_txt"
@@ -2780,7 +3051,7 @@ ok_workspace_hook_init_emit_target_path_repo=true
 
 workspace_hook_init_copy_target_path_repo_txt="$TMP_ROOT/workspace_hook_init_copy_target_path_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --copy-target-path > "$workspace_hook_init_copy_target_path_repo_txt"
   copied_workspace_hook_init_target="$(pbpaste)"
   printf '%s\n' "$copied_workspace_hook_init_target" > "$TMP_ROOT/workspace_hook_init_copy_target_path_repo_pbpaste.txt"
@@ -2792,7 +3063,7 @@ ok_workspace_hook_init_copy_target_path_repo=true
 
 workspace_hook_init_emit_target_dir_repo_txt="$TMP_ROOT/workspace_hook_init_emit_target_dir_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --emit-target-dir > "$workspace_hook_init_emit_target_dir_repo_txt"
 )
 grep -q "/frontend/src/ail-overrides/components$" "$workspace_hook_init_emit_target_dir_repo_txt"
@@ -2800,7 +3071,7 @@ ok_workspace_hook_init_emit_target_dir_repo=true
 
 workspace_hook_init_copy_target_dir_repo_txt="$TMP_ROOT/workspace_hook_init_copy_target_dir_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --copy-target-dir > "$workspace_hook_init_copy_target_dir_repo_txt"
   copied_workspace_hook_init_target_dir="$(pbpaste)"
   printf '%s\n' "$copied_workspace_hook_init_target_dir" > "$TMP_ROOT/workspace_hook_init_copy_target_dir_repo_pbpaste.txt"
@@ -2812,26 +3083,26 @@ ok_workspace_hook_init_copy_target_dir_repo=true
 
 workspace_hook_init_emit_target_project_root_repo_txt="$TMP_ROOT/workspace_hook_init_emit_target_project_root_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --emit-target-project-root > "$workspace_hook_init_emit_target_project_root_repo_txt"
 )
-grep -q "^/Users/carwynmac/ai-cl/output_projects/WorkspaceHookInitSmoke$" "$workspace_hook_init_emit_target_project_root_repo_txt"
+grep -q "^${ROOT}/output_projects/WorkspaceHookInitSmoke$" "$workspace_hook_init_emit_target_project_root_repo_txt"
 ok_workspace_hook_init_emit_target_project_root_repo=true
 
 workspace_hook_init_copy_target_project_root_repo_txt="$TMP_ROOT/workspace_hook_init_copy_target_project_root_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --copy-target-project-root > "$workspace_hook_init_copy_target_project_root_repo_txt"
   copied_workspace_hook_init_target_project_root="$(pbpaste)"
   printf '%s\n' "$copied_workspace_hook_init_target_project_root" > "$TMP_ROOT/workspace_hook_init_copy_target_project_root_repo_pbpaste.txt"
 )
 grep -q "^Workspace hook-init target project root copied$" "$workspace_hook_init_copy_target_project_root_repo_txt"
-grep -q "^/Users/carwynmac/ai-cl/output_projects/WorkspaceHookInitSmoke$" "$TMP_ROOT/workspace_hook_init_copy_target_project_root_repo_pbpaste.txt"
+grep -q "^${ROOT}/output_projects/WorkspaceHookInitSmoke$" "$TMP_ROOT/workspace_hook_init_copy_target_project_root_repo_pbpaste.txt"
 ok_workspace_hook_init_copy_target_project_root_repo=true
 
 workspace_hook_init_emit_target_project_name_repo_txt="$TMP_ROOT/workspace_hook_init_emit_target_project_name_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --emit-target-project-name > "$workspace_hook_init_emit_target_project_name_repo_txt"
 )
 grep -q "^WorkspaceHookInitSmoke$" "$workspace_hook_init_emit_target_project_name_repo_txt"
@@ -2839,7 +3110,7 @@ ok_workspace_hook_init_emit_target_project_name_repo=true
 
 workspace_hook_init_copy_target_project_name_repo_txt="$TMP_ROOT/workspace_hook_init_copy_target_project_name_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --copy-target-project-name > "$workspace_hook_init_copy_target_project_name_repo_txt"
   copied_workspace_hook_init_target_project_name="$(pbpaste)"
   printf '%s\n' "$copied_workspace_hook_init_target_project_name" > "$TMP_ROOT/workspace_hook_init_copy_target_project_name_repo_pbpaste.txt"
@@ -2850,7 +3121,7 @@ ok_workspace_hook_init_copy_target_project_name_repo=true
 
 workspace_hook_init_emit_target_relative_path_repo_txt="$TMP_ROOT/workspace_hook_init_emit_target_relative_path_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --emit-target-relative-path > "$workspace_hook_init_emit_target_relative_path_repo_txt"
 )
 grep -q "^frontend/src/ail-overrides/components/page.home.before.vue$" "$workspace_hook_init_emit_target_relative_path_repo_txt"
@@ -2858,7 +3129,7 @@ ok_workspace_hook_init_emit_target_relative_path_repo=true
 
 workspace_hook_init_copy_target_relative_path_repo_txt="$TMP_ROOT/workspace_hook_init_copy_target_relative_path_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --copy-target-relative-path > "$workspace_hook_init_copy_target_relative_path_repo_txt"
   copied_workspace_hook_init_target_relative="$(pbpaste)"
   printf '%s\n' "$copied_workspace_hook_init_target_relative" > "$TMP_ROOT/workspace_hook_init_copy_target_relative_path_repo_pbpaste.txt"
@@ -2870,73 +3141,82 @@ ok_workspace_hook_init_copy_target_relative_path_repo=true
 
 workspace_hook_init_emit_target_bundle_repo_txt="$TMP_ROOT/workspace_hook_init_emit_target_bundle_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --emit-target-bundle > "$workspace_hook_init_emit_target_bundle_repo_txt"
 )
 python3 - "$workspace_hook_init_emit_target_bundle_repo_txt" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 from pathlib import Path
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
-assert payload['target_path'].startswith('/Users/carwynmac/ai-cl/output_projects/WorkspaceHookInitSmoke/'), payload
+assert payload['target_path'].startswith(f'{OUTPUT_PROJECTS_ROOT}/WorkspaceHookInitSmoke/'), payload
 assert payload['target_dir'].endswith('/frontend/src/ail-overrides/components'), payload
-assert payload['target_project_root'] == '/Users/carwynmac/ai-cl/output_projects/WorkspaceHookInitSmoke', payload
+assert payload['target_project_root'] == f'{OUTPUT_PROJECTS_ROOT}/WorkspaceHookInitSmoke', payload
 assert str(payload['target_project_name']) == Path(payload['target_project_root']).name, payload
 assert payload['target_relative_path'] == 'frontend/src/ail-overrides/components/page.home.before.vue', payload
-assert payload['open_command'].startswith('inspect /Users/carwynmac/ai-cl/output_projects/WorkspaceHookInitSmoke/'), payload
-assert payload['confirm_command'] == 'PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json', payload
+assert payload['open_command'].startswith(f'inspect {OUTPUT_PROJECTS_ROOT}/WorkspaceHookInitSmoke/'), payload
+assert payload['confirm_command'] == f'PYTHONPATH={ROOT} python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json', payload
 PY
 ok_workspace_hook_init_emit_target_bundle_repo=true
 
 workspace_hook_init_copy_target_bundle_repo_txt="$TMP_ROOT/workspace_hook_init_copy_target_bundle_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --copy-target-bundle > "$workspace_hook_init_copy_target_bundle_repo_txt"
 )
 grep -q "^Workspace hook-init target bundle copied$" "$workspace_hook_init_copy_target_bundle_repo_txt"
 grep -q "^- copied_target_bundle: {" "$workspace_hook_init_copy_target_bundle_repo_txt"
 copied_workspace_hook_init_target_bundle="$(pbpaste)"
 WORKSPACE_HOOK_INIT_COPIED_TARGET_BUNDLE="$copied_workspace_hook_init_target_bundle" python3 - <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, os
 from pathlib import Path
 payload = json.loads(os.environ['WORKSPACE_HOOK_INIT_COPIED_TARGET_BUNDLE'])
-assert payload['target_path'].startswith('/Users/carwynmac/ai-cl/output_projects/WorkspaceHookInitSmoke/'), payload
+assert payload['target_path'].startswith(f'{OUTPUT_PROJECTS_ROOT}/WorkspaceHookInitSmoke/'), payload
 assert payload['target_dir'].endswith('/frontend/src/ail-overrides/components'), payload
 assert str(payload['target_project_name']) == Path(payload['target_project_root']).name, payload
 assert payload['target_relative_path'] == 'frontend/src/ail-overrides/components/page.home.before.vue', payload
-assert payload['confirm_command'] == 'PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json', payload
+assert payload['confirm_command'] == f'PYTHONPATH={ROOT} python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json', payload
 PY
 ok_workspace_hook_init_copy_target_bundle_repo=true
 
 workspace_hook_init_emit_open_shell_repo_txt="$TMP_ROOT/workspace_hook_init_emit_open_shell_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --emit-open-shell > "$workspace_hook_init_emit_open_shell_repo_txt"
 )
-grep -q "^inspect /Users/carwynmac/ai-cl/output_projects/WorkspaceHookInitSmoke/frontend/src/ail-overrides/components/page.home.before.vue$" "$workspace_hook_init_emit_open_shell_repo_txt"
+grep -q "^inspect ${ROOT}/output_projects/WorkspaceHookInitSmoke/frontend/src/ail-overrides/components/page.home.before.vue$" "$workspace_hook_init_emit_open_shell_repo_txt"
 ok_workspace_hook_init_emit_open_shell_repo=true
 
 workspace_hook_init_copy_open_command_repo_txt="$TMP_ROOT/workspace_hook_init_copy_open_command_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --copy-open-command > "$workspace_hook_init_copy_open_command_repo_txt"
   copied_workspace_hook_init_open_command="$(pbpaste)"
   printf '%s\n' "$copied_workspace_hook_init_open_command" > "$TMP_ROOT/workspace_hook_init_copy_open_command_repo_pbpaste.txt"
 )
 grep -q "^Workspace hook-init open command copied$" "$workspace_hook_init_copy_open_command_repo_txt"
-grep -q "^- copied_open_command: inspect /Users/carwynmac/ai-cl/output_projects/WorkspaceHookInitSmoke/frontend/src/ail-overrides/components/page.home.before.vue$" "$workspace_hook_init_copy_open_command_repo_txt"
-grep -q "^inspect /Users/carwynmac/ai-cl/output_projects/WorkspaceHookInitSmoke/frontend/src/ail-overrides/components/page.home.before.vue$" "$TMP_ROOT/workspace_hook_init_copy_open_command_repo_pbpaste.txt"
+grep -q "^- copied_open_command: inspect ${ROOT}/output_projects/WorkspaceHookInitSmoke/frontend/src/ail-overrides/components/page.home.before.vue$" "$workspace_hook_init_copy_open_command_repo_txt"
+grep -q "^inspect ${ROOT}/output_projects/WorkspaceHookInitSmoke/frontend/src/ail-overrides/components/page.home.before.vue$" "$TMP_ROOT/workspace_hook_init_copy_open_command_repo_pbpaste.txt"
 ok_workspace_hook_init_copy_open_command_repo=true
 
 workspace_hook_init_run_command_repo_json="$TMP_ROOT/workspace_hook_init_run_command_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --run-command --json > "$workspace_hook_init_run_command_repo_json"
 )
 python3 - "$workspace_hook_init_run_command_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['run_command'], payload
-assert payload['run_command'] == 'PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json', payload
+assert payload['run_command'] == f'PYTHONPATH={ROOT} python3 -m cli workspace hook-init --project-name WorkspaceHookInitSmoke page.home.before --json', payload
 assert payload['run_command_requires_confirmation'] is True, payload
 assert payload['run_command_confirmed'] is False, payload
 assert payload['ran_command'] is False, payload
@@ -2950,10 +3230,13 @@ ok_workspace_hook_init_run_command_repo=true
 
 workspace_hook_init_run_command_yes_repo_json="$TMP_ROOT/workspace_hook_init_run_command_yes_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --run-command --yes --json > "$workspace_hook_init_run_command_yes_repo_json"
 )
 python3 - "$workspace_hook_init_run_command_yes_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['run_command_confirmed'] is True, payload
@@ -2963,11 +3246,11 @@ result = payload['run_result']
 assert result['entrypoint'] == 'workspace-hook-init', payload
 assert result['route_taken'] == 'named_workspace_project', payload
 assert result['selected_project_name'] == 'WorkspaceHookInitSmoke', payload
-assert result['selected_project_root'] == '/Users/carwynmac/ai-cl/output_projects/WorkspaceHookInitSmoke', payload
+assert result['selected_project_root'] == f'{OUTPUT_PROJECTS_ROOT}/WorkspaceHookInitSmoke', payload
 inner = result['result']
 assert inner['entrypoint'] == 'project-hook-init', payload
 target_path = pathlib.Path(inner['target_path'])
-assert target_path == pathlib.Path('/Users/carwynmac/ai-cl/output_projects/WorkspaceHookInitSmoke/frontend/src/ail-overrides/components/page.home.before.vue'), payload
+assert target_path == pathlib.Path(f'{OUTPUT_PROJECTS_ROOT}/WorkspaceHookInitSmoke/frontend/src/ail-overrides/components/page.home.before.vue'), payload
 assert inner['hook_name'] == 'page.home.before', payload
 assert inner['wrote'] is True, payload
 assert target_path.exists(), payload
@@ -2977,14 +3260,17 @@ rm -f "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.ho
 
 workspace_hook_init_run_open_command_repo_json="$TMP_ROOT/workspace_hook_init_run_open_command_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --run-open-command --json > "$workspace_hook_init_run_open_command_repo_json"
 )
 python3 - "$workspace_hook_init_run_open_command_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['run_open_command'], payload
-assert payload['run_open_command'].startswith('inspect /Users/carwynmac/ai-cl/output_projects/WorkspaceHookInitSmoke/'), payload
+assert payload['run_open_command'].startswith(f'inspect {OUTPUT_PROJECTS_ROOT}/WorkspaceHookInitSmoke/'), payload
 assert payload['run_open_command_requires_confirmation'] is True, payload
 assert payload['run_open_command_confirmed'] is False, payload
 assert payload['ran_open_command'] is False, payload
@@ -2997,10 +3283,13 @@ ok_workspace_hook_init_run_open_command_repo=true
 
 workspace_hook_init_run_open_command_yes_repo_json="$TMP_ROOT/workspace_hook_init_run_open_command_yes_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --run-open-command --yes --json > "$workspace_hook_init_run_open_command_yes_repo_json"
 )
 python3 - "$workspace_hook_init_run_open_command_yes_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3017,10 +3306,13 @@ ok_workspace_hook_init_run_open_command_yes_repo=true
 
 workspace_hook_init_inspect_target_repo_json="$TMP_ROOT/workspace_hook_init_inspect_target_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --inspect-target --json > "$workspace_hook_init_inspect_target_repo_json"
 )
 python3 - "$workspace_hook_init_inspect_target_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3043,7 +3335,7 @@ ok_workspace_hook_init_inspect_target_repo=true
 
 workspace_hook_init_inspect_target_text_compact_repo_txt="$TMP_ROOT/workspace_hook_init_inspect_target_text_compact_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --inspect-target --text-compact > "$workspace_hook_init_inspect_target_text_compact_repo_txt" || true
 )
 grep -q "^Workspace hook-init compact$" "$workspace_hook_init_inspect_target_text_compact_repo_txt"
@@ -3056,10 +3348,13 @@ ok_workspace_hook_init_inspect_target_text_compact_repo=true
 
 workspace_hook_init_open_target_repo_json="$TMP_ROOT/workspace_hook_init_open_target_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --open-target --json > "$workspace_hook_init_open_target_repo_json"
 )
 python3 - "$workspace_hook_init_open_target_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3081,10 +3376,13 @@ ok_workspace_hook_init_open_target_repo=true
 
 workspace_hook_init_open_now_repo_json="$TMP_ROOT/workspace_hook_init_open_now_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --open-now --json > "$workspace_hook_init_open_now_repo_json"
 )
 python3 - "$workspace_hook_init_open_now_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3105,7 +3403,7 @@ ok_workspace_hook_init_open_now_repo=true
 
 workspace_hook_init_open_now_text_compact_repo_txt="$TMP_ROOT/workspace_hook_init_open_now_text_compact_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --dry-run --open-now --text-compact > "$workspace_hook_init_open_now_text_compact_repo_txt" || true
 )
 grep -q "^Workspace hook-init compact$" "$workspace_hook_init_open_now_text_compact_repo_txt"
@@ -3117,10 +3415,13 @@ ok_workspace_hook_init_open_now_text_compact_repo=true
 
 workspace_hook_init_repo_json="$TMP_ROOT/workspace_hook_init_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home.before --project-name WorkspaceHookInitSmoke --json > "$workspace_hook_init_repo_json"
 )
 python3 - "$workspace_hook_init_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3141,10 +3442,13 @@ ok_workspace_hook_init_repo_json=true
 
 workspace_hook_init_recommended_repo_json="$TMP_ROOT/workspace_hook_init_recommended_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init --use-recommended-project --open-catalog --json > "$workspace_hook_init_recommended_repo_json"
 )
 python3 - "$workspace_hook_init_recommended_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -3160,6 +3464,9 @@ PY
 ok_workspace_hook_init_recommended_repo_json=true
 
 workspace_recommended_project_dir="$(python3 - "$workspace_hook_init_recommended_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 print(payload['selected_project_root'])
@@ -3169,10 +3476,13 @@ rm -f "$workspace_recommended_project_dir/.ail/last_hook_suggestions.json"
 
 workspace_hook_init_recommended_suggest_repo_json="$TMP_ROOT/workspace_hook_init_recommended_suggest_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init --use-recommended-project --suggest --json > "$workspace_hook_init_recommended_suggest_repo_json"
 )
 python3 - "$workspace_hook_init_recommended_suggest_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -3197,6 +3507,9 @@ ok_workspace_hook_init_recommended_suggest_repo_json=true
 workspace_hook_init_recommended_pick_repo_json="$TMP_ROOT/workspace_hook_init_recommended_pick_repo.json"
 workspace_pick_project_dir="$workspace_recommended_project_dir"
 workspace_pick_seed_page_key="$(python3 - "$workspace_hook_init_recommended_suggest_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 print(payload['auto_seeded_page_key_filter'])
@@ -3208,10 +3521,13 @@ rm -f \
   "$workspace_pick_project_dir/frontend/src/ail-overrides/components/page.$workspace_pick_seed_page_key.before.html" \
   "$workspace_pick_project_dir/frontend/src/ail-overrides/components/page.$workspace_pick_seed_page_key.after.html"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init --use-recommended-project --pick-recommended --json > "$workspace_hook_init_recommended_pick_repo_json"
 )
 python3 - "$workspace_hook_init_recommended_pick_repo_json" "$workspace_pick_project_dir" "$workspace_pick_seed_page_key" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3232,10 +3548,13 @@ ok_workspace_hook_init_recommended_pick_repo_json=true
 
 workspace_summary_root_json="$TMP_ROOT/workspace_summary_root.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace summary --json > "$workspace_summary_root_json"
 )
 python3 - "$workspace_summary_root_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -3263,6 +3582,9 @@ ok_workspace_summary_repo_json=true
 
 workspace_hook_init_follow_recommended_repo_json="$TMP_ROOT/workspace_hook_init_follow_recommended_repo.json"
 workspace_follow_pick_project_dir="$(python3 - "$workspace_hook_init_recommended_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 print(payload['selected_project_root'])
@@ -3274,10 +3596,13 @@ rm -f \
   "$workspace_follow_pick_project_dir/frontend/src/ail-overrides/components/page.home.before.html" \
   "$workspace_follow_pick_project_dir/frontend/src/ail-overrides/components/page.home.after.html"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init --follow-recommended --json > "$workspace_hook_init_follow_recommended_repo_json"
 )
 python3 - "$workspace_hook_init_follow_recommended_repo_json" "$workspace_follow_pick_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3298,7 +3623,7 @@ ok_workspace_hook_init_follow_recommended_repo_json=true
 
 workspace_hook_init_use_last_project_seed_json="$TMP_ROOT/workspace_hook_init_use_last_project_seed.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home --project-name WorkspaceHookInitSmoke --suggest --page-key home --section-key hero --slot-key hero-actions --json > "$workspace_hook_init_use_last_project_seed_json"
 )
 workspace_hook_init_use_last_project_repo_json="$TMP_ROOT/workspace_hook_init_use_last_project_repo.json"
@@ -3308,10 +3633,13 @@ rm -f \
   "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.section.hero.slot.hero-actions.before.html" \
   "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.section.hero.slot.hero-actions.after.html"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init --use-last-project --pick-recommended --json > "$workspace_hook_init_use_last_project_repo_json"
 )
 python3 - "$workspace_hook_init_use_last_project_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3341,10 +3669,13 @@ rm -f \
   "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.section.hero.slot.hero-actions.before.html" \
   "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.section.hero.slot.hero-actions.after.html"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --json > "$workspace_hook_continue_dry_run_repo_json"
 )
 python3 - "$workspace_hook_continue_dry_run_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3374,7 +3705,7 @@ ok_workspace_hook_continue_dry_run_repo_json=true
 
 workspace_hook_continue_text_compact_repo_txt="$TMP_ROOT/workspace_hook_continue_text_compact_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --text-compact > "$workspace_hook_continue_text_compact_repo_txt"
 )
 grep -q "Workspace hook-continue (compact)" "$workspace_hook_continue_text_compact_repo_txt"
@@ -3389,7 +3720,7 @@ ok_workspace_hook_continue_text_compact_repo=true
 
 workspace_hook_continue_inspect_target_text_compact_repo_txt="$TMP_ROOT/workspace_hook_continue_inspect_target_text_compact_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --inspect-target --text-compact > "$workspace_hook_continue_inspect_target_text_compact_repo_txt"
 )
 grep -q "Workspace hook-continue (compact)" "$workspace_hook_continue_inspect_target_text_compact_repo_txt"
@@ -3402,7 +3733,7 @@ ok_workspace_hook_continue_inspect_target_text_compact_repo=true
 
 workspace_hook_continue_explain_repo_txt="$TMP_ROOT/workspace_hook_continue_explain_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --explain > "$workspace_hook_continue_explain_repo_txt"
 )
 grep -q "^Explain:$" "$workspace_hook_continue_explain_repo_txt"
@@ -3415,48 +3746,48 @@ ok_workspace_hook_continue_explain_repo=true
 
 workspace_hook_continue_emit_shell_repo_txt="$TMP_ROOT/workspace_hook_continue_emit_shell_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --emit-shell > "$workspace_hook_continue_emit_shell_repo_txt"
 )
-grep -q "^PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-continue " "$workspace_hook_continue_emit_shell_repo_txt"
+grep -q "^PYTHONPATH=${ROOT} python3 -m cli workspace hook-continue " "$workspace_hook_continue_emit_shell_repo_txt"
 grep -vq -- "--dry-run" "$workspace_hook_continue_emit_shell_repo_txt"
 ok_workspace_hook_continue_emit_shell_repo=true
 
 workspace_hook_continue_emit_confirm_shell_repo_txt="$TMP_ROOT/workspace_hook_continue_emit_confirm_shell_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --emit-confirm-shell > "$workspace_hook_continue_emit_confirm_shell_repo_txt"
 )
-grep -q "^PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-continue --json$" "$workspace_hook_continue_emit_confirm_shell_repo_txt"
+grep -q "^PYTHONPATH=${ROOT} python3 -m cli workspace hook-continue --json$" "$workspace_hook_continue_emit_confirm_shell_repo_txt"
 ok_workspace_hook_continue_emit_confirm_shell_repo=true
 
 workspace_hook_continue_emit_target_path_repo_txt="$TMP_ROOT/workspace_hook_continue_emit_target_path_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --emit-target-path > "$workspace_hook_continue_emit_target_path_repo_txt"
 )
-grep -q "^/Users/carwynmac/ai-cl/output_projects/.*/frontend/src/ail-overrides/components/.*$" "$workspace_hook_continue_emit_target_path_repo_txt"
+grep -q "^${ROOT}/output_projects/.*/frontend/src/ail-overrides/components/.*$" "$workspace_hook_continue_emit_target_path_repo_txt"
 ok_workspace_hook_continue_emit_target_path_repo=true
 
 workspace_hook_continue_emit_target_dir_repo_txt="$TMP_ROOT/workspace_hook_continue_emit_target_dir_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --emit-target-dir > "$workspace_hook_continue_emit_target_dir_repo_txt"
 )
-grep -q "^/Users/carwynmac/ai-cl/output_projects/.*/frontend/src/ail-overrides/components$" "$workspace_hook_continue_emit_target_dir_repo_txt"
+grep -q "^${ROOT}/output_projects/.*/frontend/src/ail-overrides/components$" "$workspace_hook_continue_emit_target_dir_repo_txt"
 ok_workspace_hook_continue_emit_target_dir_repo=true
 
 workspace_hook_continue_emit_target_project_root_repo_txt="$TMP_ROOT/workspace_hook_continue_emit_target_project_root_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --emit-target-project-root > "$workspace_hook_continue_emit_target_project_root_repo_txt"
 )
-grep -q "^/Users/carwynmac/ai-cl/output_projects/.*$" "$workspace_hook_continue_emit_target_project_root_repo_txt"
+grep -q "^${ROOT}/output_projects/.*$" "$workspace_hook_continue_emit_target_project_root_repo_txt"
 ok_workspace_hook_continue_emit_target_project_root_repo=true
 
 workspace_hook_continue_emit_target_project_name_repo_txt="$TMP_ROOT/workspace_hook_continue_emit_target_project_name_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --emit-target-project-name > "$workspace_hook_continue_emit_target_project_name_repo_txt"
 )
 grep -Eq "^[A-Za-z0-9._-]+$" "$workspace_hook_continue_emit_target_project_name_repo_txt"
@@ -3464,7 +3795,7 @@ ok_workspace_hook_continue_emit_target_project_name_repo=true
 
 workspace_hook_continue_emit_target_relative_path_repo_txt="$TMP_ROOT/workspace_hook_continue_emit_target_relative_path_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --emit-target-relative-path > "$workspace_hook_continue_emit_target_relative_path_repo_txt"
 )
 grep -q "^frontend/src/ail-overrides/components/.*$" "$workspace_hook_continue_emit_target_relative_path_repo_txt"
@@ -3472,41 +3803,44 @@ ok_workspace_hook_continue_emit_target_relative_path_repo=true
 
 workspace_hook_continue_emit_target_bundle_repo_txt="$TMP_ROOT/workspace_hook_continue_emit_target_bundle_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --emit-target-bundle > "$workspace_hook_continue_emit_target_bundle_repo_txt"
 )
 python3 - "$workspace_hook_continue_emit_target_bundle_repo_txt" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 from pathlib import Path
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
-assert payload['target_path'].startswith('/Users/carwynmac/ai-cl/output_projects/'), payload
+assert payload['target_path'].startswith(f'{OUTPUT_PROJECTS_ROOT}/'), payload
 assert payload['target_dir'].endswith('/frontend/src/ail-overrides/components'), payload
-assert payload['target_project_root'].startswith('/Users/carwynmac/ai-cl/output_projects/'), payload
+assert payload['target_project_root'].startswith(f'{OUTPUT_PROJECTS_ROOT}/'), payload
 assert str(payload['target_project_name']) == Path(payload['target_project_root']).name, payload
 assert payload['target_relative_path'].startswith('frontend/src/ail-overrides/components/'), payload
-assert payload['open_command'].startswith('inspect /Users/carwynmac/ai-cl/output_projects/'), payload
-assert payload['confirm_command'] == 'PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-continue --json', payload
+assert payload['open_command'].startswith(f'inspect {OUTPUT_PROJECTS_ROOT}/'), payload
+assert payload['confirm_command'] == f'PYTHONPATH={ROOT} python3 -m cli workspace hook-continue --json', payload
 PY
 ok_workspace_hook_continue_emit_target_bundle_repo=true
 
 workspace_hook_continue_emit_open_shell_repo_txt="$TMP_ROOT/workspace_hook_continue_emit_open_shell_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --emit-open-shell > "$workspace_hook_continue_emit_open_shell_repo_txt"
 )
-grep -q "^inspect /Users/carwynmac/ai-cl/output_projects/.*/frontend/src/ail-overrides/components/.*$" "$workspace_hook_continue_emit_open_shell_repo_txt"
+grep -q "^inspect ${ROOT}/output_projects/.*/frontend/src/ail-overrides/components/.*$" "$workspace_hook_continue_emit_open_shell_repo_txt"
 ok_workspace_hook_continue_emit_open_shell_repo=true
 
 workspace_hook_continue_copy_open_command_repo_txt="$TMP_ROOT/workspace_hook_continue_copy_open_command_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --copy-open-command > "$workspace_hook_continue_copy_open_command_repo_txt"
 )
 grep -q "^Workspace hook-continue open command copied$" "$workspace_hook_continue_copy_open_command_repo_txt"
-grep -q "^- copied_open_command: inspect /Users/carwynmac/ai-cl/output_projects/.*/frontend/src/ail-overrides/components/.*$" "$workspace_hook_continue_copy_open_command_repo_txt"
+grep -q "^- copied_open_command: inspect ${ROOT}/output_projects/.*/frontend/src/ail-overrides/components/.*$" "$workspace_hook_continue_copy_open_command_repo_txt"
 workspace_hook_continue_copied_open_command="$(pbpaste)"
 case "$workspace_hook_continue_copied_open_command" in
-  "inspect /Users/carwynmac/ai-cl/output_projects/"*)
+  "inspect ${ROOT}/output_projects/"*)
     ;;
   *)
     echo "workspace hook-continue --copy-open-command did not copy an inspect command"
@@ -3517,14 +3851,14 @@ ok_workspace_hook_continue_copy_open_command_repo=true
 
 workspace_hook_continue_copy_confirm_command_repo_txt="$TMP_ROOT/workspace_hook_continue_copy_confirm_command_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --copy-confirm-command > "$workspace_hook_continue_copy_confirm_command_repo_txt"
 )
 grep -q "^Workspace hook-continue confirm command copied$" "$workspace_hook_continue_copy_confirm_command_repo_txt"
-grep -q "^- copied_confirm_command: PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-continue --json$" "$workspace_hook_continue_copy_confirm_command_repo_txt"
+grep -q "^- copied_confirm_command: PYTHONPATH=${ROOT} python3 -m cli workspace hook-continue --json$" "$workspace_hook_continue_copy_confirm_command_repo_txt"
 workspace_hook_continue_copied_confirm_command="$(pbpaste)"
 case "$workspace_hook_continue_copied_confirm_command" in
-  "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-continue --json")
+  "PYTHONPATH=${ROOT} python3 -m cli workspace hook-continue --json")
     ;;
   *)
     echo "workspace hook-continue --copy-confirm-command did not copy the expected confirm command"
@@ -3535,14 +3869,14 @@ ok_workspace_hook_continue_copy_confirm_command_repo=true
 
 workspace_hook_continue_copy_target_path_repo_txt="$TMP_ROOT/workspace_hook_continue_copy_target_path_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --copy-target-path > "$workspace_hook_continue_copy_target_path_repo_txt"
 )
 grep -q "^Workspace hook-continue target path copied$" "$workspace_hook_continue_copy_target_path_repo_txt"
-grep -q "^- copied_target_path: /Users/carwynmac/ai-cl/output_projects/.*/frontend/src/ail-overrides/components/.*$" "$workspace_hook_continue_copy_target_path_repo_txt"
+grep -q "^- copied_target_path: ${ROOT}/output_projects/.*/frontend/src/ail-overrides/components/.*$" "$workspace_hook_continue_copy_target_path_repo_txt"
 workspace_hook_continue_copied_target_path="$(pbpaste)"
 case "$workspace_hook_continue_copied_target_path" in
-  "/Users/carwynmac/ai-cl/output_projects/"*)
+  "${ROOT}/output_projects/"*)
     ;;
   *)
     echo "workspace hook-continue --copy-target-path did not copy the resolved hook target path"
@@ -3553,14 +3887,14 @@ ok_workspace_hook_continue_copy_target_path_repo=true
 
 workspace_hook_continue_copy_target_dir_repo_txt="$TMP_ROOT/workspace_hook_continue_copy_target_dir_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --copy-target-dir > "$workspace_hook_continue_copy_target_dir_repo_txt"
 )
 grep -q "^Workspace hook-continue target directory copied$" "$workspace_hook_continue_copy_target_dir_repo_txt"
-grep -q "^- copied_target_dir: /Users/carwynmac/ai-cl/output_projects/.*/frontend/src/ail-overrides/components$" "$workspace_hook_continue_copy_target_dir_repo_txt"
+grep -q "^- copied_target_dir: ${ROOT}/output_projects/.*/frontend/src/ail-overrides/components$" "$workspace_hook_continue_copy_target_dir_repo_txt"
 workspace_hook_continue_copied_target_dir="$(pbpaste)"
 case "$workspace_hook_continue_copied_target_dir" in
-  "/Users/carwynmac/ai-cl/output_projects/"*)
+  "${ROOT}/output_projects/"*)
     ;;
   *)
     echo "workspace hook-continue --copy-target-dir did not copy the resolved hook target directory"
@@ -3571,14 +3905,14 @@ ok_workspace_hook_continue_copy_target_dir_repo=true
 
 workspace_hook_continue_copy_target_project_root_repo_txt="$TMP_ROOT/workspace_hook_continue_copy_target_project_root_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --copy-target-project-root > "$workspace_hook_continue_copy_target_project_root_repo_txt"
 )
 grep -q "^Workspace hook-continue target project root copied$" "$workspace_hook_continue_copy_target_project_root_repo_txt"
-grep -q "^- copied_target_project_root: /Users/carwynmac/ai-cl/output_projects/.*$" "$workspace_hook_continue_copy_target_project_root_repo_txt"
+grep -q "^- copied_target_project_root: ${ROOT}/output_projects/.*$" "$workspace_hook_continue_copy_target_project_root_repo_txt"
 workspace_hook_continue_copied_target_project_root="$(pbpaste)"
 case "$workspace_hook_continue_copied_target_project_root" in
-  "/Users/carwynmac/ai-cl/output_projects/"*)
+  "${ROOT}/output_projects/"*)
     ;;
   *)
     echo "workspace hook-continue --copy-target-project-root did not copy the resolved target project root"
@@ -3589,7 +3923,7 @@ ok_workspace_hook_continue_copy_target_project_root_repo=true
 
 workspace_hook_continue_copy_target_project_name_repo_txt="$TMP_ROOT/workspace_hook_continue_copy_target_project_name_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --copy-target-project-name > "$workspace_hook_continue_copy_target_project_name_repo_txt"
 )
 grep -q "^Workspace hook-continue target project name copied$" "$workspace_hook_continue_copy_target_project_name_repo_txt"
@@ -3611,7 +3945,7 @@ ok_workspace_hook_continue_copy_target_project_name_repo=true
 
 workspace_hook_continue_copy_target_relative_path_repo_txt="$TMP_ROOT/workspace_hook_continue_copy_target_relative_path_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --copy-target-relative-path > "$workspace_hook_continue_copy_target_relative_path_repo_txt"
 )
 grep -q "^Workspace hook-continue target relative path copied$" "$workspace_hook_continue_copy_target_relative_path_repo_txt"
@@ -3629,36 +3963,39 @@ ok_workspace_hook_continue_copy_target_relative_path_repo=true
 
 workspace_hook_continue_copy_target_bundle_repo_txt="$TMP_ROOT/workspace_hook_continue_copy_target_bundle_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --copy-target-bundle > "$workspace_hook_continue_copy_target_bundle_repo_txt"
 )
 grep -q "^Workspace hook-continue target bundle copied$" "$workspace_hook_continue_copy_target_bundle_repo_txt"
 grep -q "^- copied_target_bundle: {" "$workspace_hook_continue_copy_target_bundle_repo_txt"
 workspace_hook_continue_copied_target_bundle="$(pbpaste)"
 WORKSPACE_HOOK_CONTINUE_COPIED_TARGET_BUNDLE="$workspace_hook_continue_copied_target_bundle" python3 - <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, os
 from pathlib import Path
 payload = json.loads(os.environ['WORKSPACE_HOOK_CONTINUE_COPIED_TARGET_BUNDLE'])
-assert payload['target_path'].startswith('/Users/carwynmac/ai-cl/output_projects/'), payload
+assert payload['target_path'].startswith(f'{OUTPUT_PROJECTS_ROOT}/'), payload
 assert payload['target_dir'].endswith('/frontend/src/ail-overrides/components'), payload
-assert payload['target_project_root'].startswith('/Users/carwynmac/ai-cl/output_projects/'), payload
+assert payload['target_project_root'].startswith(f'{OUTPUT_PROJECTS_ROOT}/'), payload
 assert str(payload['target_project_name']) == Path(payload['target_project_root']).name, payload
 assert payload['target_relative_path'].startswith('frontend/src/ail-overrides/components/'), payload
-assert payload['open_command'].startswith('inspect /Users/carwynmac/ai-cl/output_projects/'), payload
-assert payload['confirm_command'] == 'PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-continue --json', payload
+assert payload['open_command'].startswith(f'inspect {OUTPUT_PROJECTS_ROOT}/'), payload
+assert payload['confirm_command'] == f'PYTHONPATH={ROOT} python3 -m cli workspace hook-continue --json', payload
 PY
 ok_workspace_hook_continue_copy_target_bundle_repo=true
 
 workspace_hook_continue_copy_command_repo_txt="$TMP_ROOT/workspace_hook_continue_copy_command_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --copy-command > "$workspace_hook_continue_copy_command_repo_txt"
 )
 grep -q "^Workspace hook-continue command copied$" "$workspace_hook_continue_copy_command_repo_txt"
 grep -q "^- copied_command: " "$workspace_hook_continue_copy_command_repo_txt"
 workspace_hook_continue_copied_command="$(pbpaste)"
 case "$workspace_hook_continue_copied_command" in
-  "PYTHONPATH=/Users/carwynmac/ai-cl python3 -m cli workspace hook-continue "*)
+  "PYTHONPATH=${ROOT} python3 -m cli workspace hook-continue "*)
     ;;
   *)
     echo "unexpected clipboard command: $workspace_hook_continue_copied_command" >&2
@@ -3677,10 +4014,13 @@ ok_workspace_hook_continue_copy_command_repo=true
 
 workspace_hook_continue_run_open_command_repo_json="$TMP_ROOT/workspace_hook_continue_run_open_command_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --run-open-command --json > "$workspace_hook_continue_run_open_command_repo_json"
 )
 python3 - "$workspace_hook_continue_run_open_command_repo_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -3701,10 +4041,13 @@ ok_workspace_hook_continue_run_open_command_repo=true
 
 workspace_hook_continue_run_open_command_yes_repo_json="$TMP_ROOT/workspace_hook_continue_run_open_command_yes_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --run-open-command --yes --json > "$workspace_hook_continue_run_open_command_yes_repo_json"
 )
 python3 - "$workspace_hook_continue_run_open_command_yes_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3730,10 +4073,13 @@ rm -f \
   "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.section.hero.slot.hero-actions.before.html" \
   "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.section.hero.slot.hero-actions.after.html"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --run-command --json > "$workspace_hook_continue_run_command_repo_json"
 )
 python3 - "$workspace_hook_continue_run_command_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3758,10 +4104,13 @@ ok_workspace_hook_continue_run_command_repo=true
 
 workspace_hook_continue_run_command_yes_repo_json="$TMP_ROOT/workspace_hook_continue_run_command_yes_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --run-command --yes --json > "$workspace_hook_continue_run_command_yes_repo_json"
 )
 python3 - "$workspace_hook_continue_run_command_yes_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3789,10 +4138,13 @@ rm -f \
   "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.section.hero.slot.hero-actions.before.html" \
   "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.section.hero.slot.hero-actions.after.html"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --inspect-target --json > "$workspace_hook_continue_inspect_target_repo_json"
 )
 python3 - "$workspace_hook_continue_inspect_target_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3815,10 +4167,13 @@ ok_workspace_hook_continue_inspect_target_repo=true
 
 workspace_hook_continue_open_target_repo_json="$TMP_ROOT/workspace_hook_continue_open_target_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --open-target --json > "$workspace_hook_continue_open_target_repo_json"
 )
 python3 - "$workspace_hook_continue_open_target_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3840,10 +4195,13 @@ ok_workspace_hook_continue_open_target_repo=true
 
 workspace_hook_continue_open_now_repo_json="$TMP_ROOT/workspace_hook_continue_open_now_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --open-now --json > "$workspace_hook_continue_open_now_repo_json"
 )
 python3 - "$workspace_hook_continue_open_now_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3864,7 +4222,7 @@ ok_workspace_hook_continue_open_now_repo=true
 
 workspace_hook_continue_open_now_text_compact_repo_txt="$TMP_ROOT/workspace_hook_continue_open_now_text_compact_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --open-now --text-compact > "$workspace_hook_continue_open_now_text_compact_repo_txt"
 )
 grep -q "Workspace hook-continue (compact)" "$workspace_hook_continue_open_now_text_compact_repo_txt"
@@ -3884,10 +4242,13 @@ rm -f \
   "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.section.hero.slot.hero-actions.before.html" \
   "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.section.hero.slot.hero-actions.after.html"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --json > "$workspace_hook_continue_repo_json"
 )
 python3 - "$workspace_hook_continue_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3921,7 +4282,7 @@ ok_workspace_hook_continue_repo_json=true
 
 workspace_hook_continue_open_now_preview_repo_txt="$TMP_ROOT/workspace_hook_continue_open_now_preview_repo.txt"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   set +e
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --dry-run --open-now --text-compact > "$workspace_hook_continue_open_now_preview_repo_txt"
   exit_code=$?
@@ -3942,10 +4303,13 @@ rm -f \
   "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.before.html" \
   "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.after.html"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --broaden-to page --json > "$workspace_hook_continue_broaden_repo_json"
 )
 python3 - "$workspace_hook_continue_broaden_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -3972,7 +4336,7 @@ ok_workspace_hook_continue_broaden_repo_json=true
 
 workspace_hook_continue_auto_repo_json="$TMP_ROOT/workspace_hook_continue_auto_repo.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-init home --project-name WorkspaceHookInitSmoke --suggest --page-key home --section-key hero --slot-key hero-actions --json > /dev/null
 )
 cat > "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.section.hero.slot.hero-actions.before.vue" <<'EOF'
@@ -3986,10 +4350,13 @@ rm -f \
   "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.before.vue" \
   "$workspace_hook_project_dir/frontend/src/ail-overrides/components/page.home.after.vue"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace hook-continue --broaden-to auto --json > "$workspace_hook_continue_auto_repo_json"
 )
 python3 - "$workspace_hook_continue_auto_repo_json" "$workspace_hook_project_dir" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 project_root = pathlib.Path(sys.argv[2]).resolve()
@@ -4016,10 +4383,13 @@ ok_workspace_hook_continue_auto_repo_json=true
 
 workspace_preview_root_json="$TMP_ROOT/workspace_preview_root.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace preview --json > "$workspace_preview_root_json"
 )
 python3 - "$workspace_preview_root_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -4033,10 +4403,13 @@ ok_workspace_preview_repo_json=true
 
 workspace_open_target_root_json="$TMP_ROOT/workspace_open_target_root.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace open-target project_context --json > "$workspace_open_target_root_json"
 )
 python3 - "$workspace_open_target_root_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -4051,10 +4424,13 @@ ok_workspace_open_target_repo_json=true
 
 workspace_inspect_target_root_json="$TMP_ROOT/workspace_inspect_target_root.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace inspect-target project_context --json > "$workspace_inspect_target_root_json"
 )
 python3 - "$workspace_inspect_target_root_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -4069,10 +4445,13 @@ ok_workspace_inspect_target_repo_json=true
 
 workspace_run_inspect_command_root_json="$TMP_ROOT/workspace_run_inspect_command_root.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace run-inspect-command project_context --json > "$workspace_run_inspect_command_root_json"
 )
 python3 - "$workspace_run_inspect_command_root_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -4086,10 +4465,13 @@ ok_workspace_run_inspect_command_repo_json=true
 
 workspace_export_handoff_root_json="$TMP_ROOT/workspace_export_handoff_root.json"
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace export-handoff --json > "$workspace_export_handoff_root_json"
 )
 python3 - "$workspace_export_handoff_root_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -4109,12 +4491,15 @@ ok_workspace_export_handoff_repo_json=true
 workspace_go_root_json="$TMP_ROOT/workspace_go_root.json"
 set +e
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace go --json > "$workspace_go_root_json"
 )
 workspace_go_root_exit=$?
 set -e
 python3 - "$workspace_go_root_json" "$workspace_go_root_exit" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 exit_code = int(sys.argv[2])
@@ -4137,12 +4522,15 @@ ok_workspace_go_repo_json=true
 workspace_doctor_root_json="$TMP_ROOT/workspace_doctor_root.json"
 set +e
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace doctor --json > "$workspace_doctor_root_json"
 )
 workspace_doctor_root_exit=$?
 set -e
 python3 - "$workspace_doctor_root_json" "$workspace_doctor_root_exit" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 exit_code = int(sys.argv[2])
@@ -4163,12 +4551,15 @@ ok_workspace_doctor_repo_json=true
 workspace_continue_root_json="$TMP_ROOT/workspace_continue_root.json"
 set +e
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli workspace continue --json > "$workspace_continue_root_json"
 )
 workspace_continue_root_exit=$?
 set -e
 python3 - "$workspace_continue_root_json" "$workspace_continue_root_exit" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 exit_code = int(sys.argv[2])
@@ -4188,12 +4579,15 @@ ok_workspace_continue_repo_json=true
 rc_check_json="$TMP_ROOT/rc_check.json"
 set +e
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli rc-check --json > "$rc_check_json"
 )
 rc_check_exit=$?
 set -e
 python3 - "$rc_check_json" "$rc_check_exit" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 exit_code = int(sys.argv[2])
@@ -4213,18 +4607,21 @@ ok_rc_check_json=true
 rc_check_refresh_json="$TMP_ROOT/rc_check_refresh.json"
 set +e
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli rc-check --refresh --json > "$rc_check_refresh_json"
 )
 rc_check_refresh_exit=$?
 set -e
 python3 - "$rc_check_refresh_json" "$rc_check_refresh_exit" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 exit_code = int(sys.argv[2])
 assert payload['entrypoint'] == 'rc-check', payload
 assert payload['refresh']['status'] in {'ok', 'warning'}, payload
-assert payload['refresh']['command'] == 'bash /Users/carwynmac/ai-cl/testing/run_readiness_snapshot.sh', payload
+assert payload['refresh']['command'] == f'bash {ROOT}/testing/run_readiness_snapshot.sh', payload
 assert payload['readiness']['status'] in {'ok', 'attention'}, payload
 if payload['status'] == 'ok':
     assert exit_code == 0, exit_code
@@ -4236,12 +4633,15 @@ ok_rc_check_refresh_json=true
 rc_go_json="$TMP_ROOT/rc_go.json"
 set +e
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli rc-go --json > "$rc_go_json"
 )
 rc_go_exit=$?
 set -e
 python3 - "$rc_go_json" "$rc_go_exit" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 exit_code = int(sys.argv[2])
@@ -4261,12 +4661,15 @@ ok_rc_go_json=true
 rc_go_refresh_json="$TMP_ROOT/rc_go_refresh.json"
 set +e
 (
-  cd /Users/carwynmac/ai-cl
+  cd "$ROOT"
   AIL_CLOUD_BASE_URL=embedded://local python3 -m cli rc-go --refresh --json > "$rc_go_refresh_json"
 )
 rc_go_refresh_exit=$?
 set -e
 python3 - "$rc_go_refresh_json" "$rc_go_refresh_exit" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 exit_code = int(sys.argv[2])
@@ -4285,6 +4688,9 @@ ok_rc_go_refresh_json=true
 project_doctor_json="$TMP_ROOT/project_doctor_ok.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project doctor --fix-plan --json > "$project_doctor_json"
 python3 - "$project_doctor_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -4299,6 +4705,9 @@ ok_project_doctor_json=true
 project_doctor_apply_safe_noop_json="$TMP_ROOT/project_doctor_apply_safe_noop.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project doctor --apply-safe-fixes --json > "$project_doctor_apply_safe_noop_json"
 python3 - "$project_doctor_apply_safe_noop_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -4311,6 +4720,9 @@ ok_project_doctor_apply_safe_noop_json=true
 project_doctor_apply_safe_continue_noop_json="$TMP_ROOT/project_doctor_apply_safe_continue_noop.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project doctor --apply-safe-fixes --and-continue --json > "$project_doctor_apply_safe_continue_noop_json"
 python3 - "$project_doctor_apply_safe_continue_noop_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -4323,6 +4735,9 @@ ok_project_doctor_apply_safe_continue_noop_json=true
 project_continue_auto_no_repair_json="$TMP_ROOT/project_continue_auto_no_repair.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project continue --auto-repair-compile-sync --json > "$project_continue_auto_no_repair_json"
 python3 - "$project_continue_auto_no_repair_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -4348,6 +4763,9 @@ EOF
 project_continue_auto_repair_json="$TMP_ROOT/project_continue_auto_repair.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project continue --auto-repair-compile-sync --json > "$project_continue_auto_repair_json"
 python3 - "$project_continue_auto_repair_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -4365,6 +4783,9 @@ python3 -m cli compile --cloud --json > "$compile_err_json"
 compile_exit=$?
 set -e
 python3 - "$compile_err_json" "$compile_exit" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 exit_code = int(sys.argv[2])
@@ -4383,6 +4804,9 @@ python3 -m cli sync --json > "$sync_conflict_json"
 sync_exit=$?
 set -e
 python3 - "$sync_conflict_json" "$sync_exit" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 exit_code = int(sys.argv[2])
@@ -4399,6 +4823,9 @@ AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project check --json > "$proj
 project_check_exit=$?
 set -e
 python3 - "$project_check_conflict_json" "$project_check_exit" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 exit_code = int(sys.argv[2])
@@ -4413,6 +4840,9 @@ ok_project_check_conflict_json=true
 project_summary_conflict_json="$TMP_ROOT/project_summary_conflict.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project summary --json > "$project_summary_conflict_json"
 python3 - "$project_summary_conflict_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -4425,6 +4855,9 @@ ok_project_summary_conflict_json=true
 project_preview_conflict_json="$TMP_ROOT/project_preview_conflict.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project preview --json > "$project_preview_conflict_json"
 python3 - "$project_preview_conflict_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -4439,6 +4872,9 @@ ok_project_preview_conflict_json=true
 project_export_handoff_conflict_json="$TMP_ROOT/project_export_handoff_conflict.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project export-handoff --json > "$project_export_handoff_conflict_json"
 python3 - "$project_export_handoff_conflict_json" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 assert payload['status'] == 'ok', payload
@@ -4457,6 +4893,9 @@ AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project go --json > "$project
 project_go_exit=$?
 set -e
 python3 - "$project_go_conflict_json" "$project_go_exit" <<'PY'
+import os
+ROOT = os.environ['AIL_REPO_ROOT']
+OUTPUT_PROJECTS_ROOT = f"{ROOT}/output_projects"
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 exit_code = int(sys.argv[2])
