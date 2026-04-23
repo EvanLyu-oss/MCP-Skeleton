@@ -9,6 +9,12 @@ This changelog is intentionally lightweight for now. The repository already has 
 ### Added
 
 - initial public `CHANGELOG.md` for tracking outward-facing updates
+- added `/Users/carwynmac/ai-cl/OPENCODE_TEST_REPORT_20260423.md` to capture external opencode testing results
+
+### Changed
+
+- clarified public positioning around static presentation-site generation
+- documented ecommerce, CMS, blog-publishing, routing, localization, managed-drift, and local-preview limitations more explicitly
 
 ## 2026-04-19
 

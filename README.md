@@ -4,7 +4,7 @@
 ![CLI Checks](https://img.shields.io/badge/cli%20checks-207%2F207%20passing-2f855a)
 ![License](https://img.shields.io/badge/license-MIT-1f6feb)
 
-**CLI-first website generation, durable customization, and structured handoff workflows for AIL.**
+**CLI-first static website generation, durable customization, and structured handoff workflows for AIL.**
 
 AIL Builder is the current AIL platform mainline. It is best understood today as an **alpha / builder preview** for:
 
@@ -46,6 +46,12 @@ Current strongest proof baselines:
 - `output_projects/CompanyProductSiteBrandPostureReview`
 - `output_projects/PersonalIndependentSiteSignatureReview`
 
+Current tested generation scope:
+
+- supported: static presentation-style sites such as personal portfolios, company product pages, and simple landing pages
+- partial: blog-style presentation pages, without CMS or publishing-system behavior
+- out of scope: ecommerce, login systems, dashboards, CMS, back-office workflows, and database-backed applications
+
 ## Who This Is For
 
 AIL Builder is a good fit today for:
@@ -59,6 +65,8 @@ AIL Builder is a good fit today for:
 It is not yet optimized for:
 
 - casual users expecting a 5-minute no-context setup
+- ecommerce, CMS, authentication, dashboard, or database-backed app generation
+- automatic one-command local serving after generation
 - production deployment with stability guarantees
 - a frozen public API or stable plugin surface
 
@@ -97,6 +105,7 @@ PYTHONPATH="$REPO_ROOT" python3 -m cli project hook-guide --json
 The repository already has real product truth in these areas:
 
 - website-oriented CLI checks, previews, summaries, and handoff flows
+- static presentation-site generation for portfolio, company/product, and landing-style pages
 - managed / unmanaged customization via `hook-guide`, `hook-init`, and `hook-continue`
 - durable override workflows without editing managed files directly
 - dual-line brand-distinction sample work on company and personal baselines
@@ -116,6 +125,7 @@ Current open-source / packaging docs:
 Current phase and review docs:
 
 - [`BRAND_DISTINCTION_PHASE_REVIEW_20260417.md`](BRAND_DISTINCTION_PHASE_REVIEW_20260417.md)
+- [`OPENCODE_TEST_REPORT_20260423.md`](OPENCODE_TEST_REPORT_20260423.md)
 - [`CUSTOMIZATION_UX_PHASE_CLOSEOUT_20260409.md`](CUSTOMIZATION_UX_PHASE_CLOSEOUT_20260409.md)
 - [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md)
 - [`REPO_MAP.md`](REPO_MAP.md)
