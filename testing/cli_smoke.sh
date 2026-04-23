@@ -97,6 +97,7 @@ ok_project_hook_init_reuse_last_suggest_json=false
 ok_project_hook_init_last_suggest_json=false
 ok_project_summary_conflict_json=false
 ok_project_preview_json=false
+ok_project_serve_dry_run_json=false
 ok_project_preview_conflict_json=false
 ok_project_open_target_json=false
 ok_project_open_target_default_json=false
@@ -2375,6 +2376,23 @@ assert payload['latest_artifact_id'], payload
 assert any(step.startswith('run PYTHONPATH=') for step in payload['next_steps']), payload
 PY
 ok_project_preview_json=true
+
+project_serve_dry_run_json="$TMP_ROOT/project_serve_dry_run_ok.json"
+PYTHONPATH="$ROOT" python3 -m cli project serve --dry-run --json > "$project_serve_dry_run_json"
+python3 - "$project_serve_dry_run_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'ok', payload
+assert payload['entrypoint'] == 'project-serve', payload
+assert payload['dry_run'] is True, payload
+assert payload['started'] is False, payload
+assert payload['frontend_root'].endswith('/frontend'), payload
+assert payload['package_json'].endswith('/frontend/package.json'), payload
+assert payload['local_url'] == 'http://127.0.0.1:5173', payload
+assert payload['command'] == 'npm run dev -- --host 127.0.0.1 --port 5173', payload
+assert any('npm run dev' in step or step == 'npm install' for step in payload['next_steps']), payload
+PY
+ok_project_serve_dry_run_json=true
 
 project_open_target_json="$TMP_ROOT/project_open_target.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project open-target source_of_truth --json > "$project_open_target_json"
@@ -4999,6 +5017,7 @@ export CLI_SMOKE_OK_PROJECT_HOOK_INIT_REUSE_LAST_SUGGEST_JSON="$ok_project_hook_
 export CLI_SMOKE_OK_PROJECT_HOOK_INIT_LAST_SUGGEST_JSON="$ok_project_hook_init_last_suggest_json"
 export CLI_SMOKE_OK_PROJECT_SUMMARY_CONFLICT_JSON="$ok_project_summary_conflict_json"
 export CLI_SMOKE_OK_PROJECT_PREVIEW_JSON="$ok_project_preview_json"
+export CLI_SMOKE_OK_PROJECT_SERVE_DRY_RUN_JSON="$ok_project_serve_dry_run_json"
 export CLI_SMOKE_OK_PROJECT_PREVIEW_CONFLICT_JSON="$ok_project_preview_conflict_json"
 export CLI_SMOKE_OK_PROJECT_OPEN_TARGET_JSON="$ok_project_open_target_json"
 export CLI_SMOKE_OK_PROJECT_OPEN_TARGET_DEFAULT_JSON="$ok_project_open_target_default_json"
@@ -5217,6 +5236,7 @@ payload = {
         'project_hook_init_last_suggest_json_ok': os.environ['CLI_SMOKE_OK_PROJECT_HOOK_INIT_LAST_SUGGEST_JSON'] == 'true',
         'project_summary_conflict_json_ok': os.environ['CLI_SMOKE_OK_PROJECT_SUMMARY_CONFLICT_JSON'] == 'true',
         'project_preview_json_ok': os.environ['CLI_SMOKE_OK_PROJECT_PREVIEW_JSON'] == 'true',
+        'project_serve_dry_run_json_ok': os.environ['CLI_SMOKE_OK_PROJECT_SERVE_DRY_RUN_JSON'] == 'true',
         'project_preview_conflict_json_ok': os.environ['CLI_SMOKE_OK_PROJECT_PREVIEW_CONFLICT_JSON'] == 'true',
         'project_open_target_json_ok': os.environ['CLI_SMOKE_OK_PROJECT_OPEN_TARGET_JSON'] == 'true',
         'project_open_target_default_json_ok': os.environ['CLI_SMOKE_OK_PROJECT_OPEN_TARGET_DEFAULT_JSON'] == 'true',

@@ -10,6 +10,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 
 - initial public `CHANGELOG.md` for tracking outward-facing updates
 - added `/Users/carwynmac/ai-cl/OPENCODE_TEST_REPORT_20260423.md` to capture external opencode testing results
+- added `project serve` for launching or dry-running a generated project's local frontend dev server, including an `--install-if-needed` path
 
 ### Changed
 

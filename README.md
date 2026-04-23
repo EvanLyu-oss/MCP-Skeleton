@@ -66,7 +66,7 @@ It is not yet optimized for:
 
 - casual users expecting a 5-minute no-context setup
 - ecommerce, CMS, authentication, dashboard, or database-backed app generation
-- automatic one-command local serving after generation
+- automatic one-command generate-and-serve from a raw prompt
 - production deployment with stability guarantees
 - a frozen public API or stable plugin surface
 
@@ -100,12 +100,22 @@ cd "$REPO_ROOT/output_projects/CompanyProductSiteBrandPostureReview"
 PYTHONPATH="$REPO_ROOT" python3 -m cli project hook-guide --json
 ```
 
+If you want to preview a generated project locally:
+
+```bash
+REPO_ROOT="$PWD"
+cd "$REPO_ROOT/output_projects/CompanyProductSiteBrandPostureReview"
+PYTHONPATH="$REPO_ROOT" python3 -m cli project serve --dry-run --json
+PYTHONPATH="$REPO_ROOT" python3 -m cli project serve --install-if-needed
+```
+
 ## What Already Works Well
 
 The repository already has real product truth in these areas:
 
 - website-oriented CLI checks, previews, summaries, and handoff flows
 - static presentation-site generation for portfolio, company/product, and landing-style pages
+- project-level local frontend serving via `project serve`
 - managed / unmanaged customization via `hook-guide`, `hook-init`, and `hook-continue`
 - durable override workflows without editing managed files directly
 - dual-line brand-distinction sample work on company and personal baselines

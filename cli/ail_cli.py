@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import glob
 from pathlib import Path
 from typing import Any, Sequence
@@ -3374,6 +3375,39 @@ def cmd_project(args: argparse.Namespace) -> int:
                 print(f"- {step}")
         return EXIT_OK
 
+    if getattr(args, "project_command", None) == "serve":
+        ctx = ProjectContext.discover()
+        payload, exit_code = _build_project_serve_payload(
+            ctx,
+            host=args.host,
+            port=args.port,
+            install_if_needed=args.install_if_needed,
+            dry_run=args.dry_run,
+        )
+        if args.json:
+            _print_json_payload(payload)
+        else:
+            print(f"Project serve: {payload.get('project_id', ctx.project_id)}")
+            print(f"- status: {payload.get('status', '')}")
+            print(f"- project_root: {payload.get('project_root', '')}")
+            print(f"- frontend_root: {payload.get('frontend_root', '')}")
+            print(f"- local_url: {payload.get('local_url', '')}")
+            if payload.get("dry_run"):
+                print("- dry_run: true")
+            if payload.get("npm_found") is not None:
+                print(f"- npm_found: {str(bool(payload.get('npm_found'))).lower()}")
+            if payload.get("dependencies_installed") is not None:
+                print(f"- dependencies_installed: {str(bool(payload.get('dependencies_installed'))).lower()}")
+            if payload.get("started"):
+                print(f"- pid: {payload.get('pid', '')}")
+                print(f"- log_path: {payload.get('log_path', '')}")
+            if payload.get("message"):
+                print(f"- message: {payload['message']}")
+            print("Next:")
+            for step in payload.get("next_steps", []):
+                print(f"- {step}")
+        return exit_code
+
     if getattr(args, "project_command", None) == "open-target":
         ctx = ProjectContext.discover()
         payload, exit_code = _build_project_open_target_payload(
@@ -3556,7 +3590,7 @@ def cmd_project(args: argparse.Namespace) -> int:
             )
         return EXIT_OK
 
-    return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported project subcommands: go, continue, check, doctor, summary, hooks, hook-init, preview, open-target, inspect-target, run-inspect-command, export-handoff, show, builds")
+    return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported project subcommands: go, continue, check, doctor, summary, hooks, hook-init, preview, serve, open-target, inspect-target, run-inspect-command, export-handoff, show, builds")
 
 
 def cmd_conflicts(args: argparse.Namespace) -> int:
@@ -4133,6 +4167,12 @@ def _build_parser() -> argparse.ArgumentParser:
     project_preview_parser = project_subparsers.add_parser("preview", help="Show the current preview and artifact handoff for the project")
     project_preview_parser.add_argument("--base-url", default=None, help="Cloud API base URL, defaults to AIL_CLOUD_BASE_URL or http://127.0.0.1:5002")
     project_preview_parser.add_argument("--json", action="store_true", help="Print project preview as JSON")
+    project_serve_parser = project_subparsers.add_parser("serve", help="Start or describe the local frontend dev server for the current generated project")
+    project_serve_parser.add_argument("--host", default="127.0.0.1", help="Frontend dev server host, defaults to 127.0.0.1")
+    project_serve_parser.add_argument("--port", type=int, default=5173, help="Frontend dev server port, defaults to 5173")
+    project_serve_parser.add_argument("--install-if-needed", action="store_true", help="Run npm install if frontend dependencies are missing before starting the dev server")
+    project_serve_parser.add_argument("--dry-run", action="store_true", help="Only show the serve command and local URL without starting the dev server")
+    project_serve_parser.add_argument("--json", action="store_true", help="Print project serve result as JSON")
     project_open_target_parser = project_subparsers.add_parser("open-target", help="Resolve one preview target from the current project handoff")
     project_open_target_parser.add_argument("label", nargs="?", help="Preview target label; defaults to the primary preview target")
     project_open_target_parser.add_argument("--base-url", default=None, help="Cloud API base URL, defaults to AIL_CLOUD_BASE_URL or http://127.0.0.1:5002")
@@ -7803,6 +7843,209 @@ def _build_project_preview_payload(ctx: ProjectContext, *, base_url: str | None)
         "cloud_status": cloud_status,
         "next_steps": next_steps,
     }
+
+
+def _npm_command() -> str | None:
+    return shutil.which("npm.cmd" if os.name == "nt" else "npm") or shutil.which("npm")
+
+
+def _serve_command_display(*, host: str, port: int) -> str:
+    return f"npm run dev -- --host {host} --port {port}"
+
+
+def _read_log_tail(path: Path, *, max_chars: int = 2000) -> str:
+    if not path.exists():
+        return ""
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return content[-max_chars:]
+
+
+def _build_project_serve_payload(
+    ctx: ProjectContext,
+    *,
+    host: str,
+    port: int,
+    install_if_needed: bool,
+    dry_run: bool,
+) -> tuple[dict[str, Any], int]:
+    frontend_root = ctx.root / "frontend"
+    package_json = frontend_root / "package.json"
+    node_modules = frontend_root / "node_modules"
+    serve_command = _serve_command_display(host=host, port=port)
+    local_url = f"http://{host}:{port}"
+    npm = _npm_command()
+    log_dir = ctx.ail_dir / "serve"
+    log_path = log_dir / "project-serve.log"
+
+    base_payload: dict[str, Any] = {
+        "entrypoint": "project-serve",
+        "project_id": ctx.project_id,
+        "project_root": str(ctx.root),
+        "frontend_root": str(frontend_root),
+        "package_json": str(package_json),
+        "host": host,
+        "port": port,
+        "local_url": local_url,
+        "command": serve_command,
+        "dry_run": dry_run,
+        "install_if_needed": install_if_needed,
+        "npm_found": bool(npm),
+        "npm_path": npm or "",
+        "dependencies_installed": node_modules.exists(),
+        "log_path": str(log_path),
+    }
+
+    if not frontend_root.exists() or not frontend_root.is_dir():
+        payload = {
+            **base_payload,
+            "status": "error",
+            "message": "Frontend directory was not found for the current generated project.",
+            "next_steps": [
+                "run website check or compile/sync to generate the frontend first",
+                f"inspect {ctx.root}",
+            ],
+        }
+        return payload, EXIT_VALIDATION
+
+    if not package_json.exists():
+        payload = {
+            **base_payload,
+            "status": "error",
+            "message": "frontend/package.json was not found, so the frontend cannot be served with npm.",
+            "next_steps": [
+                f"inspect {frontend_root}",
+                "regenerate the website project or check whether frontend generation failed",
+            ],
+        }
+        return payload, EXIT_VALIDATION
+
+    if dry_run:
+        payload = {
+            **base_payload,
+            "status": "ok",
+            "started": False,
+            "message": "Dry run only. The frontend dev server was not started.",
+            "next_steps": [
+                f"cd {frontend_root}",
+                "npm install" if not node_modules.exists() else serve_command,
+                f"open {local_url}",
+            ],
+        }
+        if not npm:
+            payload["message"] = "Dry run only. npm was not found on PATH, so install Node.js/npm before serving."
+            payload["next_steps"].insert(0, "install Node.js and npm")
+        return payload, EXIT_OK
+
+    if not npm:
+        payload = {
+            **base_payload,
+            "status": "error",
+            "started": False,
+            "message": "npm was not found on PATH. Install Node.js/npm before serving the generated frontend.",
+            "next_steps": [
+                "install Node.js and npm",
+                f"cd {frontend_root}",
+                serve_command,
+            ],
+        }
+        return payload, EXIT_VALIDATION
+
+    install_result: dict[str, Any] | None = None
+    if not node_modules.exists():
+        if not install_if_needed:
+            payload = {
+                **base_payload,
+                "status": "error",
+                "started": False,
+                "message": "Frontend dependencies are not installed yet.",
+                "recommended_next_command": "npm install",
+                "next_steps": [
+                    f"cd {frontend_root}",
+                    "npm install",
+                    serve_command,
+                    f"open {local_url}",
+                ],
+            }
+            return payload, EXIT_VALIDATION
+
+        install_proc = subprocess.run(
+            [npm, "install"],
+            cwd=frontend_root,
+            text=True,
+            capture_output=True,
+        )
+        install_result = {
+            "command": "npm install",
+            "exit_code": install_proc.returncode,
+            "stdout_tail": install_proc.stdout[-2000:],
+            "stderr_tail": install_proc.stderr[-2000:],
+        }
+        if install_proc.returncode != 0:
+            payload = {
+                **base_payload,
+                "status": "error",
+                "started": False,
+                "install_result": install_result,
+                "message": "npm install failed, so the frontend dev server was not started.",
+                "next_steps": [
+                    f"cd {frontend_root}",
+                    "inspect npm install output",
+                    "fix frontend dependency installation",
+                ],
+            }
+            return payload, EXIT_GENERAL_ERROR
+
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_path.open("a", encoding="utf-8")
+    command = [npm, "run", "dev", "--", "--host", host, "--port", str(port)]
+    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+    process = subprocess.Popen(
+        command,
+        cwd=frontend_root,
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL,
+        start_new_session=os.name != "nt",
+        creationflags=creationflags,
+    )
+    log_file.close()
+    time.sleep(1)
+    early_exit = process.poll()
+    if early_exit is not None:
+        payload = {
+            **base_payload,
+            "status": "error",
+            "started": False,
+            "pid": process.pid,
+            "process_exit_code": early_exit,
+            "install_result": install_result,
+            "log_tail": _read_log_tail(log_path),
+            "message": "The frontend dev server exited immediately. Inspect the serve log for details.",
+            "next_steps": [
+                f"inspect {log_path}",
+                f"cd {frontend_root}",
+                serve_command,
+            ],
+        }
+        return payload, EXIT_GENERAL_ERROR
+
+    payload = {
+        **base_payload,
+        "status": "ok",
+        "started": True,
+        "pid": process.pid,
+        "install_result": install_result,
+        "message": "Frontend dev server started in the background for the current generated website project.",
+        "next_steps": [
+            f"open {local_url}",
+            f"inspect {log_path}",
+            "stop the dev server from your process manager when finished",
+        ],
+    }
+    return payload, EXIT_OK
 
 
 def _build_project_open_target_payload(
