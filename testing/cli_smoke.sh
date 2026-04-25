@@ -678,6 +678,9 @@ assert payload['status'] == 'ok', payload
 assert payload['detected_profile'] == 'ecom_min', payload
 checkout_view = project_dir / 'src/views/generated/Checkout.vue'
 content = checkout_view.read_text(encoding='utf-8')
+assert 'storefront-announcement' in content, content
+assert 'storefront-nav' in content, content
+assert 'storefront-footer' in content, content
 assert 'checkout-step-strip' in content, content
 assert 'FINAL CHECK' in content, content
 assert 'FINAL REVIEW' in content, content
@@ -739,6 +742,8 @@ assert payload['status'] == 'ok', payload
 assert payload['detected_profile'] == 'ecom_min', payload
 cart_view = project_dir / 'src/views/generated/Cart.vue'
 content = cart_view.read_text(encoding='utf-8')
+assert 'storefront-tools' in content, content
+assert '会员入口（骨架）' in content, content
 assert '结算准备' in content, content
 assert 'summary-hint' in content, content
 assert 'READY CHECK' in content, content
@@ -787,6 +792,7 @@ assert payload['status'] == 'ok', payload
 assert payload['detected_profile'] == 'ecom_min', payload
 checkout_view = project_dir / 'src/views/generated/Checkout.vue'
 checkout_content = checkout_view.read_text(encoding='utf-8')
+assert 'storefront-announcement' in checkout_content, checkout_content
 assert 'CHECKOUT HANDOFF' in checkout_content, checkout_content
 assert 'DISCOVERY MEMORY' in checkout_content, checkout_content
 assert 'checkout-discovery-bridge' in checkout_content, checkout_content
@@ -803,6 +809,9 @@ assert "nextParams.set('discovery', sourceDiscoveryKind.value)" in checkout_cont
 assert 'openDiscoverySource' in checkout_content, checkout_content
 product_view = project_dir / 'src/views/generated/Product.vue'
 content = product_view.read_text(encoding='utf-8')
+assert 'storefront-nav' in content, content
+assert 'storefront-footer' in content, content
+assert 'store-card' in content, content
 assert 'LAST_ADDED_KEY' in content, content
 assert 'PRODUCT PICK' in content, content
 assert 'purchase-strip' in content, content
@@ -860,6 +869,11 @@ assert payload['status'] == 'ok', payload
 assert payload['detected_profile'] == 'ecom_min', payload
 home_view = project_dir / 'src/views/generated/Home.vue'
 content = home_view.read_text(encoding='utf-8')
+assert 'storefront-announcement' in content, content
+assert 'storefront-nav' in content, content
+assert 'storefront-tools' in content, content
+assert 'storefront-footer' in content, content
+assert 'store-card' in content, content
 assert 'card-kicker' in content, content
 assert 'PRODUCT PICK' in content, content
 assert 'card-flow' in content, content
@@ -875,6 +889,8 @@ assert '打开搜索结果页' in content, content
 assert 'setCategory' in content, content
 category_view = project_dir / 'src/views/generated/Category.vue'
 category_content = category_view.read_text(encoding='utf-8')
+assert 'storefront-nav' in category_content, category_content
+assert 'store-card' in category_content, category_content
 assert 'CATEGORY VIEW' in category_content, category_content
 assert '01 先看分类' in category_content, category_content
 assert '02 再进店看' in category_content, category_content
@@ -887,6 +903,8 @@ assert 'shop-link' in category_content, category_content
 assert 'openShop' in category_content, category_content
 search_view = project_dir / 'src/views/generated/Search.vue'
 search_content = search_view.read_text(encoding='utf-8')
+assert 'storefront-footer' in search_content, search_content
+assert 'store-card' in search_content, search_content
 assert 'SEARCH RESULT' in search_content, search_content
 assert '01 先搜关键词' in search_content, search_content
 assert '02 再进店看' in search_content, search_content
@@ -899,6 +917,8 @@ assert 'shop-link' in search_content, search_content
 assert 'openShop' in search_content, search_content
 shop_view = project_dir / 'src/views/generated/Shop.vue'
 shop_content = shop_view.read_text(encoding='utf-8')
+assert 'storefront-nav' in shop_content, shop_content
+assert 'store-card' in shop_content, shop_content
 assert 'SHOP CONTINUITY' in shop_content, shop_content
 assert 'CURRENT SHOP' in shop_content, shop_content
 assert 'SHOP FOCUS' in shop_content, shop_content
