@@ -970,6 +970,46 @@ assert 'DISCOVERY CONTINUITY' in shop_content, shop_content
 assert 'openDiscoverySource' in shop_content, shop_content
 assert '回到搜索结果' in shop_content, shop_content
 assert '回到分类页' in shop_content, shop_content
+about_view = project_dir / 'src/views/generated/About.vue'
+about_content = about_view.read_text(encoding='utf-8')
+assert 'storefront-nav' in about_content, about_content
+assert 'ABOUT STOREFRONT' in about_content, about_content
+assert 'COMPANY SNAPSHOT' in about_content, about_content
+assert 'BRAND POSTURE' in about_content, about_content
+assert 'FACTORY / SUPPLY' in about_content, about_content
+assert 'TIMELINE' in about_content, about_content
+contact_view = project_dir / 'src/views/generated/Contact.vue'
+contact_content = contact_view.read_text(encoding='utf-8')
+assert 'storefront-footer' in contact_content, contact_content
+assert 'CONTACT ENTRY' in contact_content, contact_content
+assert 'CONTACT CHANNELS' in contact_content, contact_content
+assert 'MESSAGE FORM' in contact_content, contact_content
+assert 'FORM STUB' in contact_content, contact_content
+assert 'FORM FEEDBACK' in contact_content, contact_content
+assert 'Send skeleton message' in contact_content, contact_content
+policy_view = project_dir / 'src/views/generated/Policy.vue'
+policy_content = policy_view.read_text(encoding='utf-8')
+assert 'POLICY CENTER' in policy_content, policy_content
+assert 'COMPLIANCE SURFACE' in policy_content, policy_content
+assert 'PRIVACY NOTE' in policy_content, policy_content
+assert 'AFTER-SALES TERMS' in policy_content, policy_content
+assert 'PAYMENT NOTICE' in policy_content, policy_content
+account_view = project_dir / 'src/views/generated/Account.vue'
+account_content = account_view.read_text(encoding='utf-8')
+assert 'storefront-nav' in account_content, account_content
+assert 'MEMBER CENTER' in account_content, account_content
+assert 'STATIC MEMBER SHELL' in account_content, account_content
+assert 'PROFILE CARD' in account_content, account_content
+assert 'ORDER HUB' in account_content, account_content
+assert 'ADDRESS BOOK' in account_content, account_content
+assert 'WISHLIST' in account_content, account_content
+assert 'SECURITY' in account_content, account_content
+assert 'DYNAMIC BOUNDARY' in account_content, account_content
+routes_generated = (project_dir / 'src/router/generated/routes.generated.ts').read_text(encoding='utf-8')
+assert '/about' in routes_generated, routes_generated
+assert '/contact' in routes_generated, routes_generated
+assert '/policy' in routes_generated, routes_generated
+assert '/account' in routes_generated, routes_generated
 print('ok')
 PY
 ok_ecom_home_surface_json=true
