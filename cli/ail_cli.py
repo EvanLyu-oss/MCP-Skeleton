@@ -3610,6 +3610,40 @@ def cmd_project(args: argparse.Namespace) -> int:
                 print(f"- {step}")
         return exit_code
 
+    if getattr(args, "project_command", None) == "style-intent":
+        ctx = ProjectContext.discover()
+        payload, exit_code = _build_project_style_intent_payload(
+            ctx,
+            audience=getattr(args, "audience", None),
+            style_direction=getattr(args, "style_direction", None),
+            localization_mode=getattr(args, "localization_mode", None),
+            notes=getattr(args, "notes", None),
+            brand_keywords=getattr(args, "brand_keyword", None),
+            tone_keywords=getattr(args, "tone_keyword", None),
+            visual_constraints=getattr(args, "visual_constraint", None),
+            reset=bool(getattr(args, "reset", False)),
+        )
+        if args.json:
+            _print_json_payload(payload)
+        else:
+            print(f"Project style-intent: {payload['project_id']}")
+            print(f"- project_root: {payload['project_root']}")
+            print(f"- style_intent_path: {payload.get('style_intent_path', '')}")
+            print(f"- action: {payload.get('action', '')}")
+            intent = payload.get("style_intent") or {}
+            print(f"- audience: {intent.get('audience', '')}")
+            print(f"- style_direction: {intent.get('style_direction', '')}")
+            print(f"- localization_mode: {intent.get('localization_mode', '')}")
+            print(f"- brand_keywords: {', '.join(intent.get('brand_keywords') or [])}")
+            print(f"- tone_keywords: {', '.join(intent.get('tone_keywords') or [])}")
+            print(f"- visual_constraints: {', '.join(intent.get('visual_constraints') or [])}")
+            if intent.get("notes"):
+                print(f"- notes: {intent['notes']}")
+            print("Next:")
+            for step in payload["next_steps"]:
+                print(f"- {step}")
+        return exit_code
+
     if getattr(args, "project_command", None) == "show":
         project_id = _resolve_project_id_arg(getattr(args, "project_id", None))
         client = AILCloudClient(base_url=args.base_url)
@@ -3689,7 +3723,7 @@ def cmd_project(args: argparse.Namespace) -> int:
             )
         return EXIT_OK
 
-    return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported project subcommands: go, continue, check, doctor, summary, hooks, hook-guide, hook-init, preview, serve, open-target, inspect-target, run-inspect-command, export-handoff, style-brief, style-apply-check, show, builds")
+    return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported project subcommands: go, continue, check, doctor, summary, hooks, hook-guide, hook-init, preview, serve, open-target, inspect-target, run-inspect-command, export-handoff, style-brief, style-apply-check, style-intent, show, builds")
 
 
 def cmd_conflicts(args: argparse.Namespace) -> int:
@@ -4309,6 +4343,16 @@ def _build_parser() -> argparse.ArgumentParser:
     project_style_apply_check_parser = project_subparsers.add_parser("style-apply-check", help="Validate that styling changes stayed inside safe surfaces and preserved project runtime continuity")
     project_style_apply_check_parser.add_argument("--base-url", default=None, help="Cloud API base URL, defaults to AIL_CLOUD_BASE_URL or http://127.0.0.1:5002")
     project_style_apply_check_parser.add_argument("--json", action="store_true", help="Print project style apply check as JSON")
+    project_style_intent_parser = project_subparsers.add_parser("style-intent", help="Show or save the current project styling intent for later handoff and validation")
+    project_style_intent_parser.add_argument("--audience", default=None, help="Primary audience summary for the current project")
+    project_style_intent_parser.add_argument("--style-direction", default=None, help="Short visual direction summary, for example: editorial, premium, bold, warm")
+    project_style_intent_parser.add_argument("--localization-mode", default=None, help="Localization mode, for example: english_only, bilingual, zh_cn_first")
+    project_style_intent_parser.add_argument("--notes", default=None, help="Freeform operator notes for the styling handoff")
+    project_style_intent_parser.add_argument("--brand-keyword", action="append", default=None, help="Repeatable brand keyword")
+    project_style_intent_parser.add_argument("--tone-keyword", action="append", default=None, help="Repeatable tone keyword")
+    project_style_intent_parser.add_argument("--visual-constraint", action="append", default=None, help="Repeatable visual constraint or non-negotiable rule")
+    project_style_intent_parser.add_argument("--reset", action="store_true", help="Reset the saved style intent back to an empty default record")
+    project_style_intent_parser.add_argument("--json", action="store_true", help="Print project style intent as JSON")
     project_show_parser = project_subparsers.add_parser("show", help="Show project metadata")
     project_show_parser.add_argument("project_id", nargs="?", help="Project identifier; defaults to the current project")
     project_show_parser.add_argument("--base-url", default=None, help="Cloud API base URL, defaults to AIL_CLOUD_BASE_URL or http://127.0.0.1:5002")
@@ -8934,6 +8978,136 @@ def _build_local_project_style_brief_context(ctx: ProjectContext, *, base_url: s
     return summary, preview, export_payload
 
 
+def _style_intent_path(ctx: ProjectContext) -> Path:
+    return ctx.ail_dir / "style_intent.json"
+
+
+def _default_style_intent() -> dict[str, Any]:
+    return {
+        "audience": "",
+        "brand_keywords": [],
+        "tone_keywords": [],
+        "style_direction": "",
+        "localization_mode": "",
+        "visual_constraints": [],
+        "notes": "",
+    }
+
+
+def _normalize_string_list(values: list[str] | None) -> list[str]:
+    cleaned: list[str] = []
+    for item in values or []:
+        for part in str(item or "").split(","):
+            normalized = part.strip()
+            if normalized and normalized not in cleaned:
+                cleaned.append(normalized)
+    return cleaned
+
+
+def _load_project_style_intent(ctx: ProjectContext) -> dict[str, Any]:
+    payload = _default_style_intent()
+    path = _style_intent_path(ctx)
+    if not path.exists():
+        return payload
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return payload
+    if not isinstance(raw, dict):
+        return payload
+    payload["audience"] = str(raw.get("audience") or "").strip()
+    payload["brand_keywords"] = _normalize_string_list(list(raw.get("brand_keywords") or []))
+    payload["tone_keywords"] = _normalize_string_list(list(raw.get("tone_keywords") or []))
+    payload["style_direction"] = str(raw.get("style_direction") or "").strip()
+    payload["localization_mode"] = str(raw.get("localization_mode") or "").strip()
+    payload["visual_constraints"] = _normalize_string_list(list(raw.get("visual_constraints") or []))
+    payload["notes"] = str(raw.get("notes") or "").strip()
+    return payload
+
+
+def _save_project_style_intent(ctx: ProjectContext, payload: dict[str, Any]) -> Path:
+    ctx.ail_dir.mkdir(parents=True, exist_ok=True)
+    path = _style_intent_path(ctx)
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return path
+
+
+def _build_project_style_intent_payload(
+    ctx: ProjectContext,
+    *,
+    audience: str | None,
+    style_direction: str | None,
+    localization_mode: str | None,
+    notes: str | None,
+    brand_keywords: list[str] | None,
+    tone_keywords: list[str] | None,
+    visual_constraints: list[str] | None,
+    reset: bool,
+) -> tuple[dict[str, Any], int]:
+    existing = _load_project_style_intent(ctx)
+    style_intent = _default_style_intent() if reset else dict(existing)
+    write_requested = reset or any(
+        value is not None
+        for value in (
+            audience,
+            style_direction,
+            localization_mode,
+            notes,
+            brand_keywords,
+            tone_keywords,
+            visual_constraints,
+        )
+    )
+
+    if audience is not None:
+        style_intent["audience"] = str(audience).strip()
+    if style_direction is not None:
+        style_intent["style_direction"] = str(style_direction).strip()
+    if localization_mode is not None:
+        style_intent["localization_mode"] = str(localization_mode).strip()
+    if notes is not None:
+        style_intent["notes"] = str(notes).strip()
+    if brand_keywords is not None:
+        style_intent["brand_keywords"] = _normalize_string_list(brand_keywords)
+    if tone_keywords is not None:
+        style_intent["tone_keywords"] = _normalize_string_list(tone_keywords)
+    if visual_constraints is not None:
+        style_intent["visual_constraints"] = _normalize_string_list(visual_constraints)
+
+    style_intent_path = _style_intent_path(ctx)
+    action = "read"
+    message = "Loaded the current project style intent."
+    if reset:
+        _save_project_style_intent(ctx, style_intent)
+        action = "reset"
+        message = "Reset the project style intent back to an empty baseline."
+    elif write_requested:
+        _save_project_style_intent(ctx, style_intent)
+        action = "write"
+        message = "Saved the current project style intent."
+
+    next_steps = [
+        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project style-brief --base-url embedded://local --json",
+        f"inspect {style_intent_path}",
+    ]
+    if action != "read":
+        next_steps.append(f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli project style-apply-check --base-url embedded://local --json")
+
+    payload = {
+        "status": "ok",
+        "entrypoint": "project-style-intent",
+        "project_id": ctx.project_id,
+        "project_root": str(ctx.root),
+        "style_intent_path": str(style_intent_path),
+        "style_intent_exists": style_intent_path.exists(),
+        "action": action,
+        "message": message,
+        "style_intent": style_intent,
+        "next_steps": next_steps,
+    }
+    return payload, EXIT_OK
+
+
 def _build_project_style_brief_payload(ctx: ProjectContext, *, base_url: str | None) -> tuple[dict[str, Any], int]:
     local_mode_reason = ""
     try:
@@ -8978,9 +9152,11 @@ def _build_project_style_brief_payload(ctx: ProjectContext, *, base_url: str | N
     generated_pages_entries = website_delivery_summary.get("generated_pages_entries") or []
     generated_routes_entries = website_delivery_summary.get("generated_routes_entries") or []
     open_targets = preview.get("open_targets") or []
+    style_intent = _load_project_style_intent(ctx)
 
     recommended_commands = []
     for command in (
+        f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project style-intent --json",
         f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project style-brief --base-url embedded://local --json",
         f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project export-handoff --base-url embedded://local --json",
         f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hook-guide --json",
@@ -8993,6 +9169,7 @@ def _build_project_style_brief_payload(ctx: ProjectContext, *, base_url: str | N
 
     next_steps = []
     for source in (
+        [f"inspect {_style_intent_path(ctx)}"],
         [f"inspect {override_surface['readme_path']}"],
         [f"inspect {override_surface['theme_tokens_path']}", f"inspect {override_surface['custom_css_path']}"],
         [f"run {command}" for command in recommended_commands],
@@ -9015,6 +9192,10 @@ def _build_project_style_brief_payload(ctx: ProjectContext, *, base_url: str | N
         "local_mode": bool(local_mode_reason),
         "local_mode_reason": local_mode_reason,
         "current_profile": source_diagnosis.get("detected_profile", ""),
+        "design_intent": {
+            **style_intent,
+            "style_intent_path": str(_style_intent_path(ctx)),
+        },
         "doctor_status": summary.get("doctor_status"),
         "recommended_action": summary.get("recommended_action"),
         "recommended_primary_action": summary.get("recommended_primary_action"),
@@ -9066,6 +9247,7 @@ def _build_project_style_brief_payload(ctx: ProjectContext, *, base_url: str | N
         },
         "recommended_commands": recommended_commands,
         "source_commands": {
+            "project_style_intent": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project style-intent --json",
             "project_export_handoff": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project export-handoff --base-url embedded://local --json",
             "project_hook_guide": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project hook-guide --json",
             "project_serve": f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli project serve --install-if-needed --json",

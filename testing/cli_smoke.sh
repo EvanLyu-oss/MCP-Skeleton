@@ -2768,6 +2768,7 @@ assert any(path.endswith('/frontend/src/ail-managed') for path in payload['write
 assert payload['override_surface']['theme_tokens_path'].endswith('/frontend/src/ail-overrides/theme.tokens.css'), payload
 assert payload['override_surface']['custom_css_path'].endswith('/frontend/src/ail-overrides/custom.css'), payload
 assert payload['hook_surface']['entrypoint'] == 'project-hook-guide', payload
+assert payload['source_commands']['project_style_intent'].endswith('python3 -m cli project style-intent --json'), payload
 assert payload['source_commands']['project_export_handoff'].endswith('python3 -m cli project export-handoff --base-url embedded://local --json'), payload
 assert payload['source_commands']['project_hook_guide'].endswith('python3 -m cli project hook-guide --json'), payload
 assert payload['source_commands']['project_serve'].endswith('python3 -m cli project serve --install-if-needed --json'), payload
@@ -2775,6 +2776,77 @@ assert payload['architecture_contract']['primary_target_label'] == 'artifact_roo
 assert 'generated_pages_entries' in payload['architecture_contract'], payload
 PY
 ok_project_style_brief_json=true
+
+style_intent_project_dir="$(mktemp -d /tmp/ail_cli_smoke_style_intent.XXXXXX)"
+cp -R "$ROOT"/output_projects/CompanyProductSiteBrandPostureReview/. "$style_intent_project_dir"/
+
+project_style_intent_write_json="$TMP_ROOT/project_style_intent_write.json"
+(
+  cd "$style_intent_project_dir"
+  PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project style-intent \
+    --audience "founder-led SaaS buyers" \
+    --style-direction "editorial clarity" \
+    --localization-mode "english_only" \
+    --brand-keyword "credible" \
+    --brand-keyword "focused" \
+    --tone-keyword "calm" \
+    --tone-keyword "precise" \
+    --visual-constraint "avoid purple" \
+    --visual-constraint "mobile first readability" \
+    --notes "Prefer strong hierarchy over decorative noise." \
+    --json > "$project_style_intent_write_json"
+)
+python3 - "$project_style_intent_write_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'ok', payload
+assert payload['entrypoint'] == 'project-style-intent', payload
+assert payload['action'] == 'write', payload
+intent = payload['style_intent']
+assert intent['audience'] == 'founder-led SaaS buyers', payload
+assert intent['style_direction'] == 'editorial clarity', payload
+assert intent['localization_mode'] == 'english_only', payload
+assert intent['brand_keywords'] == ['credible', 'focused'], payload
+assert intent['tone_keywords'] == ['calm', 'precise'], payload
+assert intent['visual_constraints'] == ['avoid purple', 'mobile first readability'], payload
+assert intent['notes'] == 'Prefer strong hierarchy over decorative noise.', payload
+PY
+ok_project_style_intent_write_json=true
+
+project_style_intent_read_json="$TMP_ROOT/project_style_intent_read.json"
+(
+  cd "$style_intent_project_dir"
+  PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project style-intent --json > "$project_style_intent_read_json"
+)
+python3 - "$project_style_intent_read_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'ok', payload
+assert payload['action'] == 'read', payload
+assert payload['style_intent']['brand_keywords'] == ['credible', 'focused'], payload
+assert payload['style_intent']['tone_keywords'] == ['calm', 'precise'], payload
+PY
+ok_project_style_intent_read_json=true
+
+project_style_brief_intent_json="$TMP_ROOT/project_style_brief_intent.json"
+(
+  cd "$style_intent_project_dir"
+  PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project style-brief --base-url embedded://local --json > "$project_style_brief_intent_json"
+)
+python3 - "$project_style_brief_intent_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'ok', payload
+intent = payload['design_intent']
+assert intent['audience'] == 'founder-led SaaS buyers', payload
+assert intent['style_direction'] == 'editorial clarity', payload
+assert intent['localization_mode'] == 'english_only', payload
+assert intent['brand_keywords'] == ['credible', 'focused'], payload
+assert intent['tone_keywords'] == ['calm', 'precise'], payload
+assert intent['visual_constraints'] == ['avoid purple', 'mobile first readability'], payload
+assert payload['source_commands']['project_style_intent'].endswith('python3 -m cli project style-intent --json'), payload
+PY
+ok_project_style_brief_intent_json=true
 
 project_style_apply_check_json="$TMP_ROOT/project_style_apply_check.json"
 (

@@ -38,6 +38,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 - added `/Users/carwynmac/ai-cl/DESIGN_HANDOFF_SPEC_20260426.md` to define the architecture-first AIL Core plus external model styling contract and the proposed `project style-brief` / `project style-apply-check` direction
 - added `project style-brief` so operators and external design models can export one architecture-first styling brief with override-safe write roots, managed-boundary rules, preview context, and recommended validation commands
 - added `project style-apply-check` so styled projects can locally verify managed mirror integrity, route/runtime continuity, and preview dry-run readiness without depending on a cloud project record
+- added `project style-intent` so operators can save reusable audience, tone, brand-keyword, localization, and visual-constraint intent into `.ail/style_intent.json`, and wired `project style-brief` to include that saved intent automatically
 
 ## 2026-04-19
 

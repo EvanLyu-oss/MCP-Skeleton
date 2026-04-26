@@ -77,8 +77,10 @@ Architecture-first styling direction:
 
 - use `python3 -m cli project style-brief --base-url embedded://local --json` from a generated project when you want one operator-safe brief for an external design model
 - use `python3 -m cli project style-apply-check --base-url embedded://local --json` after a styling pass when you want one local boundary and runtime continuity check
+- use `python3 -m cli project style-intent --json` to read or save the current audience, brand, tone, localization, and visual constraints for later handoff
 - this brief consolidates:
   - current preview and generated surface context
+  - saved design intent from `.ail/style_intent.json`
   - allowed override-safe write roots
   - forbidden managed roots
   - recommended validation and preview commands
