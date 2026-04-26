@@ -40,6 +40,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 - added `project style-apply-check` so styled projects can locally verify managed mirror integrity, route/runtime continuity, and preview dry-run readiness without depending on a cloud project record
 - added `project style-intent` so operators can save reusable audience, tone, brand-keyword, localization, and visual-constraint intent into `.ail/style_intent.json`, and wired `project style-brief` to include that saved intent automatically
 - expanded `project style-brief` with a prompt-ready `--emit-prompt` mode and a `model_prompt` field so operators can paste one compact styling task directly into external models
+- expanded `project style-apply-check` with a compact `--emit-summary` mode and a `summary_text` field so operators can quickly review pass/fail boundary results without reading the full JSON payload
 
 ## 2026-04-19
 

@@ -3595,6 +3595,9 @@ def cmd_project(args: argparse.Namespace) -> int:
     if getattr(args, "project_command", None) == "style-apply-check":
         ctx = ProjectContext.discover()
         payload, exit_code = _build_project_style_apply_check_payload(ctx, base_url=args.base_url)
+        if getattr(args, "emit_summary", False):
+            sys.stdout.write(str(payload.get("summary_text", "")))
+            return exit_code
         if args.json:
             _print_json_payload(payload)
         else:
@@ -4346,6 +4349,7 @@ def _build_parser() -> argparse.ArgumentParser:
     project_style_brief_parser.add_argument("--json", action="store_true", help="Print project style brief as JSON")
     project_style_apply_check_parser = project_subparsers.add_parser("style-apply-check", help="Validate that styling changes stayed inside safe surfaces and preserved project runtime continuity")
     project_style_apply_check_parser.add_argument("--base-url", default=None, help="Cloud API base URL, defaults to AIL_CLOUD_BASE_URL or http://127.0.0.1:5002")
+    project_style_apply_check_parser.add_argument("--emit-summary", action="store_true", help="Print only the compact style-apply-check summary text")
     project_style_apply_check_parser.add_argument("--json", action="store_true", help="Print project style apply check as JSON")
     project_style_intent_parser = project_subparsers.add_parser("style-intent", help="Show or save the current project styling intent for later handoff and validation")
     project_style_intent_parser.add_argument("--audience", default=None, help="Primary audience summary for the current project")
@@ -9163,6 +9167,29 @@ def _build_project_style_prompt_text(style_brief: dict[str, Any]) -> str:
     )
 
 
+def _build_project_style_apply_summary_text(payload: dict[str, Any]) -> str:
+    managed_boundary = payload.get("managed_boundary") or {}
+    route_contract = payload.get("route_contract") or {}
+    runtime_entry_contract = payload.get("runtime_entry_contract") or {}
+    serve_dry_run = payload.get("serve_dry_run") or {}
+    override_surface_summary = payload.get("override_surface_summary") or {}
+    lines = [
+        f"status: {payload.get('status', '')}",
+        f"project_root: {payload.get('project_root', '')}",
+        f"managed_verified: {managed_boundary.get('verified_count', 0)}",
+        f"managed_violations: {managed_boundary.get('violation_count', 0)}",
+        f"managed_missing_mirrors: {managed_boundary.get('missing_mirror_count', 0)}",
+        f"route_contract_ok: {str(bool(route_contract.get('route_contract_ok'))).lower()}",
+        f"runtime_entry_ok: {str(bool(runtime_entry_contract.get('runtime_entry_ok'))).lower()}",
+        f"serve_dry_run_status: {serve_dry_run.get('status', '')}",
+        f"override_component_files: {override_surface_summary.get('override_component_file_count', 0)}",
+        f"override_asset_files: {override_surface_summary.get('override_asset_file_count', 0)}",
+    ]
+    if payload.get("message"):
+        lines.append(f"message: {payload['message']}")
+    return "\n".join(lines)
+
+
 def _build_project_style_brief_payload(ctx: ProjectContext, *, base_url: str | None) -> tuple[dict[str, Any], int]:
     local_mode_reason = ""
     try:
@@ -9507,6 +9534,7 @@ def _build_project_style_apply_check_payload(ctx: ProjectContext, *, base_url: s
         "serve_dry_run": serve_payload,
         "next_steps": next_steps,
     }
+    payload["summary_text"] = _build_project_style_apply_summary_text(payload)
     return payload, exit_code
 
 

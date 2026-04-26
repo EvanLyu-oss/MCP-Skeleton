@@ -2881,8 +2881,20 @@ assert payload['runtime_entry_contract']['runtime_entry_ok'] is True, payload
 assert payload['serve_dry_run']['entrypoint'] == 'project-serve', payload
 assert payload['style_brief']['entrypoint'] == 'project-style-brief', payload
 assert payload['style_brief']['local_mode'] is True, payload
+assert 'status: ok' in payload['summary_text'], payload
 PY
 ok_project_style_apply_check_json=true
+
+project_style_apply_check_emit_summary_txt="$TMP_ROOT/project_style_apply_check_emit_summary.txt"
+(
+  cd "$ROOT/output_projects/CompanyProductSiteBrandPostureReview"
+  PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project style-apply-check --base-url embedded://local --emit-summary > "$project_style_apply_check_emit_summary_txt"
+)
+grep -q "^status: ok$" "$project_style_apply_check_emit_summary_txt"
+grep -q "^managed_violations: 0$" "$project_style_apply_check_emit_summary_txt"
+grep -q "^route_contract_ok: true$" "$project_style_apply_check_emit_summary_txt"
+grep -q "^serve_dry_run_status: ok$" "$project_style_apply_check_emit_summary_txt"
+ok_project_style_apply_check_emit_summary_txt=true
 
 cloud_status_preview_json="$TMP_ROOT/cloud_status_preview.json"
 AIL_CLOUD_BASE_URL=embedded://local python3 -m cli cloud status --json > "$cloud_status_preview_json"
