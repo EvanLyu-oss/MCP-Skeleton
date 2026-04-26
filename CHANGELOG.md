@@ -39,6 +39,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 - added `project style-brief` so operators and external design models can export one architecture-first styling brief with override-safe write roots, managed-boundary rules, preview context, and recommended validation commands
 - added `project style-apply-check` so styled projects can locally verify managed mirror integrity, route/runtime continuity, and preview dry-run readiness without depending on a cloud project record
 - added `project style-intent` so operators can save reusable audience, tone, brand-keyword, localization, and visual-constraint intent into `.ail/style_intent.json`, and wired `project style-brief` to include that saved intent automatically
+- expanded `project style-brief` with a prompt-ready `--emit-prompt` mode and a `model_prompt` field so operators can paste one compact styling task directly into external models
 
 ## 2026-04-19
 

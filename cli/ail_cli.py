@@ -3566,6 +3566,9 @@ def cmd_project(args: argparse.Namespace) -> int:
     if getattr(args, "project_command", None) == "style-brief":
         ctx = ProjectContext.discover()
         payload, exit_code = _build_project_style_brief_payload(ctx, base_url=args.base_url)
+        if getattr(args, "emit_prompt", False):
+            sys.stdout.write(str(payload.get("model_prompt", "")))
+            return exit_code
         if args.json:
             _print_json_payload(payload)
         else:
@@ -4339,6 +4342,7 @@ def _build_parser() -> argparse.ArgumentParser:
     project_export_handoff_parser.add_argument("--json", action="store_true", help="Print project export handoff as JSON")
     project_style_brief_parser = project_subparsers.add_parser("style-brief", help="Export one architecture-first styling brief for external design models or operators")
     project_style_brief_parser.add_argument("--base-url", default=None, help="Cloud API base URL, defaults to AIL_CLOUD_BASE_URL or http://127.0.0.1:5002")
+    project_style_brief_parser.add_argument("--emit-prompt", action="store_true", help="Print only the prompt-ready styling handoff text for an external model")
     project_style_brief_parser.add_argument("--json", action="store_true", help="Print project style brief as JSON")
     project_style_apply_check_parser = project_subparsers.add_parser("style-apply-check", help="Validate that styling changes stayed inside safe surfaces and preserved project runtime continuity")
     project_style_apply_check_parser.add_argument("--base-url", default=None, help="Cloud API base URL, defaults to AIL_CLOUD_BASE_URL or http://127.0.0.1:5002")
@@ -9108,6 +9112,57 @@ def _build_project_style_intent_payload(
     return payload, EXIT_OK
 
 
+def _build_project_style_prompt_text(style_brief: dict[str, Any]) -> str:
+    design_intent = style_brief.get("design_intent") or {}
+    write_contract = style_brief.get("write_contract") or {}
+    override_surface = style_brief.get("override_surface") or {}
+    architecture_contract = style_brief.get("architecture_contract") or {}
+
+    brand_keywords = ", ".join(design_intent.get("brand_keywords") or []) or "(not specified)"
+    tone_keywords = ", ".join(design_intent.get("tone_keywords") or []) or "(not specified)"
+    visual_constraints = "\n".join(f"- {item}" for item in (design_intent.get("visual_constraints") or [])) or "- (not specified)"
+    allowed_paths = "\n".join(f"- {item}" for item in (write_contract.get("allowed_write_roots") or [])) or "- (none)"
+    forbidden_paths = "\n".join(f"- {item}" for item in (write_contract.get("forbidden_write_roots") or [])) or "- (none)"
+    open_targets = "\n".join(f"- {item}" for item in (architecture_contract.get("open_target_labels") or [])) or "- artifact_root"
+
+    return (
+        "You are styling an AIL Builder project.\n\n"
+        "Keep the architecture, routes, generated continuity, and preview flow intact.\n"
+        "Do not reposition this as a backend, CMS, dashboard, or production auth/payment system.\n\n"
+        f"Project root:\n- {style_brief.get('project_root', '')}\n\n"
+        "Current project intent:\n"
+        f"- audience: {design_intent.get('audience') or '(not specified)'}\n"
+        f"- style_direction: {design_intent.get('style_direction') or '(not specified)'}\n"
+        f"- localization_mode: {design_intent.get('localization_mode') or '(not specified)'}\n"
+        f"- brand_keywords: {brand_keywords}\n"
+        f"- tone_keywords: {tone_keywords}\n"
+        f"- notes: {design_intent.get('notes') or '(none)'}\n\n"
+        "Visual constraints:\n"
+        f"{visual_constraints}\n\n"
+        "Safe write scope:\n"
+        f"{allowed_paths}\n\n"
+        "Do not edit these managed roots directly for durable styling work:\n"
+        f"{forbidden_paths}\n\n"
+        "Recommended override surfaces:\n"
+        f"- theme tokens: {override_surface.get('theme_tokens_path', '')}\n"
+        f"- custom CSS: {override_surface.get('custom_css_path', '')}\n"
+        f"- override components: {override_surface.get('component_overrides_dir', '')}\n"
+        f"- override assets: {override_surface.get('asset_overrides_dir', '')}\n"
+        f"- public override assets: {override_surface.get('public_asset_overrides_dir', '')}\n\n"
+        "Keep these project continuity targets intact:\n"
+        f"{open_targets}\n\n"
+        "Working rules:\n"
+        "- start with theme tokens and custom CSS before replacing structure\n"
+        "- only add override-owned components when visual expression needs extra markup\n"
+        "- do not break router wiring to ail-managed continuity files\n"
+        "- preserve mobile and desktop readability\n\n"
+        "After styling, validate with:\n"
+        f"- {((style_brief.get('source_commands') or {}).get('project_style_intent') or '').strip()}\n"
+        f"- {((style_brief.get('source_commands') or {}).get('project_serve') or '').strip()}\n"
+        f"- PYTHONPATH={REPO_ROOT_STR} python3 -m cli project style-apply-check --base-url embedded://local --json\n"
+    )
+
+
 def _build_project_style_brief_payload(ctx: ProjectContext, *, base_url: str | None) -> tuple[dict[str, Any], int]:
     local_mode_reason = ""
     try:
@@ -9254,6 +9309,7 @@ def _build_project_style_brief_payload(ctx: ProjectContext, *, base_url: str | N
         },
         "next_steps": next_steps,
     }
+    payload["model_prompt"] = _build_project_style_prompt_text(payload)
     return payload, EXIT_OK if payload["status"] == "ok" else max(export_exit, hook_exit)
 
 

@@ -2774,6 +2774,7 @@ assert payload['source_commands']['project_hook_guide'].endswith('python3 -m cli
 assert payload['source_commands']['project_serve'].endswith('python3 -m cli project serve --install-if-needed --json'), payload
 assert payload['architecture_contract']['primary_target_label'] == 'artifact_root', payload
 assert 'generated_pages_entries' in payload['architecture_contract'], payload
+assert 'You are styling an AIL Builder project.' in payload['model_prompt'], payload
 PY
 ok_project_style_brief_json=true
 
@@ -2845,8 +2846,21 @@ assert intent['brand_keywords'] == ['credible', 'focused'], payload
 assert intent['tone_keywords'] == ['calm', 'precise'], payload
 assert intent['visual_constraints'] == ['avoid purple', 'mobile first readability'], payload
 assert payload['source_commands']['project_style_intent'].endswith('python3 -m cli project style-intent --json'), payload
+assert 'founder-led SaaS buyers' in payload['model_prompt'], payload
 PY
 ok_project_style_brief_intent_json=true
+
+project_style_brief_emit_prompt_txt="$TMP_ROOT/project_style_brief_emit_prompt.txt"
+(
+  cd "$style_intent_project_dir"
+  PYTHONPATH="$ROOT" AIL_CLOUD_BASE_URL=embedded://local python3 -m cli project style-brief --base-url embedded://local --emit-prompt > "$project_style_brief_emit_prompt_txt"
+)
+grep -q "^You are styling an AIL Builder project\\.$" "$project_style_brief_emit_prompt_txt"
+grep -q "^Current project intent:$" "$project_style_brief_emit_prompt_txt"
+grep -q "founder-led SaaS buyers" "$project_style_brief_emit_prompt_txt"
+grep -q "^Safe write scope:$" "$project_style_brief_emit_prompt_txt"
+grep -q "^Do not edit these managed roots directly for durable styling work:$" "$project_style_brief_emit_prompt_txt"
+ok_project_style_brief_emit_prompt_txt=true
 
 project_style_apply_check_json="$TMP_ROOT/project_style_apply_check.json"
 (
