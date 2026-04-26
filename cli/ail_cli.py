@@ -381,8 +381,8 @@ def cmd_writing(args: argparse.Namespace) -> int:
                 print(f"- {step}")
         return exit_code
 
-    if getattr(args, "writing_command", None) != "check" and getattr(args, "writing_command", None) != "intent":
-        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported writing subcommands: check, packs, intent")
+    if getattr(args, "writing_command", None) not in {"check", "intent", "scaffold"}:
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported writing subcommands: check, packs, scaffold, intent")
 
     if getattr(args, "writing_command", None) == "check":
         requirement = _read_requirement(args)
@@ -409,6 +409,32 @@ def cmd_writing(args: argparse.Namespace) -> int:
             if contract:
                 print(f"- delivery_surface: {contract.get('surface', '')}")
                 print(f"- stability_note: {contract.get('stability_note', '')}")
+            print("Next:")
+            for step in payload["next_steps"]:
+                print(f"- {step}")
+        return exit_code
+
+    if getattr(args, "writing_command", None) == "scaffold":
+        requirement = _read_requirement(args)
+        if not requirement:
+            return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "writing scaffold requires a non-empty requirement")
+        payload, exit_code = _build_writing_scaffold_payload(requirement=requirement)
+        if args.json:
+            _print_json_payload(payload)
+        else:
+            print("Writing scaffold")
+            print(f"- status: {payload['status']}")
+            print(f"- writing_pack: {payload['writing_pack']}")
+            print(f"- expected_profile: {payload.get('expected_profile', '')}")
+            print(f"- scaffold_surface: {payload.get('scaffold_surface', '')}")
+            print(f"- audience: {(payload.get('writing_intent') or {}).get('audience', '')}")
+            scaffold = payload.get("scaffold") or {}
+            if scaffold.get("headline"):
+                print(f"- headline: {scaffold.get('headline', '')}")
+            if scaffold.get("working_title"):
+                print(f"- working_title: {scaffold.get('working_title', '')}")
+            if scaffold.get("book_title"):
+                print(f"- book_title: {scaffold.get('book_title', '')}")
             print("Next:")
             for step in payload["next_steps"]:
                 print(f"- {step}")
@@ -4077,6 +4103,10 @@ def _build_parser() -> argparse.ArgumentParser:
     writing_check_parser.add_argument("--json", action="store_true", help="Print writing check result as JSON")
     writing_packs_parser = writing_subparsers.add_parser("packs", help="List the current structured writing packs")
     writing_packs_parser.add_argument("--json", action="store_true", help="Print writing packs as JSON")
+    writing_scaffold_parser = writing_subparsers.add_parser("scaffold", help="Generate one low-token writing scaffold for the current requirement")
+    writing_scaffold_parser.add_argument("requirement", nargs="?", help="Writing requirement text")
+    writing_scaffold_parser.add_argument("--from-file", dest="from_file", help="Read requirement text from a file")
+    writing_scaffold_parser.add_argument("--json", action="store_true", help="Print writing scaffold as JSON")
     writing_intent_parser = writing_subparsers.add_parser("intent", help="Show or save the current repo-level writing intent for later scaffolding and handoff")
     writing_intent_parser.add_argument("--audience", default=None, help="Primary audience summary for the current writing line")
     writing_intent_parser.add_argument("--format-mode", default=None, help="Writing mode, for example: copy, story, book")
@@ -4832,6 +4862,193 @@ def _build_writing_check_payload(*, requirement: str) -> tuple[dict[str, Any], i
         expected_profile=analysis["expected_profile"] or "copy_min",
     )
     return payload, exit_code
+
+
+def _writing_requirement_focus(requirement: str) -> str:
+    cleaned = re.sub(r"\s+", " ", requirement.strip())
+    return cleaned[:160] if cleaned else "the current writing requirement"
+
+
+def _writing_effective_intent(*, classification_key: str) -> tuple[dict[str, Any], str]:
+    intent = _load_writing_intent()
+    stored_mode = str(intent.get("format_mode") or "").strip().lower()
+    desired_mode = {
+        "copy_min": "copy",
+        "story_min": "story",
+        "book_min": "book",
+    }.get(classification_key, "")
+    scope_status = "direct"
+    if stored_mode and desired_mode and stored_mode not in {desired_mode, f"{desired_mode}_min"}:
+        intent["genre"] = ""
+        scope_status = "cross_mode_softened"
+    if not intent.get("format_mode"):
+        intent["format_mode"] = "adaptive"
+    if not intent.get("localization_mode"):
+        intent["localization_mode"] = "unspecified"
+    if not intent.get("target_length"):
+        intent["target_length"] = "structured_scaffold"
+    return intent, scope_status
+
+
+def _copy_scaffold(requirement: str, intent: dict[str, Any]) -> dict[str, Any]:
+    audience = intent.get("audience") or "the target buyer"
+    focus = _writing_requirement_focus(requirement)
+    tone = ", ".join(intent.get("tone_keywords") or []) or "clear and persuasive"
+    style = ", ".join(intent.get("style_keywords") or []) or "structured"
+    return {
+        "headline": f"Help {audience} understand why this offer deserves the next click.",
+        "one_line_promise": f"Turn {focus} into a short, conversion-aware message hierarchy.",
+        "message_architecture": {
+            "problem": f"{audience} still needs a faster way to understand the offer, the fit, and the next action.",
+            "promise": f"Present the offer in a {tone} way so the reader reaches a decision with less friction.",
+            "proof": [
+                "clarify the audience fit first",
+                "translate the value into concrete outcomes",
+                "close with one visible next action",
+            ],
+            "cta_direction": [
+                "Book a demo",
+                "Request pricing",
+                "Start the conversation",
+            ],
+        },
+        "sections": [
+            {"section": "hero", "goal": "state the promise fast", "notes": f"use a {style} headline and one direct CTA"},
+            {"section": "pain", "goal": "name the current friction", "notes": "show what is slow, expensive, or confusing today"},
+            {"section": "solution", "goal": "introduce the offer", "notes": "connect the product or service to one immediate operational benefit"},
+            {"section": "proof", "goal": "lower doubt", "notes": "use proof points, examples, or credibility signals"},
+            {"section": "offer", "goal": "make the action obvious", "notes": "restate fit, value, and CTA in one compact block"},
+        ],
+        "draft_tasks": [
+            "write three headline options with different intensity levels",
+            "draft one short proof block and one longer proof block",
+            "draft two CTA variants for high-intent and mid-intent readers",
+        ],
+    }
+
+
+def _story_scaffold(requirement: str, intent: dict[str, Any]) -> dict[str, Any]:
+    audience = intent.get("audience") or "story readers"
+    genre = intent.get("genre") or "speculative fiction"
+    focus = _writing_requirement_focus(requirement)
+    constraints = intent.get("narrative_constraints") or ["keep the conflict visible in every chapter"]
+    return {
+        "working_title": f"{genre.title()} Blueprint for {audience}",
+        "story_core": {
+            "premise": f"Build a story around {focus}, with a conflict that escalates before the protagonist fully understands the cost.",
+            "protagonist_goal": "want something concrete enough to pursue chapter by chapter",
+            "opposition": "introduce one human force and one systemic force working against that goal",
+            "stakes": "if the protagonist fails, they lose more than status or convenience",
+            "tone": ", ".join(intent.get("tone_keywords") or []) or "clear, tense, and forward-moving",
+        },
+        "character_cards": [
+            {"role": "protagonist", "need": "external victory", "hidden_need": "internal correction", "risk": "chooses speed over understanding"},
+            {"role": "ally", "need": "keep the mission alive", "hidden_need": "prove loyalty without disappearing into support work", "risk": "knows too much and says too little"},
+            {"role": "opposition", "need": "preserve control", "hidden_need": "avoid exposure", "risk": "underestimates what pressure reveals"},
+        ],
+        "chapter_tree": [
+            {"chapter": 1, "label": "disruption", "goal": "break the old equilibrium and show the cost of inaction"},
+            {"chapter": 2, "label": "commitment", "goal": "force the protagonist to choose a path they cannot easily reverse"},
+            {"chapter": 3, "label": "pressure", "goal": "tighten the conflict and reveal the first deeper consequence"},
+            {"chapter": 4, "label": "reversal", "goal": "strip away a false assumption and force a harder strategy"},
+            {"chapter": 5, "label": "decision", "goal": "land the major confrontation and set up the next draft pass"},
+        ],
+        "scene_tasks": [
+            "draft the opening disturbance scene in one page",
+            "write one confrontation scene that reveals the protagonist's flaw",
+            "draft the midpoint reversal before expanding secondary threads",
+        ],
+        "narrative_constraints": constraints,
+    }
+
+
+def _book_scaffold(requirement: str, intent: dict[str, Any]) -> dict[str, Any]:
+    audience = intent.get("audience") or "the target reader"
+    genre = intent.get("genre") or "practical nonfiction"
+    focus = _writing_requirement_focus(requirement)
+    return {
+        "book_title": f"{genre.title()} Blueprint for {audience}",
+        "reader_transformation": f"Help {audience} move from confusion to a repeatable approach around {focus}.",
+        "positioning": {
+            "reader": audience,
+            "promise": "deliver a structured transformation rather than a loose set of ideas",
+            "scope_boundary": "keep the book focused on one clear progression the reader can follow chapter by chapter",
+        },
+        "table_of_contents": [
+            {"chapter": 1, "title": "Why the current approach breaks", "goal": "name the reader's current friction and reset expectations"},
+            {"chapter": 2, "title": "What the new model changes", "goal": "introduce the core framework in plain language"},
+            {"chapter": 3, "title": "How to apply it step by step", "goal": "turn the framework into an operating sequence"},
+            {"chapter": 4, "title": "Where execution usually fails", "goal": "surface edge cases, mistakes, and recovery patterns"},
+            {"chapter": 5, "title": "How to sustain the result", "goal": "show how the reader keeps the new system working over time"},
+        ],
+        "chapter_cards": [
+            {"chapter": 1, "reader_question": "why does this keep feeling harder than it should?", "evidence_needed": "one strong example or contrast"},
+            {"chapter": 2, "reader_question": "what is the new mental model?", "evidence_needed": "one diagram, metaphor, or named framework"},
+            {"chapter": 3, "reader_question": "what do I do first?", "evidence_needed": "a sequence the reader can test immediately"},
+            {"chapter": 4, "reader_question": "what could go wrong?", "evidence_needed": "mistakes, objections, and correction paths"},
+            {"chapter": 5, "reader_question": "how do I keep this working?", "evidence_needed": "a maintenance loop or review cadence"},
+        ],
+        "research_gaps": [
+            "collect one concrete case study or operational example for each major chapter",
+            "decide which chapter deserves a framework diagram",
+            "identify where definitions need to be simplified for first-time readers",
+        ],
+    }
+
+
+def _build_writing_scaffold_payload(*, requirement: str) -> tuple[dict[str, Any], int]:
+    analysis = _analyze_writing_requirement(requirement)
+    support_level = analysis["support_level"]
+    if support_level != "Supported":
+        payload, exit_code = _build_writing_check_payload(requirement=requirement)
+        payload = {
+            **payload,
+            "entrypoint": "writing-scaffold",
+            "scaffold_surface": "unavailable",
+            "scaffold": {},
+        }
+        return payload, exit_code
+
+    classification_key = analysis["classification_key"]
+    intent, intent_scope_status = _writing_effective_intent(classification_key=classification_key)
+    if classification_key == "copy_min":
+        scaffold = _copy_scaffold(requirement, intent)
+        scaffold_surface = "copy_message_hierarchy"
+    elif classification_key == "story_min":
+        scaffold = _story_scaffold(requirement, intent)
+        scaffold_surface = "story_outline_architecture"
+    else:
+        scaffold = _book_scaffold(requirement, intent)
+        scaffold_surface = "book_blueprint_architecture"
+
+    next_steps = [
+        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli writing intent --json",
+        f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli writing check {shlex.quote(requirement)} --json",
+        "use this scaffold as the low-token source of truth before asking an external model to expand prose",
+    ]
+    payload = {
+        "status": "ok",
+        "entrypoint": "writing-scaffold",
+        "requirement": requirement,
+        "writing_pack": analysis["pack"],
+        "support_level": support_level,
+        "expected_profile": analysis["expected_profile"],
+        "writing_reason": analysis["writing_reason"],
+        "safe_positioning": analysis["safe_positioning"],
+        "matched_signals": analysis.get("matched_signals", []),
+        "boundary_findings": analysis.get("boundary_findings", []),
+        "writing_contract": _writing_delivery_contract(
+            classification_key,
+            expected_profile=analysis["expected_profile"],
+        ),
+        "scaffold_surface": scaffold_surface,
+        "writing_intent_path": str(_writing_intent_path()),
+        "intent_scope_status": intent_scope_status,
+        "writing_intent": intent,
+        "scaffold": scaffold,
+        "next_steps": next_steps,
+    }
+    return payload, EXIT_OK
 
 
 def _build_writing_packs_payload() -> tuple[dict[str, Any], int]:

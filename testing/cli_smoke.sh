@@ -20,6 +20,9 @@ ok_writing_packs_json=false
 ok_writing_check_copy_json=false
 ok_writing_check_story_json=false
 ok_writing_check_book_json=false
+ok_writing_scaffold_copy_json=false
+ok_writing_scaffold_story_json=false
+ok_writing_scaffold_book_json=false
 ok_writing_intent_write_json=false
 ok_writing_intent_read_json=false
 ok_website_assets_json=false
@@ -1418,6 +1421,48 @@ assert payload['writing_contract']['surface'] == 'book_blueprint_scaffold', payl
 assert 'table of contents design' in payload['writing_contract']['supported_capabilities'], payload
 PY
 ok_writing_check_book_json=true
+
+writing_scaffold_copy_json="$TMP_ROOT/writing_scaffold_copy.json"
+PYTHONPATH="$ROOT" python3 -m cli writing scaffold '写一个企业产品宣传文案，包含首页主标题、卖点和 CTA。' --json > "$writing_scaffold_copy_json"
+python3 - "$writing_scaffold_copy_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'ok', payload
+assert payload['entrypoint'] == 'writing-scaffold', payload
+assert payload['scaffold_surface'] == 'copy_message_hierarchy', payload
+assert payload['scaffold']['headline'], payload
+assert payload['scaffold']['message_architecture']['cta_direction'], payload
+assert len(payload['scaffold']['sections']) >= 4, payload
+PY
+ok_writing_scaffold_copy_json=true
+
+writing_scaffold_story_json="$TMP_ROOT/writing_scaffold_story.json"
+PYTHONPATH="$ROOT" python3 -m cli writing scaffold '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --json > "$writing_scaffold_story_json"
+python3 - "$writing_scaffold_story_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'ok', payload
+assert payload['entrypoint'] == 'writing-scaffold', payload
+assert payload['scaffold_surface'] == 'story_outline_architecture', payload
+assert payload['scaffold']['working_title'], payload
+assert len(payload['scaffold']['character_cards']) == 3, payload
+assert len(payload['scaffold']['chapter_tree']) == 5, payload
+PY
+ok_writing_scaffold_story_json=true
+
+writing_scaffold_book_json="$TMP_ROOT/writing_scaffold_book.json"
+PYTHONPATH="$ROOT" python3 -m cli writing scaffold '写一本非虚构商业书目录和章节目标，帮助创业者搭建销售系统。' --json > "$writing_scaffold_book_json"
+python3 - "$writing_scaffold_book_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'ok', payload
+assert payload['entrypoint'] == 'writing-scaffold', payload
+assert payload['scaffold_surface'] == 'book_blueprint_architecture', payload
+assert payload['scaffold']['book_title'], payload
+assert len(payload['scaffold']['table_of_contents']) == 5, payload
+assert len(payload['scaffold']['chapter_cards']) == 5, payload
+PY
+ok_writing_scaffold_book_json=true
 
 writing_intent_write_json="$TMP_ROOT/writing_intent_write.json"
 PYTHONPATH="$ROOT" python3 -m cli writing intent \
