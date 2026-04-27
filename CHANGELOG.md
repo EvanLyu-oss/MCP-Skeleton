@@ -43,6 +43,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 - expanded `project style-apply-check` with a compact `--emit-summary` mode and a `summary_text` field so operators can quickly review pass/fail boundary results without reading the full JSON payload
 - added a first `writing` CLI branch with `writing packs`, `writing check`, and `writing intent` so the repo can start classifying low-token copy, story-outline, and book-blueprint requests without pretending to be a full prose generation platform
 - expanded the first `writing` CLI branch with `writing scaffold`, which now emits structured low-token scaffolds for copy hierarchies, story outlines, and book blueprints instead of jumping straight to long-form prose
+- expanded the first `writing` CLI branch with `writing brief` and `--emit-prompt`, so writing scaffolds and saved writing intent can now be handed to external models as one prompt-ready continuation task
 
 ## 2026-04-19
 

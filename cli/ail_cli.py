@@ -381,8 +381,8 @@ def cmd_writing(args: argparse.Namespace) -> int:
                 print(f"- {step}")
         return exit_code
 
-    if getattr(args, "writing_command", None) not in {"check", "intent", "scaffold"}:
-        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported writing subcommands: check, packs, scaffold, intent")
+    if getattr(args, "writing_command", None) not in {"check", "intent", "scaffold", "brief"}:
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported writing subcommands: check, packs, scaffold, brief, intent")
 
     if getattr(args, "writing_command", None) == "check":
         requirement = _read_requirement(args)
@@ -435,6 +435,33 @@ def cmd_writing(args: argparse.Namespace) -> int:
                 print(f"- working_title: {scaffold.get('working_title', '')}")
             if scaffold.get("book_title"):
                 print(f"- book_title: {scaffold.get('book_title', '')}")
+            print("Next:")
+            for step in payload["next_steps"]:
+                print(f"- {step}")
+        return exit_code
+
+    if getattr(args, "writing_command", None) == "brief":
+        requirement = _read_requirement(args)
+        if not requirement:
+            return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "writing brief requires a non-empty requirement")
+        payload, exit_code = _build_writing_brief_payload(requirement=requirement)
+        if getattr(args, "emit_prompt", False):
+            sys.stdout.write(str(payload.get("model_prompt", "")))
+            return exit_code
+        if args.json:
+            _print_json_payload(payload)
+        else:
+            print("Writing brief")
+            print(f"- status: {payload['status']}")
+            print(f"- writing_pack: {payload['writing_pack']}")
+            print(f"- expected_profile: {payload.get('expected_profile', '')}")
+            print(f"- brief_mode: {payload.get('brief_mode', '')}")
+            print(f"- operator_positioning: {payload.get('operator_positioning', '')}")
+            print(f"- scaffold_surface: {(payload.get('scaffold_summary') or {}).get('scaffold_surface', '')}")
+            print(f"- intent_scope_status: {payload.get('intent_scope_status', '')}")
+            print("Recommended commands:")
+            for item in payload.get("recommended_commands", []):
+                print(f"- {item}")
             print("Next:")
             for step in payload["next_steps"]:
                 print(f"- {step}")
@@ -4107,6 +4134,11 @@ def _build_parser() -> argparse.ArgumentParser:
     writing_scaffold_parser.add_argument("requirement", nargs="?", help="Writing requirement text")
     writing_scaffold_parser.add_argument("--from-file", dest="from_file", help="Read requirement text from a file")
     writing_scaffold_parser.add_argument("--json", action="store_true", help="Print writing scaffold as JSON")
+    writing_brief_parser = writing_subparsers.add_parser("brief", help="Export one prompt-ready writing handoff for external models or editors")
+    writing_brief_parser.add_argument("requirement", nargs="?", help="Writing requirement text")
+    writing_brief_parser.add_argument("--from-file", dest="from_file", help="Read requirement text from a file")
+    writing_brief_parser.add_argument("--emit-prompt", action="store_true", help="Print only the prompt-ready writing handoff text for an external model")
+    writing_brief_parser.add_argument("--json", action="store_true", help="Print writing brief as JSON")
     writing_intent_parser = writing_subparsers.add_parser("intent", help="Show or save the current repo-level writing intent for later scaffolding and handoff")
     writing_intent_parser.add_argument("--audience", default=None, help="Primary audience summary for the current writing line")
     writing_intent_parser.add_argument("--format-mode", default=None, help="Writing mode, for example: copy, story, book")
@@ -5049,6 +5081,85 @@ def _build_writing_scaffold_payload(*, requirement: str) -> tuple[dict[str, Any]
         "next_steps": next_steps,
     }
     return payload, EXIT_OK
+
+
+def _build_writing_brief_prompt_text(payload: dict[str, Any]) -> str:
+    intent = payload.get("writing_intent") or {}
+    contract = payload.get("writing_contract") or {}
+    scaffold = payload.get("scaffold") or {}
+    style_keywords = ", ".join(intent.get("style_keywords") or []) or "(not specified)"
+    tone_keywords = ", ".join(intent.get("tone_keywords") or []) or "(not specified)"
+    narrative_constraints = "\n".join(f"- {item}" for item in (intent.get("narrative_constraints") or [])) or "- (not specified)"
+    supported_capabilities = "\n".join(f"- {item}" for item in (contract.get("supported_capabilities") or [])) or "- (none)"
+    unsupported_capabilities = "\n".join(f"- {item}" for item in (contract.get("unsupported_capabilities") or [])) or "- (none)"
+
+    return (
+        "You are continuing a writing task from an AIL Builder low-token scaffold.\n\n"
+        "Keep the structure, scope, and pack boundary intact.\n"
+        "Do not reposition this as a software product, CMS, editor platform, or database-backed workflow.\n\n"
+        f"Requirement:\n- {payload.get('requirement', '')}\n\n"
+        "Current writing intent:\n"
+        f"- audience: {intent.get('audience') or '(not specified)'}\n"
+        f"- format_mode: {intent.get('format_mode') or '(not specified)'}\n"
+        f"- genre: {intent.get('genre') or '(not specified)'}\n"
+        f"- style_direction: {intent.get('style_direction') or '(not specified)'}\n"
+        f"- localization_mode: {intent.get('localization_mode') or '(not specified)'}\n"
+        f"- target_length: {intent.get('target_length') or '(not specified)'}\n"
+        f"- style_keywords: {style_keywords}\n"
+        f"- tone_keywords: {tone_keywords}\n"
+        f"- notes: {intent.get('notes') or '(none)'}\n\n"
+        "Narrative or structural constraints:\n"
+        f"{narrative_constraints}\n\n"
+        "Supported capabilities in this lane:\n"
+        f"{supported_capabilities}\n\n"
+        "Do not claim these capabilities:\n"
+        f"{unsupported_capabilities}\n\n"
+        "Scaffold summary:\n"
+        f"{json.dumps(scaffold, ensure_ascii=False, indent=2)}\n\n"
+        "Working rules:\n"
+        "- preserve the scaffold's hierarchy before expanding language\n"
+        "- expand one section, scene, or chapter unit at a time\n"
+        "- keep continuity with the intended audience and tone\n"
+        "- do not overpromise production-ready completeness if the scaffold is still exploratory\n\n"
+        "Preferred next move:\n"
+        "- expand this scaffold into a first drafting pass while keeping the structure recognizable\n"
+    )
+
+
+def _build_writing_brief_payload(*, requirement: str) -> tuple[dict[str, Any], int]:
+    scaffold_payload, exit_code = _build_writing_scaffold_payload(requirement=requirement)
+    recommended_commands = [
+        f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli writing intent --json",
+        f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli writing check {shlex.quote(requirement)} --json",
+        f"PYTHONPATH={REPO_ROOT_STR} python3 -m cli writing scaffold {shlex.quote(requirement)} --json",
+    ]
+    next_steps = [
+        f"run {recommended_commands[0]}",
+        f"run {recommended_commands[2]}",
+        "paste the model_prompt into your external writing model and expand one unit at a time",
+    ]
+    payload = {
+        **scaffold_payload,
+        "entrypoint": "writing-brief",
+        "brief_mode": "architecture_first_writing_handoff",
+        "operator_positioning": "AIL owns the low-token writing structure; external models should expand prose without breaking the scaffold boundary.",
+        "scaffold_summary": {
+            "scaffold_surface": scaffold_payload.get("scaffold_surface", ""),
+            "intent_scope_status": scaffold_payload.get("intent_scope_status", ""),
+            "headline": ((scaffold_payload.get("scaffold") or {}).get("headline") or ""),
+            "working_title": ((scaffold_payload.get("scaffold") or {}).get("working_title") or ""),
+            "book_title": ((scaffold_payload.get("scaffold") or {}).get("book_title") or ""),
+        },
+        "recommended_commands": recommended_commands,
+        "source_commands": {
+            "writing_intent": recommended_commands[0],
+            "writing_check": recommended_commands[1],
+            "writing_scaffold": recommended_commands[2],
+        },
+        "next_steps": next_steps,
+    }
+    payload["model_prompt"] = _build_writing_brief_prompt_text(payload)
+    return payload, exit_code
 
 
 def _build_writing_packs_payload() -> tuple[dict[str, Any], int]:

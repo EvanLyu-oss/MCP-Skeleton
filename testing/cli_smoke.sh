@@ -23,6 +23,8 @@ ok_writing_check_book_json=false
 ok_writing_scaffold_copy_json=false
 ok_writing_scaffold_story_json=false
 ok_writing_scaffold_book_json=false
+ok_writing_brief_json=false
+ok_writing_brief_emit_prompt_txt=false
 ok_writing_intent_write_json=false
 ok_writing_intent_read_json=false
 ok_website_assets_json=false
@@ -1512,6 +1514,33 @@ assert payload['writing_intent']['genre'] == 'science fantasy', payload
 assert payload['writing_intent']['style_keywords'] == ['visual', 'structured'], payload
 PY
 ok_writing_intent_read_json=true
+
+writing_brief_json="$TMP_ROOT/writing_brief.json"
+PYTHONPATH="$ROOT" python3 -m cli writing brief '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --json > "$writing_brief_json"
+python3 - "$writing_brief_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'ok', payload
+assert payload['entrypoint'] == 'writing-brief', payload
+assert payload['brief_mode'] == 'architecture_first_writing_handoff', payload
+assert payload['writing_pack'] == 'Story / Fiction Outline Pack', payload
+assert payload['scaffold_summary']['scaffold_surface'] == 'story_outline_architecture', payload
+assert payload['source_commands']['writing_intent'].endswith('python3 -m cli writing intent --json'), payload
+assert payload['source_commands']['writing_check'].endswith("python3 -m cli writing check '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --json"), payload
+assert payload['source_commands']['writing_scaffold'].endswith("python3 -m cli writing scaffold '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --json"), payload
+assert 'You are continuing a writing task from an AIL Builder low-token scaffold.' in payload['model_prompt'], payload
+assert 'science fantasy' in payload['model_prompt'], payload
+assert 'chapter_tree' in payload['model_prompt'], payload
+PY
+ok_writing_brief_json=true
+
+writing_brief_emit_prompt_txt="$TMP_ROOT/writing_brief_emit_prompt.txt"
+PYTHONPATH="$ROOT" python3 -m cli writing brief '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --emit-prompt > "$writing_brief_emit_prompt_txt"
+grep -q "^You are continuing a writing task from an AIL Builder low-token scaffold\\.$" "$writing_brief_emit_prompt_txt"
+grep -q "^Current writing intent:$" "$writing_brief_emit_prompt_txt"
+grep -q "science fantasy" "$writing_brief_emit_prompt_txt"
+grep -q "^Scaffold summary:$" "$writing_brief_emit_prompt_txt"
+ok_writing_brief_emit_prompt_txt=true
 
 website_assets_json="$TMP_ROOT/website_assets.json"
 python3 -m cli website assets --json > "$website_assets_json"
