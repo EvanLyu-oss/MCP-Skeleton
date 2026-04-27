@@ -11,6 +11,7 @@ import sys
 import tempfile
 import time
 import glob
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -381,8 +382,8 @@ def cmd_writing(args: argparse.Namespace) -> int:
                 print(f"- {step}")
         return exit_code
 
-    if getattr(args, "writing_command", None) not in {"check", "intent", "scaffold", "brief", "expand", "review"}:
-        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported writing subcommands: check, packs, scaffold, brief, expand, review, intent")
+    if getattr(args, "writing_command", None) not in {"check", "intent", "scaffold", "brief", "expand", "review", "bundle"}:
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported writing subcommands: check, packs, scaffold, brief, expand, review, bundle, intent")
 
     if getattr(args, "writing_command", None) == "check":
         requirement = _read_requirement(args)
@@ -562,6 +563,34 @@ def cmd_writing(args: argparse.Namespace) -> int:
                 print(payload["next_pass_prompt"][:1200].rstrip())
             print("Next:")
             for step in payload["next_steps"]:
+                print(f"- {step}")
+        return exit_code
+
+    if getattr(args, "writing_command", None) == "bundle":
+        requirement = _read_requirement(args)
+        if not requirement:
+            return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "writing bundle requires a non-empty requirement")
+        payload, exit_code = _build_writing_bundle_payload(
+            requirement=requirement,
+            draft_text=_read_review_text(args),
+            deep=bool(getattr(args, "deep", False)),
+            output_dir=getattr(args, "output_dir", None),
+        )
+        if args.json:
+            _print_json_payload(payload)
+        else:
+            print("Writing bundle")
+            print(f"- status: {payload['status']}")
+            print(f"- bundle_root: {payload.get('bundle_root', '')}")
+            print(f"- writing_pack: {payload.get('writing_pack', '')}")
+            print(f"- deep_enabled: {payload.get('deep_enabled', False)}")
+            print(f"- review_source: {payload.get('review_source', '')}")
+            print(f"- file_count: {payload.get('file_count', 0)}")
+            print("Files:")
+            for label, path in (payload.get("files") or {}).items():
+                print(f"- {label}: {path}")
+            print("Next:")
+            for step in payload.get("next_steps", []):
                 print(f"- {step}")
         return exit_code
 
@@ -4253,6 +4282,14 @@ def _build_parser() -> argparse.ArgumentParser:
     writing_review_parser.add_argument("--emit-summary", action="store_true", help="Print only a compact review summary")
     writing_review_parser.add_argument("--output-file", dest="output_file", help="Write the review output to a file")
     writing_review_parser.add_argument("--json", action="store_true", help="Print writing review as JSON")
+    writing_bundle_parser = writing_subparsers.add_parser("bundle", help="Export one writing bundle with check, scaffold, brief, expand, and review outputs")
+    writing_bundle_parser.add_argument("requirement", nargs="?", help="Writing requirement text")
+    writing_bundle_parser.add_argument("--from-file", dest="from_file", help="Read requirement text from a file")
+    writing_bundle_parser.add_argument("--text", dest="review_text", help="Optional draft text to review instead of reviewing the generated expand text")
+    writing_bundle_parser.add_argument("--text-file", dest="review_text_file", help="Read optional draft text from a file")
+    writing_bundle_parser.add_argument("--deep", action="store_true", help="Run the bundle with deep expansion enabled")
+    writing_bundle_parser.add_argument("--output-dir", dest="output_dir", help="Directory where the writing bundle should be written")
+    writing_bundle_parser.add_argument("--json", action="store_true", help="Print writing bundle as JSON")
     writing_intent_parser = writing_subparsers.add_parser("intent", help="Show or save the current repo-level writing intent for later scaffolding and handoff")
     writing_intent_parser.add_argument("--audience", default=None, help="Primary audience summary for the current writing line")
     writing_intent_parser.add_argument("--format-mode", default=None, help="Writing mode, for example: copy, story, book")
@@ -5910,6 +5947,73 @@ def _build_writing_review_payload(*, requirement: str, draft_text: str) -> tuple
     return payload, EXIT_OK
 
 
+def _build_writing_bundle_payload(
+    *,
+    requirement: str,
+    draft_text: str,
+    deep: bool,
+    output_dir: str | None,
+) -> tuple[dict[str, Any], int]:
+    check_payload, check_exit = _build_writing_check_payload(requirement=requirement)
+    scaffold_payload, scaffold_exit = _build_writing_scaffold_payload(requirement=requirement)
+    brief_payload, brief_exit = _build_writing_brief_payload(requirement=requirement)
+    expand_payload, expand_exit = _build_writing_expand_payload(requirement=requirement, deep=deep)
+    review_input = draft_text.strip() if draft_text.strip() else str(expand_payload.get("expanded_text") or "")
+    review_source = "provided_draft" if draft_text.strip() else "expanded_text"
+    review_payload, review_exit = _build_writing_review_payload(requirement=requirement, draft_text=review_input)
+
+    bundle_root = _resolve_writing_bundle_dir(requirement, output_dir)
+    bundle_root.mkdir(parents=True, exist_ok=True)
+
+    files = {
+        "check_json": bundle_root / "check.json",
+        "scaffold_json": bundle_root / "scaffold.json",
+        "brief_json": bundle_root / "brief.json",
+        "brief_prompt_txt": bundle_root / "brief_prompt.txt",
+        "expand_json": bundle_root / "expand.json",
+        "expand_txt": bundle_root / "expand.txt",
+        "review_json": bundle_root / "review.json",
+        "review_summary_txt": bundle_root / "review_summary.txt",
+        "bundle_manifest_json": bundle_root / "bundle_manifest.json",
+    }
+
+    _write_cli_output_file(files["check_json"], check_payload, as_json=True)
+    _write_cli_output_file(files["scaffold_json"], scaffold_payload, as_json=True)
+    _write_cli_output_file(files["brief_json"], brief_payload, as_json=True)
+    _write_cli_output_file(files["brief_prompt_txt"], str(brief_payload.get("model_prompt", "")))
+    _write_cli_output_file(files["expand_json"], expand_payload, as_json=True)
+    _write_cli_output_file(files["expand_txt"], str(expand_payload.get("expanded_text", "")))
+    _write_cli_output_file(files["review_json"], review_payload, as_json=True)
+    _write_cli_output_file(files["review_summary_txt"], str(review_payload.get("summary_text", "")))
+
+    payload = {
+        "status": "ok" if check_payload.get("status") == "ok" else check_payload.get("status", "error"),
+        "entrypoint": "writing-bundle",
+        "requirement": requirement,
+        "writing_pack": check_payload.get("writing_pack", ""),
+        "expected_profile": check_payload.get("expected_profile", ""),
+        "bundle_root": str(bundle_root),
+        "deep_enabled": deep,
+        "review_source": review_source,
+        "review_input_char_count": len(review_input.strip()),
+        "file_count": len(files),
+        "files": {label: str(path) for label, path in files.items()},
+        "check": check_payload,
+        "scaffold": scaffold_payload,
+        "brief": brief_payload,
+        "expand": expand_payload,
+        "review": review_payload,
+        "next_steps": [
+            f"open {files['brief_prompt_txt']}",
+            f"open {files['expand_txt']}",
+            f"open {files['review_summary_txt']}",
+        ],
+    }
+    _write_cli_output_file(files["bundle_manifest_json"], payload, as_json=True)
+    exit_code = max(check_exit, scaffold_exit, brief_exit, expand_exit, review_exit)
+    return payload, exit_code
+
+
 def _build_writing_packs_payload() -> tuple[dict[str, Any], int]:
     packs = []
     for pack_id, meta in _writing_pack_metadata().items():
@@ -7310,6 +7414,8 @@ def _read_review_text(args: argparse.Namespace) -> str:
         return Path(args.review_text_file).read_text(encoding="utf-8").strip()
     if getattr(args, "review_text", None):
         return str(args.review_text).strip()
+    if sys.stdin.isatty():
+        return ""
     return sys.stdin.read().strip()
 
 
@@ -7322,6 +7428,30 @@ def _write_cli_output_file(path: Path, payload: str | dict[str, Any], *, as_json
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     else:
         path.write_text(str(payload), encoding="utf-8")
+
+
+def _writing_bundle_root() -> Path:
+    return _writing_intent_root() / "writing_bundles"
+
+
+def _slugify_writing_requirement(requirement: str) -> str:
+    lowered = requirement.strip().lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
+    if slug:
+        return slug[:48]
+    utf_hex = requirement.strip().encode("utf-8", errors="ignore").hex()[:24]
+    return f"writing-{utf_hex or 'bundle'}"
+
+
+def _resolve_writing_bundle_dir(requirement: str, output_dir: str | None) -> Path:
+    if output_dir:
+        path = Path(output_dir).expanduser()
+        if not path.is_absolute():
+            path = (Path.cwd() / path).resolve()
+        return path
+    _writing_bundle_root().mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return (_writing_bundle_root() / f"{_slugify_writing_requirement(requirement)}-{stamp}").resolve()
 
 
 def _resolve_ail_input(raw_input: str) -> Path:
