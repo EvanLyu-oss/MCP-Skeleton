@@ -4797,7 +4797,7 @@ def _writing_pack_metadata() -> dict[str, dict[str, str]]:
         "out_of_scope": {
             "pack": "Out Of Scope",
             "support_level": "Out of Scope",
-            "expected_profile": "",
+            "expected_profile": "out_of_scope",
             "safe_positioning": "Narrow the request back to structured copy, story, or book-planning work before treating it as current writing delivery scope.",
         },
     }
@@ -4917,6 +4917,27 @@ def _analyze_writing_requirement(requirement: str) -> dict[str, Any]:
     story_matches = _contains_any_term(req_lower, story_terms)
     book_matches = _contains_any_term(req_lower, book_terms)
     copy_matches = _contains_any_term(req_lower, copy_terms)
+    longform_completion_terms = [
+        "20万字", "20 万字", "直接写完", "完整生成", "完整全文", "直接出版",
+        "出版级", "publication-ready", "publish-ready", "full manuscript",
+        "完整小说", "完整商业书", "完整书稿",
+    ]
+    longform_completion_matches = _contains_any_term(req_lower, longform_completion_terms)
+
+    if longform_completion_matches and (story_matches or book_matches):
+        matched_signals.extend(longform_completion_matches)
+        matched_signals.extend(book_matches)
+        matched_signals.extend(story_matches)
+        return {
+            **meta["out_of_scope"],
+            "classification_key": "out_of_scope",
+            "writing_reason": "Requirement asks for a fully finished long-form manuscript rather than the current scaffold-first writing surface.",
+            "matched_signals": list(dict.fromkeys(matched_signals)),
+            "boundary_findings": [
+                "request asks for one-shot finished long-form delivery",
+                "supported writing lanes currently stop at scaffold, brief, draft, and review passes",
+            ],
+        }
 
     if book_matches:
         matched_signals.extend(book_matches)

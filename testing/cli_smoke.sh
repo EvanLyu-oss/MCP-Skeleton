@@ -21,6 +21,8 @@ ok_writing_check_copy_json=false
 ok_writing_check_announcement_json=false
 ok_writing_check_story_json=false
 ok_writing_check_book_json=false
+ok_writing_check_out_of_scope_longform_story_json=false
+ok_writing_check_out_of_scope_longform_book_json=false
 ok_writing_scaffold_copy_json=false
 ok_writing_scaffold_story_json=false
 ok_writing_scaffold_book_json=false
@@ -1458,6 +1460,30 @@ assert payload['writing_contract']['surface'] == 'book_blueprint_scaffold', payl
 assert 'table of contents design' in payload['writing_contract']['supported_capabilities'], payload
 PY
 ok_writing_check_book_json=true
+
+writing_check_out_of_scope_longform_story_json="$TMP_ROOT/writing_check_out_of_scope_longform_story.json"
+PYTHONPATH="$ROOT" python3 -m cli writing check '直接写完一部长篇 20 万字奇幻小说。' --json > "$writing_check_out_of_scope_longform_story_json"
+python3 - "$writing_check_out_of_scope_longform_story_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'out_of_scope', payload
+assert payload['support_level'] == 'Out of Scope', payload
+assert payload['expected_profile'] == 'out_of_scope', payload
+assert 'one-shot finished long-form delivery' in ' '.join(payload['boundary_findings']), payload
+PY
+ok_writing_check_out_of_scope_longform_story_json=true
+
+writing_check_out_of_scope_longform_book_json="$TMP_ROOT/writing_check_out_of_scope_longform_book.json"
+PYTHONPATH="$ROOT" python3 -m cli writing check '给我生成一本可以直接出版的完整商业书全文。' --json > "$writing_check_out_of_scope_longform_book_json"
+python3 - "$writing_check_out_of_scope_longform_book_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'out_of_scope', payload
+assert payload['support_level'] == 'Out of Scope', payload
+assert payload['expected_profile'] == 'out_of_scope', payload
+assert 'one-shot finished long-form delivery' in ' '.join(payload['boundary_findings']), payload
+PY
+ok_writing_check_out_of_scope_longform_book_json=true
 
 writing_scaffold_copy_json="$TMP_ROOT/writing_scaffold_copy.json"
 PYTHONPATH="$ROOT" python3 -m cli writing scaffold '写一个企业产品宣传文案，包含首页主标题、卖点和 CTA。' --json > "$writing_scaffold_copy_json"
@@ -5835,6 +5861,8 @@ export CLI_SMOKE_OK_WRITING_CHECK_COPY_JSON="$ok_writing_check_copy_json"
 export CLI_SMOKE_OK_WRITING_CHECK_ANNOUNCEMENT_JSON="$ok_writing_check_announcement_json"
 export CLI_SMOKE_OK_WRITING_CHECK_STORY_JSON="$ok_writing_check_story_json"
 export CLI_SMOKE_OK_WRITING_CHECK_BOOK_JSON="$ok_writing_check_book_json"
+export CLI_SMOKE_OK_WRITING_CHECK_OUT_OF_SCOPE_LONGFORM_STORY_JSON="$ok_writing_check_out_of_scope_longform_story_json"
+export CLI_SMOKE_OK_WRITING_CHECK_OUT_OF_SCOPE_LONGFORM_BOOK_JSON="$ok_writing_check_out_of_scope_longform_book_json"
 export CLI_SMOKE_OK_WRITING_SCAFFOLD_COPY_JSON="$ok_writing_scaffold_copy_json"
 export CLI_SMOKE_OK_WRITING_SCAFFOLD_STORY_JSON="$ok_writing_scaffold_story_json"
 export CLI_SMOKE_OK_WRITING_SCAFFOLD_BOOK_JSON="$ok_writing_scaffold_book_json"
@@ -6051,6 +6079,8 @@ payload = {
         'writing_check_announcement_json_ok': os.environ['CLI_SMOKE_OK_WRITING_CHECK_ANNOUNCEMENT_JSON'] == 'true',
         'writing_check_story_json_ok': os.environ['CLI_SMOKE_OK_WRITING_CHECK_STORY_JSON'] == 'true',
         'writing_check_book_json_ok': os.environ['CLI_SMOKE_OK_WRITING_CHECK_BOOK_JSON'] == 'true',
+        'writing_check_out_of_scope_longform_story_json_ok': os.environ['CLI_SMOKE_OK_WRITING_CHECK_OUT_OF_SCOPE_LONGFORM_STORY_JSON'] == 'true',
+        'writing_check_out_of_scope_longform_book_json_ok': os.environ['CLI_SMOKE_OK_WRITING_CHECK_OUT_OF_SCOPE_LONGFORM_BOOK_JSON'] == 'true',
         'writing_scaffold_copy_json_ok': os.environ['CLI_SMOKE_OK_WRITING_SCAFFOLD_COPY_JSON'] == 'true',
         'writing_scaffold_story_json_ok': os.environ['CLI_SMOKE_OK_WRITING_SCAFFOLD_STORY_JSON'] == 'true',
         'writing_scaffold_book_json_ok': os.environ['CLI_SMOKE_OK_WRITING_SCAFFOLD_BOOK_JSON'] == 'true',

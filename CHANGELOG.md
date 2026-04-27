@@ -61,6 +61,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 - added `manifest_version` and `bundle_created_at` to writing bundles so exported artifacts carry lightweight versioning and creation metadata
 - added `writing bundle --copy-archive-path` so zipped bundles can copy their archive path directly into the macOS clipboard for faster handoff
 - added `writing bundle --copy-summary` so compact bundle summaries can be copied straight into a handoff note or test report
+- tightened `writing check` so requests for one-shot finished long-form novels or publication-ready full books are classified as out of scope instead of being accepted into scaffold-first lanes
 
 ## 2026-04-19
 
