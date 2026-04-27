@@ -62,6 +62,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 - added `writing bundle --copy-archive-path` so zipped bundles can copy their archive path directly into the macOS clipboard for faster handoff
 - added `writing bundle --copy-summary` so compact bundle summaries can be copied straight into a handoff note or test report
 - tightened `writing check` so requests for one-shot finished long-form novels or publication-ready full books are classified as out of scope instead of being accepted into scaffold-first lanes
+- stopped `writing bundle` from passively reading stdin when no review text was requested, which avoids hangs in wrapped shell environments such as PowerShell-based test runners
 
 ## 2026-04-19
 

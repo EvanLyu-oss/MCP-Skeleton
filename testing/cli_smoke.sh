@@ -1788,6 +1788,16 @@ for key in ['check_json', 'scaffold_json', 'brief_json', 'brief_prompt_txt', 'ex
 PY
 ok_writing_bundle_json=true
 
+writing_bundle_stdin_guard_json="$TMP_ROOT/writing_bundle_stdin_guard.json"
+writing_bundle_stdin_guard_dir="$TMP_ROOT/writing_bundle_stdin_guard_dir"
+printf '' | PYTHONPATH="$ROOT" python3 -m cli writing bundle '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --deep --output-dir "$writing_bundle_stdin_guard_dir" --json > "$writing_bundle_stdin_guard_json"
+python3 - "$writing_bundle_stdin_guard_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'ok', payload
+assert payload['review_source'] == 'expanded_text', payload
+PY
+
 writing_bundle_zip_json="$TMP_ROOT/writing_bundle_zip.json"
 writing_bundle_zip_dir="$TMP_ROOT/writing_bundle_zip_dir"
 PYTHONPATH="$ROOT" python3 -m cli writing bundle '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --deep --zip --output-dir "$writing_bundle_zip_dir" --json > "$writing_bundle_zip_json"

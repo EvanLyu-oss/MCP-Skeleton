@@ -572,7 +572,7 @@ def cmd_writing(args: argparse.Namespace) -> int:
             return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "writing bundle requires a non-empty requirement")
         payload, exit_code = _build_writing_bundle_payload(
             requirement=requirement,
-            draft_text=_read_review_text(args),
+            draft_text=_read_review_text(args, allow_stdin=False),
             deep=bool(getattr(args, "deep", False)),
             output_dir=getattr(args, "output_dir", None),
             make_zip=bool(getattr(args, "zip_bundle", False)),
@@ -7587,11 +7587,13 @@ def _read_requirement_optional(args: argparse.Namespace) -> str:
     return ""
 
 
-def _read_review_text(args: argparse.Namespace) -> str:
+def _read_review_text(args: argparse.Namespace, *, allow_stdin: bool = True) -> str:
     if getattr(args, "review_text_file", None):
         return Path(args.review_text_file).read_text(encoding="utf-8").strip()
     if getattr(args, "review_text", None):
         return str(args.review_text).strip()
+    if not allow_stdin:
+        return ""
     if sys.stdin.isatty():
         return ""
     return sys.stdin.read().strip()
