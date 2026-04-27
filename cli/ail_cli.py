@@ -381,8 +381,8 @@ def cmd_writing(args: argparse.Namespace) -> int:
                 print(f"- {step}")
         return exit_code
 
-    if getattr(args, "writing_command", None) not in {"check", "intent", "scaffold", "brief", "expand"}:
-        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported writing subcommands: check, packs, scaffold, brief, expand, intent")
+    if getattr(args, "writing_command", None) not in {"check", "intent", "scaffold", "brief", "expand", "review"}:
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported writing subcommands: check, packs, scaffold, brief, expand, review, intent")
 
     if getattr(args, "writing_command", None) == "check":
         requirement = _read_requirement(args)
@@ -492,6 +492,50 @@ def cmd_writing(args: argparse.Namespace) -> int:
             if payload.get("expanded_text"):
                 print("Preview:")
                 print(payload["expanded_text"][:1200].rstrip())
+            print("Next:")
+            for step in payload["next_steps"]:
+                print(f"- {step}")
+        return exit_code
+
+    if getattr(args, "writing_command", None) == "review":
+        requirement = _read_requirement(args)
+        if not requirement:
+            return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "writing review requires a non-empty requirement")
+        draft_text = _read_review_text(args)
+        if not draft_text:
+            return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "writing review requires draft text via --text, --text-file, or stdin")
+        payload, exit_code = _build_writing_review_payload(requirement=requirement, draft_text=draft_text)
+        if args.json:
+            _print_json_payload(payload)
+        else:
+            print("Writing review")
+            print(f"- status: {payload['status']}")
+            print(f"- writing_pack: {payload['writing_pack']}")
+            print(f"- expected_profile: {payload.get('expected_profile', '')}")
+            print(f"- review_mode: {payload.get('review_mode', '')}")
+            print(f"- alignment_score: {payload.get('alignment_score', 0)}")
+            print(f"- alignment_band: {payload.get('alignment_band', '')}")
+            print(f"- draft_char_count: {payload.get('draft_char_count', 0)}")
+            print(f"- draft_paragraph_count: {payload.get('draft_paragraph_count', 0)}")
+            if payload.get("strengths"):
+                print("Strengths:")
+                for item in payload.get("strengths", []):
+                    print(f"- {item}")
+            if payload.get("weak_spots"):
+                print("Weak spots:")
+                for item in payload.get("weak_spots", []):
+                    print(f"- {item}")
+            if payload.get("drift_findings"):
+                print("Drift findings:")
+                for item in payload.get("drift_findings", []):
+                    print(f"- {item}")
+            if payload.get("revision_targets"):
+                print("Revision targets:")
+                for item in payload.get("revision_targets", []):
+                    print(f"- {item}")
+            if payload.get("next_pass_prompt"):
+                print("Next pass prompt:")
+                print(payload["next_pass_prompt"][:1200].rstrip())
             print("Next:")
             for step in payload["next_steps"]:
                 print(f"- {step}")
@@ -4175,6 +4219,12 @@ def _build_parser() -> argparse.ArgumentParser:
     writing_expand_parser.add_argument("--deep", action="store_true", help="Expand the first draft one layer deeper into a second-pass draft")
     writing_expand_parser.add_argument("--emit-text", action="store_true", help="Print only the expanded first-draft text")
     writing_expand_parser.add_argument("--json", action="store_true", help="Print writing expansion as JSON")
+    writing_review_parser = writing_subparsers.add_parser("review", help="Review one draft against the current low-token writing scaffold")
+    writing_review_parser.add_argument("requirement", nargs="?", help="Writing requirement text")
+    writing_review_parser.add_argument("--from-file", dest="from_file", help="Read requirement text from a file")
+    writing_review_parser.add_argument("--text", dest="review_text", help="Draft text to review")
+    writing_review_parser.add_argument("--text-file", dest="review_text_file", help="Read draft text from a file")
+    writing_review_parser.add_argument("--json", action="store_true", help="Print writing review as JSON")
     writing_intent_parser = writing_subparsers.add_parser("intent", help="Show or save the current repo-level writing intent for later scaffolding and handoff")
     writing_intent_parser.add_argument("--audience", default=None, help="Primary audience summary for the current writing line")
     writing_intent_parser.add_argument("--format-mode", default=None, help="Writing mode, for example: copy, story, book")
@@ -5563,6 +5613,249 @@ def _build_writing_expand_payload(*, requirement: str, deep: bool = False) -> tu
         ],
     }
     return payload, exit_code
+
+
+def _draft_char_metrics(text: str) -> tuple[int, int]:
+    char_count = len(text.strip())
+    paragraph_count = len([item for item in re.split(r"\n\s*\n", text.strip()) if item.strip()])
+    return char_count, paragraph_count
+
+
+def _contains_cta_language(text_lower: str) -> bool:
+    terms = [
+        "book a demo",
+        "request pricing",
+        "start the conversation",
+        "contact sales",
+        "talk to sales",
+        "get started",
+        "sign up",
+        "立即",
+        "预约",
+        "申请",
+        "联系",
+        "咨询",
+        "购买",
+        "开始使用",
+        "cta",
+    ]
+    return any(term in text_lower for term in terms)
+
+
+def _build_copy_review(requirement: str, draft_text: str, scaffold: dict[str, Any], intent: dict[str, Any]) -> dict[str, Any]:
+    text_lower = draft_text.lower()
+    strengths: list[str] = []
+    weak_spots: list[str] = []
+    drift_findings: list[str] = []
+    revision_targets: list[str] = []
+    score = 72
+
+    if _contains_cta_language(text_lower):
+        strengths.append("The draft already contains a recognizable CTA or conversion prompt.")
+        score += 10
+    else:
+        drift_findings.append("The draft still lacks a clear CTA, so the copy lane is not yet landing on an obvious next action.")
+        revision_targets.append("Add one explicit CTA block that tells the reader what to do next and why now.")
+        score -= 14
+
+    if any(term in text_lower for term in ["outcome", "result", "benefit", "faster", "reduce", "save", "increase", "增长", "降低", "提升", "节省"]):
+        strengths.append("The message starts to translate the offer into an outcome rather than only describing features.")
+        score += 8
+    else:
+        weak_spots.append("The draft describes the offer, but the buyer outcome is still too soft or too abstract.")
+        revision_targets.append("Name one concrete buyer outcome in the headline or proof block.")
+        score -= 10
+
+    if len(draft_text.strip()) > 1400:
+        weak_spots.append("The copy is drifting toward a longer article shape instead of a compact message hierarchy.")
+        revision_targets.append("Compress the draft into hero, pain, solution, proof, and CTA blocks before expanding again.")
+        score -= 8
+    else:
+        strengths.append("The draft length still fits a landing-style message hierarchy.")
+        score += 4
+
+    audience = str(intent.get("audience") or "").strip()
+    if audience and audience.lower() in text_lower:
+        strengths.append("The intended audience appears directly in the draft, which helps keep the positioning specific.")
+        score += 4
+
+    next_pass_prompt = (
+        f"Revise this copy draft for the requirement '{requirement}'. "
+        "Keep the structure recognizable as hero, pain, solution, proof, and CTA. "
+        "Sharpen the buyer outcome, reduce descriptive filler, and make the CTA harder to miss. "
+        f"Scaffold anchor: {json.dumps(scaffold, ensure_ascii=False)}"
+    )
+    return {
+        "score": max(0, min(100, score)),
+        "strengths": strengths,
+        "weak_spots": weak_spots,
+        "drift_findings": drift_findings,
+        "revision_targets": revision_targets,
+        "next_pass_prompt": next_pass_prompt,
+    }
+
+
+def _build_story_review(requirement: str, draft_text: str, scaffold: dict[str, Any], intent: dict[str, Any]) -> dict[str, Any]:
+    text_lower = draft_text.lower()
+    strengths: list[str] = []
+    weak_spots: list[str] = []
+    drift_findings: list[str] = []
+    revision_targets: list[str] = []
+    score = 70
+
+    if any(term in text_lower for term in ["conflict", "cost", "danger", "loss", "risk", "threat", "代价", "危险", "冲突", "失去"]):
+        strengths.append("The draft already carries visible conflict or consequence, which fits the story scaffold well.")
+        score += 10
+    else:
+        drift_findings.append("The draft feels atmospheric, but the conflict cost is still too hidden.")
+        revision_targets.append("Add one explicit consequence, threat, or loss condition in the opening movement.")
+        score -= 14
+
+    if any(term in text_lower for term in ["chapter two", "scene", "choice", "decision", "chapter", "场景", "章节", "选择"]):
+        strengths.append("The draft still points forward into scene or chapter progression rather than stalling inside one static moment.")
+        score += 8
+    else:
+        weak_spots.append("The prose is not yet clearly pulling the reader toward the next chapter or scene beat.")
+        revision_targets.append("End the passage with a decision, reversal, or motion into the next chapter beat.")
+        score -= 8
+
+    if any(term in text_lower for term in ["smell", "sound", "touch", "light", "cold", "heat", "breath", "声音", "气味", "光", "冷", "热"]):
+        strengths.append("There is at least one sensory anchor, which helps the story draft feel embodied rather than purely conceptual.")
+        score += 5
+    else:
+        weak_spots.append("The draft could use one sensory anchor so the scene feels lived-in rather than summarized.")
+        revision_targets.append("Insert one sensory detail tied to the protagonist's immediate perception.")
+        score -= 6
+
+    constraints = intent.get("narrative_constraints") or []
+    if constraints:
+        strengths.append("The draft can still be revised against explicit narrative constraints, which keeps later passes easier to control.")
+
+    next_pass_prompt = (
+        f"Revise this story draft for the requirement '{requirement}'. "
+        "Keep the scaffold intact: visible conflict, chapter motion, and protagonist pressure first. "
+        "Make the consequence sharper, add one sensory detail, and end with a harder forward pull into the next beat. "
+        f"Scaffold anchor: {json.dumps(scaffold, ensure_ascii=False)}"
+    )
+    return {
+        "score": max(0, min(100, score)),
+        "strengths": strengths,
+        "weak_spots": weak_spots,
+        "drift_findings": drift_findings,
+        "revision_targets": revision_targets,
+        "next_pass_prompt": next_pass_prompt,
+    }
+
+
+def _build_book_review(requirement: str, draft_text: str, scaffold: dict[str, Any], intent: dict[str, Any]) -> dict[str, Any]:
+    text_lower = draft_text.lower()
+    strengths: list[str] = []
+    weak_spots: list[str] = []
+    drift_findings: list[str] = []
+    revision_targets: list[str] = []
+    score = 71
+
+    if any(term in text_lower for term in ["reader", "you", "your", "读者", "你", "你的"]):
+        strengths.append("The draft already speaks to the reader directly, which fits the nonfiction blueprint lane.")
+        score += 8
+    else:
+        weak_spots.append("The draft still sounds abstract and could address the reader more directly.")
+        revision_targets.append("Rewrite at least one paragraph so the reader can see what changes for them.")
+        score -= 8
+
+    if any(term in text_lower for term in ["framework", "step", "system", "sequence", "example", "practice", "方法", "步骤", "系统", "案例", "实践"]):
+        strengths.append("The draft contains practical or structural language, which supports the book blueprint surface.")
+        score += 10
+    else:
+        drift_findings.append("The draft is still too conceptual and is not yet carrying enough practical structure.")
+        revision_targets.append("Add one named framework, step sequence, or concrete example.")
+        score -= 12
+
+    if len(draft_text.strip()) < 260:
+        weak_spots.append("The draft is still thin for a nonfiction chapter pass and needs more explanation depth.")
+        revision_targets.append("Extend the chapter argument with one example and one practical takeaway.")
+        score -= 10
+    else:
+        strengths.append("The passage has enough volume to review as a real chapter-direction draft.")
+        score += 4
+
+    next_pass_prompt = (
+        f"Revise this nonfiction draft for the requirement '{requirement}'. "
+        "Keep it aligned to the chapter blueprint, speak to the reader directly, and make the practical sequence more explicit. "
+        "Prefer one framework, one example, and one actionable takeaway over abstract positioning language. "
+        f"Scaffold anchor: {json.dumps(scaffold, ensure_ascii=False)}"
+    )
+    return {
+        "score": max(0, min(100, score)),
+        "strengths": strengths,
+        "weak_spots": weak_spots,
+        "drift_findings": drift_findings,
+        "revision_targets": revision_targets,
+        "next_pass_prompt": next_pass_prompt,
+    }
+
+
+def _alignment_band(score: int) -> str:
+    if score >= 82:
+        return "strong"
+    if score >= 64:
+        return "workable"
+    return "drifting"
+
+
+def _build_writing_review_payload(*, requirement: str, draft_text: str) -> tuple[dict[str, Any], int]:
+    scaffold_payload, exit_code = _build_writing_scaffold_payload(requirement=requirement)
+    if scaffold_payload.get("status") != "ok":
+        char_count, paragraph_count = _draft_char_metrics(draft_text)
+        payload = {
+            **scaffold_payload,
+            "entrypoint": "writing-review",
+            "review_mode": "unavailable",
+            "draft_char_count": char_count,
+            "draft_paragraph_count": paragraph_count,
+            "alignment_score": 0,
+            "alignment_band": "unavailable",
+            "strengths": [],
+            "weak_spots": [],
+            "drift_findings": [],
+            "revision_targets": [],
+            "next_pass_prompt": "",
+        }
+        return payload, exit_code
+
+    scaffold = scaffold_payload.get("scaffold") or {}
+    intent = scaffold_payload.get("writing_intent") or {}
+    profile = str(scaffold_payload.get("expected_profile") or "")
+    if profile == "copy_min":
+        review = _build_copy_review(requirement, draft_text, scaffold, intent)
+    elif profile == "story_min":
+        review = _build_story_review(requirement, draft_text, scaffold, intent)
+    else:
+        review = _build_book_review(requirement, draft_text, scaffold, intent)
+
+    char_count, paragraph_count = _draft_char_metrics(draft_text)
+    alignment_score = int(review["score"])
+    payload = {
+        **scaffold_payload,
+        "entrypoint": "writing-review",
+        "review_mode": "scaffold_alignment_review",
+        "draft_text": draft_text,
+        "draft_char_count": char_count,
+        "draft_paragraph_count": paragraph_count,
+        "alignment_score": alignment_score,
+        "alignment_band": _alignment_band(alignment_score),
+        "strengths": review["strengths"],
+        "weak_spots": review["weak_spots"],
+        "drift_findings": review["drift_findings"],
+        "revision_targets": review["revision_targets"],
+        "next_pass_prompt": review["next_pass_prompt"],
+        "next_steps": [
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli writing brief {shlex.quote(requirement)} --emit-prompt",
+            "rewrite one weak spot at a time instead of replacing the whole draft at once",
+            "use the next_pass_prompt as the prompt for the next editorial pass",
+        ],
+    }
+    return payload, EXIT_OK
 
 
 def _build_writing_packs_payload() -> tuple[dict[str, Any], int]:
@@ -6958,6 +7251,14 @@ def _read_requirement_optional(args: argparse.Namespace) -> str:
     if getattr(args, "requirement", None):
         return args.requirement.strip()
     return ""
+
+
+def _read_review_text(args: argparse.Namespace) -> str:
+    if getattr(args, "review_text_file", None):
+        return Path(args.review_text_file).read_text(encoding="utf-8").strip()
+    if getattr(args, "review_text", None):
+        return str(args.review_text).strip()
+    return sys.stdin.read().strip()
 
 
 def _resolve_ail_input(raw_input: str) -> Path:

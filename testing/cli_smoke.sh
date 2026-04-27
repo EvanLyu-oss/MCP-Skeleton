@@ -31,6 +31,8 @@ ok_writing_expand_story_json=false
 ok_writing_expand_book_json=false
 ok_writing_expand_deep_story_json=false
 ok_writing_expand_emit_text_txt=false
+ok_writing_review_copy_json=false
+ok_writing_review_story_json=false
 ok_writing_intent_write_json=false
 ok_writing_intent_read_json=false
 ok_website_assets_json=false
@@ -1632,6 +1634,38 @@ PYTHONPATH="$ROOT" python3 -m cli writing expand '写一个长篇奇幻小说提
 grep -q "^Opening scene, disruption:$\|^Opening scene, disruption:" "$writing_expand_emit_text_txt"
 grep -q "chapter two" "$writing_expand_emit_text_txt"
 ok_writing_expand_emit_text_txt=true
+
+writing_review_copy_json="$TMP_ROOT/writing_review_copy.json"
+PYTHONPATH="$ROOT" python3 -m cli writing review '写一个企业产品宣传文案，包含首页主标题、卖点和 CTA。' --text 'Help operators cut reporting time in half. The workflow is faster, clearer, and easier to roll out across the team. Request pricing today.' --json > "$writing_review_copy_json"
+python3 - "$writing_review_copy_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'ok', payload
+assert payload['entrypoint'] == 'writing-review', payload
+assert payload['review_mode'] == 'scaffold_alignment_review', payload
+assert payload['writing_pack'] == 'Copy / Messaging Pack', payload
+assert payload['alignment_band'] in {'workable', 'strong'}, payload
+assert payload['alignment_score'] >= 70, payload
+assert payload['draft_char_count'] > 0, payload
+assert payload['next_pass_prompt'], payload
+PY
+ok_writing_review_copy_json=true
+
+writing_review_story_json="$TMP_ROOT/writing_review_story.json"
+PYTHONPATH="$ROOT" python3 -m cli writing review '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --text 'The corridor was quiet and cold. She moved forward without knowing why the doors were already open.' --json > "$writing_review_story_json"
+python3 - "$writing_review_story_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'ok', payload
+assert payload['entrypoint'] == 'writing-review', payload
+assert payload['writing_pack'] == 'Story / Fiction Outline Pack', payload
+assert payload['review_mode'] == 'scaffold_alignment_review', payload
+assert payload['alignment_band'] in {'drifting', 'workable', 'strong'}, payload
+assert payload['drift_findings'] or payload['weak_spots'], payload
+assert payload['revision_targets'], payload
+assert 'Revise this story draft' in payload['next_pass_prompt'], payload
+PY
+ok_writing_review_story_json=true
 
 website_assets_json="$TMP_ROOT/website_assets.json"
 python3 -m cli website assets --json > "$website_assets_json"
@@ -5627,6 +5661,25 @@ export CLI_SMOKE_OK_PROJECT_SUMMARY_JSON="$ok_project_summary_json"
 export CLI_SMOKE_OK_PROJECT_HOOKS_JSON="$ok_project_hooks_json"
 export CLI_SMOKE_OK_PROJECT_HOOKS_HOME_JSON="$ok_project_hooks_home_json"
 export CLI_SMOKE_OK_PROJECT_HOOK_INIT_JSON="$ok_project_hook_init_json"
+export CLI_SMOKE_OK_WRITING_PACKS_JSON="$ok_writing_packs_json"
+export CLI_SMOKE_OK_WRITING_CHECK_COPY_JSON="$ok_writing_check_copy_json"
+export CLI_SMOKE_OK_WRITING_CHECK_ANNOUNCEMENT_JSON="$ok_writing_check_announcement_json"
+export CLI_SMOKE_OK_WRITING_CHECK_STORY_JSON="$ok_writing_check_story_json"
+export CLI_SMOKE_OK_WRITING_CHECK_BOOK_JSON="$ok_writing_check_book_json"
+export CLI_SMOKE_OK_WRITING_SCAFFOLD_COPY_JSON="$ok_writing_scaffold_copy_json"
+export CLI_SMOKE_OK_WRITING_SCAFFOLD_STORY_JSON="$ok_writing_scaffold_story_json"
+export CLI_SMOKE_OK_WRITING_SCAFFOLD_BOOK_JSON="$ok_writing_scaffold_book_json"
+export CLI_SMOKE_OK_WRITING_BRIEF_JSON="$ok_writing_brief_json"
+export CLI_SMOKE_OK_WRITING_BRIEF_EMIT_PROMPT_TXT="$ok_writing_brief_emit_prompt_txt"
+export CLI_SMOKE_OK_WRITING_EXPAND_COPY_JSON="$ok_writing_expand_copy_json"
+export CLI_SMOKE_OK_WRITING_EXPAND_STORY_JSON="$ok_writing_expand_story_json"
+export CLI_SMOKE_OK_WRITING_EXPAND_BOOK_JSON="$ok_writing_expand_book_json"
+export CLI_SMOKE_OK_WRITING_EXPAND_DEEP_STORY_JSON="$ok_writing_expand_deep_story_json"
+export CLI_SMOKE_OK_WRITING_EXPAND_EMIT_TEXT_TXT="$ok_writing_expand_emit_text_txt"
+export CLI_SMOKE_OK_WRITING_REVIEW_COPY_JSON="$ok_writing_review_copy_json"
+export CLI_SMOKE_OK_WRITING_REVIEW_STORY_JSON="$ok_writing_review_story_json"
+export CLI_SMOKE_OK_WRITING_INTENT_WRITE_JSON="$ok_writing_intent_write_json"
+export CLI_SMOKE_OK_WRITING_INTENT_READ_JSON="$ok_writing_intent_read_json"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_REPO_JSON="$ok_project_hook_guide_repo_json"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_EMIT_SHELL_REPO="$ok_project_hook_guide_emit_shell_repo"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_COPY_COMMAND_REPO="$ok_project_hook_guide_copy_command_repo"
@@ -5810,6 +5863,25 @@ payload = {
         'ecom_checkout_flow_json_ok': os.environ['CLI_SMOKE_OK_ECOM_CHECKOUT_FLOW_JSON'] == 'true',
         'ecom_cart_flow_json_ok': os.environ['CLI_SMOKE_OK_ECOM_CART_FLOW_JSON'] == 'true',
         'ecom_product_feedback_json_ok': os.environ['CLI_SMOKE_OK_ECOM_PRODUCT_FEEDBACK_JSON'] == 'true',
+        'writing_packs_json_ok': os.environ['CLI_SMOKE_OK_WRITING_PACKS_JSON'] == 'true',
+        'writing_check_copy_json_ok': os.environ['CLI_SMOKE_OK_WRITING_CHECK_COPY_JSON'] == 'true',
+        'writing_check_announcement_json_ok': os.environ['CLI_SMOKE_OK_WRITING_CHECK_ANNOUNCEMENT_JSON'] == 'true',
+        'writing_check_story_json_ok': os.environ['CLI_SMOKE_OK_WRITING_CHECK_STORY_JSON'] == 'true',
+        'writing_check_book_json_ok': os.environ['CLI_SMOKE_OK_WRITING_CHECK_BOOK_JSON'] == 'true',
+        'writing_scaffold_copy_json_ok': os.environ['CLI_SMOKE_OK_WRITING_SCAFFOLD_COPY_JSON'] == 'true',
+        'writing_scaffold_story_json_ok': os.environ['CLI_SMOKE_OK_WRITING_SCAFFOLD_STORY_JSON'] == 'true',
+        'writing_scaffold_book_json_ok': os.environ['CLI_SMOKE_OK_WRITING_SCAFFOLD_BOOK_JSON'] == 'true',
+        'writing_brief_json_ok': os.environ['CLI_SMOKE_OK_WRITING_BRIEF_JSON'] == 'true',
+        'writing_brief_emit_prompt_txt_ok': os.environ['CLI_SMOKE_OK_WRITING_BRIEF_EMIT_PROMPT_TXT'] == 'true',
+        'writing_expand_copy_json_ok': os.environ['CLI_SMOKE_OK_WRITING_EXPAND_COPY_JSON'] == 'true',
+        'writing_expand_story_json_ok': os.environ['CLI_SMOKE_OK_WRITING_EXPAND_STORY_JSON'] == 'true',
+        'writing_expand_book_json_ok': os.environ['CLI_SMOKE_OK_WRITING_EXPAND_BOOK_JSON'] == 'true',
+        'writing_expand_deep_story_json_ok': os.environ['CLI_SMOKE_OK_WRITING_EXPAND_DEEP_STORY_JSON'] == 'true',
+        'writing_expand_emit_text_txt_ok': os.environ['CLI_SMOKE_OK_WRITING_EXPAND_EMIT_TEXT_TXT'] == 'true',
+        'writing_review_copy_json_ok': os.environ['CLI_SMOKE_OK_WRITING_REVIEW_COPY_JSON'] == 'true',
+        'writing_review_story_json_ok': os.environ['CLI_SMOKE_OK_WRITING_REVIEW_STORY_JSON'] == 'true',
+        'writing_intent_write_json_ok': os.environ['CLI_SMOKE_OK_WRITING_INTENT_WRITE_JSON'] == 'true',
+        'writing_intent_read_json_ok': os.environ['CLI_SMOKE_OK_WRITING_INTENT_READ_JSON'] == 'true',
         'website_check_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_JSON'] == 'true',
         'website_check_out_of_scope_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_OUT_OF_SCOPE_JSON'] == 'true',
         'website_check_experimental_dynamic_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_EXPERIMENTAL_DYNAMIC_JSON'] == 'true',
