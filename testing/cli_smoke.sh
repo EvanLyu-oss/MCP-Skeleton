@@ -1750,9 +1750,9 @@ assert payload['entrypoint'] == 'writing-bundle', payload
 assert payload['writing_pack'] == 'Story / Fiction Outline Pack', payload
 assert payload['deep_enabled'] is True, payload
 assert payload['review_source'] == 'expanded_text', payload
-assert payload['file_count'] == 9, payload
+assert payload['file_count'] == 10, payload
 assert 'bundle_root:' in payload['summary_text'], payload
-for key in ['check_json', 'scaffold_json', 'brief_json', 'brief_prompt_txt', 'expand_json', 'expand_txt', 'review_json', 'review_summary_txt', 'bundle_manifest_json']:
+for key in ['check_json', 'scaffold_json', 'brief_json', 'brief_prompt_txt', 'expand_json', 'expand_txt', 'review_json', 'review_summary_txt', 'bundle_manifest_json', 'readme_txt']:
     assert os.path.exists(payload['files'][key]), (key, payload)
 PY
 ok_writing_bundle_json=true
@@ -1778,6 +1778,7 @@ PYTHONPATH="$ROOT" python3 -m cli writing bundle '写一个长篇奇幻小说提
 grep -q "^status: ok$" "$writing_bundle_emit_summary_txt"
 grep -q "^zip_enabled: True$" "$writing_bundle_emit_summary_txt"
 grep -q "^archive_path: " "$writing_bundle_emit_summary_txt"
+grep -q "^brief_prompt_txt: " "$writing_bundle_emit_summary_txt"
 ok_writing_bundle_emit_summary_txt=true
 
 writing_bundle_output_file_summary="$TMP_ROOT/writing_bundle_saved_summary.txt"

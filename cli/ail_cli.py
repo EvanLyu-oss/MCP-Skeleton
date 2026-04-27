@@ -5984,6 +5984,52 @@ def _build_writing_bundle_summary_text(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _build_writing_bundle_readme_text(
+    *,
+    requirement: str,
+    writing_pack: str,
+    expected_profile: str,
+    deep_enabled: bool,
+    zip_enabled: bool,
+    review_source: str,
+    files: dict[str, Path],
+) -> str:
+    return "\n".join(
+        [
+            "AIL Builder Writing Bundle",
+            "",
+            f"requirement: {requirement}",
+            f"writing_pack: {writing_pack}",
+            f"expected_profile: {expected_profile}",
+            f"deep_enabled: {deep_enabled}",
+            f"zip_enabled: {zip_enabled}",
+            f"review_source: {review_source}",
+            "",
+            "Recommended reading order:",
+            f"1. brief_prompt.txt -> {files['brief_prompt_txt']}",
+            f"2. expand.txt -> {files['expand_txt']}",
+            f"3. review_summary.txt -> {files['review_summary_txt']}",
+            "",
+            "Bundle contents:",
+            f"- check.json: pack classification and boundary contract",
+            f"- scaffold.json: low-token structural scaffold",
+            f"- brief.json: structured brief payload with handoff metadata",
+            f"- brief_prompt.txt: prompt-ready handoff text for an external model",
+            f"- expand.json: structured first-draft or second-draft payload",
+            f"- expand.txt: prose draft text",
+            f"- review.json: structured review payload",
+            f"- review_summary.txt: compact editorial review summary",
+            f"- bundle_manifest.json: top-level bundle manifest",
+            f"- README.txt: this file",
+            "",
+            "Working guidance:",
+            "- Use brief_prompt.txt when handing the task to another model.",
+            "- Use expand.txt as the current prose layer, not as a final manuscript.",
+            "- Use review_summary.txt to decide the next targeted revision pass.",
+        ]
+    ) + "\n"
+
+
 def _build_writing_bundle_payload(
     *,
     requirement: str,
@@ -6013,6 +6059,7 @@ def _build_writing_bundle_payload(
         "review_json": bundle_root / "review.json",
         "review_summary_txt": bundle_root / "review_summary.txt",
         "bundle_manifest_json": bundle_root / "bundle_manifest.json",
+        "readme_txt": bundle_root / "README.txt",
     }
 
     _write_cli_output_file(files["check_json"], check_payload, as_json=True)
@@ -6023,6 +6070,18 @@ def _build_writing_bundle_payload(
     _write_cli_output_file(files["expand_txt"], str(expand_payload.get("expanded_text", "")))
     _write_cli_output_file(files["review_json"], review_payload, as_json=True)
     _write_cli_output_file(files["review_summary_txt"], str(review_payload.get("summary_text", "")))
+    _write_cli_output_file(
+        files["readme_txt"],
+        _build_writing_bundle_readme_text(
+            requirement=requirement,
+            writing_pack=str(check_payload.get("writing_pack", "")),
+            expected_profile=str(check_payload.get("expected_profile", "")),
+            deep_enabled=deep,
+            zip_enabled=make_zip,
+            review_source=review_source,
+            files=files,
+        ),
+    )
 
     payload = {
         "status": "ok" if check_payload.get("status") == "ok" else check_payload.get("status", "error"),
