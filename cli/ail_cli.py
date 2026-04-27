@@ -381,8 +381,8 @@ def cmd_writing(args: argparse.Namespace) -> int:
                 print(f"- {step}")
         return exit_code
 
-    if getattr(args, "writing_command", None) not in {"check", "intent", "scaffold", "brief"}:
-        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported writing subcommands: check, packs, scaffold, brief, intent")
+    if getattr(args, "writing_command", None) not in {"check", "intent", "scaffold", "brief", "expand"}:
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported writing subcommands: check, packs, scaffold, brief, expand, intent")
 
     if getattr(args, "writing_command", None) == "check":
         requirement = _read_requirement(args)
@@ -462,6 +462,32 @@ def cmd_writing(args: argparse.Namespace) -> int:
             print("Recommended commands:")
             for item in payload.get("recommended_commands", []):
                 print(f"- {item}")
+            print("Next:")
+            for step in payload["next_steps"]:
+                print(f"- {step}")
+        return exit_code
+
+    if getattr(args, "writing_command", None) == "expand":
+        requirement = _read_requirement(args)
+        if not requirement:
+            return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "writing expand requires a non-empty requirement")
+        payload, exit_code = _build_writing_expand_payload(requirement=requirement)
+        if getattr(args, "emit_text", False):
+            sys.stdout.write(str(payload.get("expanded_text", "")))
+            return exit_code
+        if args.json:
+            _print_json_payload(payload)
+        else:
+            print("Writing expand")
+            print(f"- status: {payload['status']}")
+            print(f"- writing_pack: {payload['writing_pack']}")
+            print(f"- expected_profile: {payload.get('expected_profile', '')}")
+            print(f"- expand_mode: {payload.get('expand_mode', '')}")
+            print(f"- expanded_unit_count: {payload.get('expanded_unit_count', 0)}")
+            print(f"- intent_scope_status: {payload.get('intent_scope_status', '')}")
+            if payload.get("expanded_text"):
+                print("Preview:")
+                print(payload["expanded_text"][:1200].rstrip())
             print("Next:")
             for step in payload["next_steps"]:
                 print(f"- {step}")
@@ -4139,6 +4165,11 @@ def _build_parser() -> argparse.ArgumentParser:
     writing_brief_parser.add_argument("--from-file", dest="from_file", help="Read requirement text from a file")
     writing_brief_parser.add_argument("--emit-prompt", action="store_true", help="Print only the prompt-ready writing handoff text for an external model")
     writing_brief_parser.add_argument("--json", action="store_true", help="Print writing brief as JSON")
+    writing_expand_parser = writing_subparsers.add_parser("expand", help="Expand one writing scaffold into a first drafting pass")
+    writing_expand_parser.add_argument("requirement", nargs="?", help="Writing requirement text")
+    writing_expand_parser.add_argument("--from-file", dest="from_file", help="Read requirement text from a file")
+    writing_expand_parser.add_argument("--emit-text", action="store_true", help="Print only the expanded first-draft text")
+    writing_expand_parser.add_argument("--json", action="store_true", help="Print writing expansion as JSON")
     writing_intent_parser = writing_subparsers.add_parser("intent", help="Show or save the current repo-level writing intent for later scaffolding and handoff")
     writing_intent_parser.add_argument("--audience", default=None, help="Primary audience summary for the current writing line")
     writing_intent_parser.add_argument("--format-mode", default=None, help="Writing mode, for example: copy, story, book")
@@ -5159,6 +5190,153 @@ def _build_writing_brief_payload(*, requirement: str) -> tuple[dict[str, Any], i
         "next_steps": next_steps,
     }
     payload["model_prompt"] = _build_writing_brief_prompt_text(payload)
+    return payload, exit_code
+
+
+def _copy_expand(scaffold: dict[str, Any], intent: dict[str, Any]) -> tuple[list[dict[str, str]], str]:
+    headline = str(scaffold.get("headline") or "A clearer offer starts here.")
+    promise = str(scaffold.get("one_line_promise") or "Turn the current offer into a message the reader can act on.")
+    message_architecture = scaffold.get("message_architecture") or {}
+    proof_points = list(message_architecture.get("proof") or [])
+    ctas = list(message_architecture.get("cta_direction") or ["Book a demo"])
+    tone = ", ".join(intent.get("tone_keywords") or []) or "clear and direct"
+    sections = [
+        {
+            "label": "hero_draft",
+            "text": (
+                f"{headline}\n\n"
+                f"{promise} We frame the problem in a {tone} voice, then move quickly into why this offer is easier to trust, easier to understand, and easier to act on."
+            ),
+        },
+        {
+            "label": "proof_draft",
+            "text": (
+                "Why this lands:\n"
+                + "\n".join(f"- {point.capitalize()}." for point in proof_points)
+                + "\n\nInstead of forcing the reader to decode the value, the page carries them from fit to proof to next step."
+            ),
+        },
+        {
+            "label": "cta_draft",
+            "text": (
+                f"Next step: {ctas[0]}\n\n"
+                f"If the reader already feels the pain and can see the fit, the call to action should feel like the natural continuation rather than a hard sell."
+            ),
+        },
+    ]
+    expanded_text = "\n\n".join(item["text"] for item in sections)
+    return sections, expanded_text
+
+
+def _story_expand(scaffold: dict[str, Any], intent: dict[str, Any]) -> tuple[list[dict[str, str]], str]:
+    story_core = scaffold.get("story_core") or {}
+    chapter_tree = list(scaffold.get("chapter_tree") or [])
+    character_cards = list(scaffold.get("character_cards") or [])
+    protagonist = (character_cards[0] if character_cards else {})
+    tone = str(story_core.get("tone") or ", ".join(intent.get("tone_keywords") or []) or "tense")
+    chapter_one = chapter_tree[0] if chapter_tree else {"label": "opening", "goal": "disturb the current equilibrium"}
+    chapter_two = chapter_tree[1] if len(chapter_tree) > 1 else {"label": "choice", "goal": "force a commitment"}
+    sections = [
+        {
+            "label": "opening_scene_draft",
+            "text": (
+                f"Opening scene, {chapter_one['label']}:\n\n"
+                f"The story begins in a {tone} register. The protagonist moves through a familiar routine until the cost of staying passive becomes impossible to ignore. "
+                f"What seemed manageable suddenly carries a sharper consequence, and the first real fracture in the old equilibrium appears."
+            ),
+        },
+        {
+            "label": "character_motion_draft",
+            "text": (
+                f"Character motion:\n\n"
+                f"The protagonist wants {protagonist.get('need', 'a concrete win')}, but the hidden pressure comes from {protagonist.get('hidden_need', 'an internal correction')}. "
+                f"That tension shapes every decision, especially once the ally and the opposition begin pulling the same conflict in different directions."
+            ),
+        },
+        {
+            "label": "chapter_progression_draft",
+            "text": (
+                f"From chapter one into chapter two:\n\n"
+                f"After the initial disruption, the story pivots into {chapter_two['label']}. "
+                f"The protagonist is forced to choose a path that costs them safety, clarity, or reputation, which gives the next chapter its forward pressure."
+            ),
+        },
+    ]
+    expanded_text = "\n\n".join(item["text"] for item in sections)
+    return sections, expanded_text
+
+
+def _book_expand(scaffold: dict[str, Any], intent: dict[str, Any]) -> tuple[list[dict[str, str]], str]:
+    transformation = str(scaffold.get("reader_transformation") or "Help the reader move toward a more repeatable approach.")
+    toc = list(scaffold.get("table_of_contents") or [])
+    first = toc[0] if toc else {"title": "Why the current approach breaks", "goal": "reset expectations"}
+    second = toc[1] if len(toc) > 1 else {"title": "What the new model changes", "goal": "introduce the framework"}
+    audience = str((scaffold.get("positioning") or {}).get("reader") or intent.get("audience") or "the target reader")
+    sections = [
+        {
+            "label": "intro_draft",
+            "text": (
+                f"Book introduction:\n\n"
+                f"This book is for {audience}. {transformation} The opening pages should make the reader feel seen, then quickly show that the current way of operating breaks for predictable reasons."
+            ),
+        },
+        {
+            "label": "chapter_one_draft",
+            "text": (
+                f"Chapter 1, {first['title']}:\n\n"
+                f"Start by naming the friction the reader already feels. Then explain why that friction is not random; it comes from an outdated operating model. "
+                f"The goal of this chapter is to reset expectations and prepare the reader for a more useful framework."
+            ),
+        },
+        {
+            "label": "chapter_two_bridge_draft",
+            "text": (
+                f"Bridge into Chapter 2, {second['title']}:\n\n"
+                f"Once the old model has been discredited, the reader is ready for the new one. "
+                f"This section should turn the argument into a practical framework the reader can remember and apply."
+            ),
+        },
+    ]
+    expanded_text = "\n\n".join(item["text"] for item in sections)
+    return sections, expanded_text
+
+
+def _build_writing_expand_payload(*, requirement: str) -> tuple[dict[str, Any], int]:
+    scaffold_payload, exit_code = _build_writing_scaffold_payload(requirement=requirement)
+    if scaffold_payload.get("status") != "ok":
+        payload = {
+            **scaffold_payload,
+            "entrypoint": "writing-expand",
+            "expand_mode": "unavailable",
+            "expanded_units": [],
+            "expanded_unit_count": 0,
+            "expanded_text": "",
+        }
+        return payload, exit_code
+
+    scaffold = scaffold_payload.get("scaffold") or {}
+    intent = scaffold_payload.get("writing_intent") or {}
+    profile = str(scaffold_payload.get("expected_profile") or "")
+    if profile == "copy_min":
+        expanded_units, expanded_text = _copy_expand(scaffold, intent)
+    elif profile == "story_min":
+        expanded_units, expanded_text = _story_expand(scaffold, intent)
+    else:
+        expanded_units, expanded_text = _book_expand(scaffold, intent)
+
+    payload = {
+        **scaffold_payload,
+        "entrypoint": "writing-expand",
+        "expand_mode": "first_draft_pass",
+        "expanded_units": expanded_units,
+        "expanded_unit_count": len(expanded_units),
+        "expanded_text": expanded_text,
+        "next_steps": [
+            f"run PYTHONPATH={REPO_ROOT_STR} python3 -m cli writing brief {shlex.quote(requirement)} --emit-prompt",
+            "review the expanded units and decide which one deserves a deeper second pass",
+            "use the expanded_text as a first draft, not as a finished final manuscript",
+        ],
+    }
     return payload, exit_code
 
 

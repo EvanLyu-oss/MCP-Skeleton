@@ -25,6 +25,10 @@ ok_writing_scaffold_story_json=false
 ok_writing_scaffold_book_json=false
 ok_writing_brief_json=false
 ok_writing_brief_emit_prompt_txt=false
+ok_writing_expand_copy_json=false
+ok_writing_expand_story_json=false
+ok_writing_expand_book_json=false
+ok_writing_expand_emit_text_txt=false
 ok_writing_intent_write_json=false
 ok_writing_intent_read_json=false
 ok_website_assets_json=false
@@ -1541,6 +1545,57 @@ grep -q "^Current writing intent:$" "$writing_brief_emit_prompt_txt"
 grep -q "science fantasy" "$writing_brief_emit_prompt_txt"
 grep -q "^Scaffold summary:$" "$writing_brief_emit_prompt_txt"
 ok_writing_brief_emit_prompt_txt=true
+
+writing_expand_copy_json="$TMP_ROOT/writing_expand_copy.json"
+PYTHONPATH="$ROOT" python3 -m cli writing expand '写一个企业产品宣传文案，包含首页主标题、卖点和 CTA。' --json > "$writing_expand_copy_json"
+python3 - "$writing_expand_copy_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'ok', payload
+assert payload['entrypoint'] == 'writing-expand', payload
+assert payload['expand_mode'] == 'first_draft_pass', payload
+assert payload['writing_pack'] == 'Copy / Messaging Pack', payload
+assert payload['expanded_unit_count'] == 3, payload
+assert 'Help' in payload['expanded_text'], payload
+assert payload['expanded_units'][0]['label'] == 'hero_draft', payload
+PY
+ok_writing_expand_copy_json=true
+
+writing_expand_story_json="$TMP_ROOT/writing_expand_story.json"
+PYTHONPATH="$ROOT" python3 -m cli writing expand '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --json > "$writing_expand_story_json"
+python3 - "$writing_expand_story_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'ok', payload
+assert payload['entrypoint'] == 'writing-expand', payload
+assert payload['expand_mode'] == 'first_draft_pass', payload
+assert payload['writing_pack'] == 'Story / Fiction Outline Pack', payload
+assert payload['expanded_unit_count'] == 3, payload
+assert 'Opening scene' in payload['expanded_text'], payload
+assert payload['expanded_units'][0]['label'] == 'opening_scene_draft', payload
+PY
+ok_writing_expand_story_json=true
+
+writing_expand_book_json="$TMP_ROOT/writing_expand_book.json"
+PYTHONPATH="$ROOT" python3 -m cli writing expand '写一本非虚构商业书目录和章节目标，帮助创业者搭建销售系统。' --json > "$writing_expand_book_json"
+python3 - "$writing_expand_book_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'ok', payload
+assert payload['entrypoint'] == 'writing-expand', payload
+assert payload['expand_mode'] == 'first_draft_pass', payload
+assert payload['writing_pack'] == 'Book / Nonfiction Blueprint Pack', payload
+assert payload['expanded_unit_count'] == 3, payload
+assert 'Book introduction:' in payload['expanded_text'], payload
+assert payload['expanded_units'][0]['label'] == 'intro_draft', payload
+PY
+ok_writing_expand_book_json=true
+
+writing_expand_emit_text_txt="$TMP_ROOT/writing_expand_emit_text.txt"
+PYTHONPATH="$ROOT" python3 -m cli writing expand '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --emit-text > "$writing_expand_emit_text_txt"
+grep -q "^Opening scene, disruption:$" "$writing_expand_emit_text_txt"
+grep -q "^Character motion:$" "$writing_expand_emit_text_txt"
+ok_writing_expand_emit_text_txt=true
 
 website_assets_json="$TMP_ROOT/website_assets.json"
 python3 -m cli website assets --json > "$website_assets_json"

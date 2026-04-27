@@ -213,6 +213,7 @@ PYTHONPATH="$REPO_ROOT" python3 -m cli writing packs --json
 PYTHONPATH="$REPO_ROOT" python3 -m cli writing check '写一个企业产品宣传文案，包含首页主标题、卖点和 CTA。' --json
 PYTHONPATH="$REPO_ROOT" python3 -m cli writing scaffold '写一本非虚构商业书目录和章节目标，帮助创业者搭建销售系统。' --json
 PYTHONPATH="$REPO_ROOT" python3 -m cli writing brief '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --emit-prompt
+PYTHONPATH="$REPO_ROOT" python3 -m cli writing expand '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --emit-text
 PYTHONPATH="$REPO_ROOT" python3 -m cli writing intent --audience 'indie founders' --format-mode copy --style-direction 'clear persuasive' --json
 ```
 
@@ -226,7 +227,7 @@ The repository already has real product truth in these areas:
 - project-level local frontend serving via `project serve`
 - managed / unmanaged customization via `hook-guide`, `hook-init`, and `hook-continue`
 - durable override workflows without editing managed files directly
-- repo-level low-token writing classification, scaffolding, and prompt handoff via `writing check`, `writing packs`, `writing scaffold`, `writing brief`, and `writing intent`
+- repo-level low-token writing classification, scaffolding, prompt handoff, and first-draft expansion via `writing check`, `writing packs`, `writing scaffold`, `writing brief`, `writing expand`, and `writing intent`
 - dual-line brand-distinction sample work on company and personal baselines
 
 ## Main Documents
