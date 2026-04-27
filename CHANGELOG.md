@@ -55,6 +55,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 - added `writing brief --output-file` so prompt handoffs and JSON brief payloads can be written directly to disk for testing and external-model workflows
 - added `writing bundle`, so one command can now export check, scaffold, brief, expand, and review outputs into a reusable bundle directory
 - added `writing bundle --zip` so the full writing bundle can also be exported as a shareable zip archive
+- added `writing bundle --emit-summary` plus a `summary_text` field so bundle results can be scanned quickly without opening the full JSON manifest
 
 ## 2026-04-19
 

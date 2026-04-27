@@ -577,6 +577,9 @@ def cmd_writing(args: argparse.Namespace) -> int:
             output_dir=getattr(args, "output_dir", None),
             make_zip=bool(getattr(args, "zip_bundle", False)),
         )
+        if getattr(args, "emit_summary", False):
+            sys.stdout.write(str(payload.get("summary_text", "")))
+            return exit_code
         if args.json:
             _print_json_payload(payload)
         else:
@@ -4292,6 +4295,7 @@ def _build_parser() -> argparse.ArgumentParser:
     writing_bundle_parser.add_argument("--text-file", dest="review_text_file", help="Read optional draft text from a file")
     writing_bundle_parser.add_argument("--deep", action="store_true", help="Run the bundle with deep expansion enabled")
     writing_bundle_parser.add_argument("--zip", dest="zip_bundle", action="store_true", help="Also create a zip archive next to the bundle directory")
+    writing_bundle_parser.add_argument("--emit-summary", action="store_true", help="Print only a compact bundle summary")
     writing_bundle_parser.add_argument("--output-dir", dest="output_dir", help="Directory where the writing bundle should be written")
     writing_bundle_parser.add_argument("--json", action="store_true", help="Print writing bundle as JSON")
     writing_intent_parser = writing_subparsers.add_parser("intent", help="Show or save the current repo-level writing intent for later scaffolding and handoff")
@@ -5951,6 +5955,27 @@ def _build_writing_review_payload(*, requirement: str, draft_text: str) -> tuple
     return payload, EXIT_OK
 
 
+def _build_writing_bundle_summary_text(payload: dict[str, Any]) -> str:
+    lines = [
+        f"status: {payload.get('status', '')}",
+        f"writing_pack: {payload.get('writing_pack', '')}",
+        f"expected_profile: {payload.get('expected_profile', '')}",
+        f"bundle_root: {payload.get('bundle_root', '')}",
+        f"deep_enabled: {payload.get('deep_enabled', False)}",
+        f"zip_enabled: {payload.get('zip_enabled', False)}",
+        f"review_source: {payload.get('review_source', '')}",
+        f"file_count: {payload.get('file_count', 0)}",
+    ]
+    if payload.get("archive_path"):
+        lines.append(f"archive_path: {payload.get('archive_path', '')}")
+    files = payload.get("files") or {}
+    if files:
+        lines.append(f"brief_prompt_txt: {files.get('brief_prompt_txt', '')}")
+        lines.append(f"expand_txt: {files.get('expand_txt', '')}")
+        lines.append(f"review_summary_txt: {files.get('review_summary_txt', '')}")
+    return "\n".join(lines)
+
+
 def _build_writing_bundle_payload(
     *,
     requirement: str,
@@ -6020,6 +6045,7 @@ def _build_writing_bundle_payload(
         archive_path = shutil.make_archive(archive_base, "zip", root_dir=bundle_root.parent, base_dir=bundle_root.name)
         payload["archive_path"] = str(Path(archive_path).resolve())
         payload["next_steps"].insert(0, f"share {payload['archive_path']}")
+    payload["summary_text"] = _build_writing_bundle_summary_text(payload)
     _write_cli_output_file(files["bundle_manifest_json"], payload, as_json=True)
     exit_code = max(check_exit, scaffold_exit, brief_exit, expand_exit, review_exit)
     return payload, exit_code
