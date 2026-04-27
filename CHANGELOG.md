@@ -54,6 +54,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 - added `writing expand --output-file` so first-draft prose can be saved directly as text or JSON during testing and external-editor handoff
 - added `writing brief --output-file` so prompt handoffs and JSON brief payloads can be written directly to disk for testing and external-model workflows
 - added `writing bundle`, so one command can now export check, scaffold, brief, expand, and review outputs into a reusable bundle directory
+- added `writing bundle --zip` so the full writing bundle can also be exported as a shareable zip archive
 
 ## 2026-04-19
 

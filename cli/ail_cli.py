@@ -575,6 +575,7 @@ def cmd_writing(args: argparse.Namespace) -> int:
             draft_text=_read_review_text(args),
             deep=bool(getattr(args, "deep", False)),
             output_dir=getattr(args, "output_dir", None),
+            make_zip=bool(getattr(args, "zip_bundle", False)),
         )
         if args.json:
             _print_json_payload(payload)
@@ -586,6 +587,8 @@ def cmd_writing(args: argparse.Namespace) -> int:
             print(f"- deep_enabled: {payload.get('deep_enabled', False)}")
             print(f"- review_source: {payload.get('review_source', '')}")
             print(f"- file_count: {payload.get('file_count', 0)}")
+            if payload.get("archive_path"):
+                print(f"- archive_path: {payload.get('archive_path', '')}")
             print("Files:")
             for label, path in (payload.get("files") or {}).items():
                 print(f"- {label}: {path}")
@@ -4288,6 +4291,7 @@ def _build_parser() -> argparse.ArgumentParser:
     writing_bundle_parser.add_argument("--text", dest="review_text", help="Optional draft text to review instead of reviewing the generated expand text")
     writing_bundle_parser.add_argument("--text-file", dest="review_text_file", help="Read optional draft text from a file")
     writing_bundle_parser.add_argument("--deep", action="store_true", help="Run the bundle with deep expansion enabled")
+    writing_bundle_parser.add_argument("--zip", dest="zip_bundle", action="store_true", help="Also create a zip archive next to the bundle directory")
     writing_bundle_parser.add_argument("--output-dir", dest="output_dir", help="Directory where the writing bundle should be written")
     writing_bundle_parser.add_argument("--json", action="store_true", help="Print writing bundle as JSON")
     writing_intent_parser = writing_subparsers.add_parser("intent", help="Show or save the current repo-level writing intent for later scaffolding and handoff")
@@ -5953,6 +5957,7 @@ def _build_writing_bundle_payload(
     draft_text: str,
     deep: bool,
     output_dir: str | None,
+    make_zip: bool,
 ) -> tuple[dict[str, Any], int]:
     check_payload, check_exit = _build_writing_check_payload(requirement=requirement)
     scaffold_payload, scaffold_exit = _build_writing_scaffold_payload(requirement=requirement)
@@ -5994,6 +5999,7 @@ def _build_writing_bundle_payload(
         "expected_profile": check_payload.get("expected_profile", ""),
         "bundle_root": str(bundle_root),
         "deep_enabled": deep,
+        "zip_enabled": make_zip,
         "review_source": review_source,
         "review_input_char_count": len(review_input.strip()),
         "file_count": len(files),
@@ -6009,6 +6015,11 @@ def _build_writing_bundle_payload(
             f"open {files['review_summary_txt']}",
         ],
     }
+    if make_zip:
+        archive_base = str(bundle_root)
+        archive_path = shutil.make_archive(archive_base, "zip", root_dir=bundle_root.parent, base_dir=bundle_root.name)
+        payload["archive_path"] = str(Path(archive_path).resolve())
+        payload["next_steps"].insert(0, f"share {payload['archive_path']}")
     _write_cli_output_file(files["bundle_manifest_json"], payload, as_json=True)
     exit_code = max(check_exit, scaffold_exit, brief_exit, expand_exit, review_exit)
     return payload, exit_code
