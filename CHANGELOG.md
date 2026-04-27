@@ -63,6 +63,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 - added `writing bundle --copy-summary` so compact bundle summaries can be copied straight into a handoff note or test report
 - tightened `writing check` so requests for one-shot finished long-form novels or publication-ready full books are classified as out of scope instead of being accepted into scaffold-first lanes
 - stopped `writing bundle` from passively reading stdin when no review text was requested, which avoids hangs in wrapped shell environments such as PowerShell-based test runners
+- added `/Users/carwynmac/ai-cl/WRITING_TEST_MATRIX_20260428.md` so writing regressions can be run against one stable matrix across copy, story, book, out-of-scope, review, and bundle flows
 
 ## 2026-04-19
 

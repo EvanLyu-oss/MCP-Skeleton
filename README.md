@@ -34,6 +34,7 @@ It is **not** yet packaged as a stable end-user product.
 Architecture-first styling direction:
 
 - [`DESIGN_HANDOFF_SPEC_20260426.md`](DESIGN_HANDOFF_SPEC_20260426.md)
+- [`WRITING_TEST_MATRIX_20260428.md`](WRITING_TEST_MATRIX_20260428.md)
 
 Windows testers are supported too: see [`QUICKSTART_OPEN_SOURCE.md`](QUICKSTART_OPEN_SOURCE.md) for PowerShell equivalents and current cross-platform notes.
 
@@ -253,6 +254,7 @@ Current public / packaging docs:
 - [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md)
 - [`CHANGELOG.md`](CHANGELOG.md)
 - [`DESIGN_HANDOFF_SPEC_20260426.md`](DESIGN_HANDOFF_SPEC_20260426.md)
+- [`WRITING_TEST_MATRIX_20260428.md`](WRITING_TEST_MATRIX_20260428.md)
 - [`SKILL_PACKAGING_PLAN_20260418.md`](SKILL_PACKAGING_PLAN_20260418.md)
 - [`SKILL.md`](SKILL.md)
 - [`MCP_TOOL_SURFACE_SPEC_20260418.md`](MCP_TOOL_SURFACE_SPEC_20260418.md)
