@@ -49,6 +49,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 - added deterministic variation modes inside `writing expand` so first-draft outputs can differ in voice while staying stable for the same requirement and pack
 - added `writing expand --deep` so the existing first-draft pass can be pushed one layer further into a second-pass draft without pretending to generate a finished manuscript
 - added `writing review`, so draft text can now be checked against the current low-token scaffold for alignment, drift findings, revision targets, and a next-pass rewrite prompt
+- added `writing review --emit-summary` plus a `summary_text` field so review results can be scanned quickly without reading the full JSON payload
 
 ## 2026-04-19
 

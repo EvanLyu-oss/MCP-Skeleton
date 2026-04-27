@@ -33,6 +33,7 @@ ok_writing_expand_deep_story_json=false
 ok_writing_expand_emit_text_txt=false
 ok_writing_review_copy_json=false
 ok_writing_review_story_json=false
+ok_writing_review_emit_summary_txt=false
 ok_writing_intent_write_json=false
 ok_writing_intent_read_json=false
 ok_website_assets_json=false
@@ -1664,8 +1665,17 @@ assert payload['alignment_band'] in {'drifting', 'workable', 'strong'}, payload
 assert payload['drift_findings'] or payload['weak_spots'], payload
 assert payload['revision_targets'], payload
 assert 'Revise this story draft' in payload['next_pass_prompt'], payload
+assert 'alignment_score:' in payload['summary_text'], payload
+assert 'drift_count:' in payload['summary_text'], payload
 PY
 ok_writing_review_story_json=true
+
+writing_review_emit_summary_txt="$TMP_ROOT/writing_review_emit_summary.txt"
+PYTHONPATH="$ROOT" python3 -m cli writing review '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --text 'The corridor was quiet and cold. She moved forward without knowing why the doors were already open.' --emit-summary > "$writing_review_emit_summary_txt"
+grep -q "^status: ok$" "$writing_review_emit_summary_txt"
+grep -q "^alignment_band: " "$writing_review_emit_summary_txt"
+grep -q "^drift_count: " "$writing_review_emit_summary_txt"
+ok_writing_review_emit_summary_txt=true
 
 website_assets_json="$TMP_ROOT/website_assets.json"
 python3 -m cli website assets --json > "$website_assets_json"
@@ -5678,6 +5688,7 @@ export CLI_SMOKE_OK_WRITING_EXPAND_DEEP_STORY_JSON="$ok_writing_expand_deep_stor
 export CLI_SMOKE_OK_WRITING_EXPAND_EMIT_TEXT_TXT="$ok_writing_expand_emit_text_txt"
 export CLI_SMOKE_OK_WRITING_REVIEW_COPY_JSON="$ok_writing_review_copy_json"
 export CLI_SMOKE_OK_WRITING_REVIEW_STORY_JSON="$ok_writing_review_story_json"
+export CLI_SMOKE_OK_WRITING_REVIEW_EMIT_SUMMARY_TXT="$ok_writing_review_emit_summary_txt"
 export CLI_SMOKE_OK_WRITING_INTENT_WRITE_JSON="$ok_writing_intent_write_json"
 export CLI_SMOKE_OK_WRITING_INTENT_READ_JSON="$ok_writing_intent_read_json"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_REPO_JSON="$ok_project_hook_guide_repo_json"
@@ -5880,6 +5891,7 @@ payload = {
         'writing_expand_emit_text_txt_ok': os.environ['CLI_SMOKE_OK_WRITING_EXPAND_EMIT_TEXT_TXT'] == 'true',
         'writing_review_copy_json_ok': os.environ['CLI_SMOKE_OK_WRITING_REVIEW_COPY_JSON'] == 'true',
         'writing_review_story_json_ok': os.environ['CLI_SMOKE_OK_WRITING_REVIEW_STORY_JSON'] == 'true',
+        'writing_review_emit_summary_txt_ok': os.environ['CLI_SMOKE_OK_WRITING_REVIEW_EMIT_SUMMARY_TXT'] == 'true',
         'writing_intent_write_json_ok': os.environ['CLI_SMOKE_OK_WRITING_INTENT_WRITE_JSON'] == 'true',
         'writing_intent_read_json_ok': os.environ['CLI_SMOKE_OK_WRITING_INTENT_READ_JSON'] == 'true',
         'website_check_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_JSON'] == 'true',

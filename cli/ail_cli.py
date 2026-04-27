@@ -505,6 +505,9 @@ def cmd_writing(args: argparse.Namespace) -> int:
         if not draft_text:
             return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "writing review requires draft text via --text, --text-file, or stdin")
         payload, exit_code = _build_writing_review_payload(requirement=requirement, draft_text=draft_text)
+        if getattr(args, "emit_summary", False):
+            sys.stdout.write(str(payload.get("summary_text", "")))
+            return exit_code
         if args.json:
             _print_json_payload(payload)
         else:
@@ -4224,6 +4227,7 @@ def _build_parser() -> argparse.ArgumentParser:
     writing_review_parser.add_argument("--from-file", dest="from_file", help="Read requirement text from a file")
     writing_review_parser.add_argument("--text", dest="review_text", help="Draft text to review")
     writing_review_parser.add_argument("--text-file", dest="review_text_file", help="Read draft text from a file")
+    writing_review_parser.add_argument("--emit-summary", action="store_true", help="Print only a compact review summary")
     writing_review_parser.add_argument("--json", action="store_true", help="Print writing review as JSON")
     writing_intent_parser = writing_subparsers.add_parser("intent", help="Show or save the current repo-level writing intent for later scaffolding and handoff")
     writing_intent_parser.add_argument("--audience", default=None, help="Primary audience summary for the current writing line")
@@ -5803,6 +5807,28 @@ def _alignment_band(score: int) -> str:
     return "drifting"
 
 
+def _build_writing_review_summary_text(payload: dict[str, Any]) -> str:
+    lines = [
+        f"status: {payload.get('status', '')}",
+        f"writing_pack: {payload.get('writing_pack', '')}",
+        f"expected_profile: {payload.get('expected_profile', '')}",
+        f"review_mode: {payload.get('review_mode', '')}",
+        f"alignment_score: {payload.get('alignment_score', 0)}",
+        f"alignment_band: {payload.get('alignment_band', '')}",
+        f"draft_char_count: {payload.get('draft_char_count', 0)}",
+        f"draft_paragraph_count: {payload.get('draft_paragraph_count', 0)}",
+        f"strength_count: {len(payload.get('strengths') or [])}",
+        f"weak_spot_count: {len(payload.get('weak_spots') or [])}",
+        f"drift_count: {len(payload.get('drift_findings') or [])}",
+        f"revision_target_count: {len(payload.get('revision_targets') or [])}",
+    ]
+    if payload.get("revision_targets"):
+        lines.append(f"first_revision_target: {(payload.get('revision_targets') or [''])[0]}")
+    elif payload.get("strengths"):
+        lines.append(f"first_strength: {(payload.get('strengths') or [''])[0]}")
+    return "\n".join(lines)
+
+
 def _build_writing_review_payload(*, requirement: str, draft_text: str) -> tuple[dict[str, Any], int]:
     scaffold_payload, exit_code = _build_writing_scaffold_payload(requirement=requirement)
     if scaffold_payload.get("status") != "ok":
@@ -5821,6 +5847,7 @@ def _build_writing_review_payload(*, requirement: str, draft_text: str) -> tuple
             "revision_targets": [],
             "next_pass_prompt": "",
         }
+        payload["summary_text"] = _build_writing_review_summary_text(payload)
         return payload, exit_code
 
     scaffold = scaffold_payload.get("scaffold") or {}
@@ -5855,6 +5882,7 @@ def _build_writing_review_payload(*, requirement: str, draft_text: str) -> tuple
             "use the next_pass_prompt as the prompt for the next editorial pass",
         ],
     }
+    payload["summary_text"] = _build_writing_review_summary_text(payload)
     return payload, EXIT_OK
 
 
