@@ -51,6 +51,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 - added `writing review`, so draft text can now be checked against the current low-token scaffold for alignment, drift findings, revision targets, and a next-pass rewrite prompt
 - added `writing review --emit-summary` plus a `summary_text` field so review results can be scanned quickly without reading the full JSON payload
 - added `writing review --output-file` so summary or JSON review results can be written directly to disk for testing and external-editor handoff
+- added `writing expand --output-file` so first-draft prose can be saved directly as text or JSON during testing and external-editor handoff
 
 ## 2026-04-19
 

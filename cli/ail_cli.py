@@ -475,12 +475,19 @@ def cmd_writing(args: argparse.Namespace) -> int:
             requirement=requirement,
             deep=bool(getattr(args, "deep", False)),
         )
+        output_file = getattr(args, "output_file", None)
         if getattr(args, "emit_text", False):
+            if output_file:
+                _write_cli_output_file(Path(output_file), str(payload.get("expanded_text", "")))
             sys.stdout.write(str(payload.get("expanded_text", "")))
             return exit_code
         if args.json:
+            if output_file:
+                _write_cli_output_file(Path(output_file), payload, as_json=True)
             _print_json_payload(payload)
         else:
+            if output_file:
+                _write_cli_output_file(Path(output_file), str(payload.get("expanded_text", "")))
             print("Writing expand")
             print(f"- status: {payload['status']}")
             print(f"- writing_pack: {payload['writing_pack']}")
@@ -4228,6 +4235,7 @@ def _build_parser() -> argparse.ArgumentParser:
     writing_expand_parser.add_argument("--from-file", dest="from_file", help="Read requirement text from a file")
     writing_expand_parser.add_argument("--deep", action="store_true", help="Expand the first draft one layer deeper into a second-pass draft")
     writing_expand_parser.add_argument("--emit-text", action="store_true", help="Print only the expanded first-draft text")
+    writing_expand_parser.add_argument("--output-file", dest="output_file", help="Write the expand output to a file")
     writing_expand_parser.add_argument("--json", action="store_true", help="Print writing expansion as JSON")
     writing_review_parser = writing_subparsers.add_parser("review", help="Review one draft against the current low-token writing scaffold")
     writing_review_parser.add_argument("requirement", nargs="?", help="Writing requirement text")

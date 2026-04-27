@@ -31,6 +31,8 @@ ok_writing_expand_story_json=false
 ok_writing_expand_book_json=false
 ok_writing_expand_deep_story_json=false
 ok_writing_expand_emit_text_txt=false
+ok_writing_expand_output_file_text=false
+ok_writing_expand_output_file_json=false
 ok_writing_review_copy_json=false
 ok_writing_review_story_json=false
 ok_writing_review_emit_summary_txt=false
@@ -1637,6 +1639,23 @@ PYTHONPATH="$ROOT" python3 -m cli writing expand '写一个长篇奇幻小说提
 grep -q "^Opening scene, disruption:$\|^Opening scene, disruption:" "$writing_expand_emit_text_txt"
 grep -q "chapter two" "$writing_expand_emit_text_txt"
 ok_writing_expand_emit_text_txt=true
+
+writing_expand_output_file_text="$TMP_ROOT/writing_expand_saved.txt"
+PYTHONPATH="$ROOT" python3 -m cli writing expand '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --emit-text --output-file "$writing_expand_output_file_text" > /dev/null
+grep -q "^Opening scene, disruption:$\|^Opening scene, disruption:" "$writing_expand_output_file_text"
+grep -q "chapter two" "$writing_expand_output_file_text"
+ok_writing_expand_output_file_text=true
+
+writing_expand_output_file_json="$TMP_ROOT/writing_expand_saved.json"
+PYTHONPATH="$ROOT" python3 -m cli writing expand '写一个企业产品宣传文案，包含首页主标题、卖点和 CTA。' --json --output-file "$writing_expand_output_file_json" > /dev/null
+python3 - "$writing_expand_output_file_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'writing-expand', payload
+assert payload['status'] == 'ok', payload
+assert payload['expanded_text'], payload
+PY
+ok_writing_expand_output_file_json=true
 
 writing_review_copy_json="$TMP_ROOT/writing_review_copy.json"
 PYTHONPATH="$ROOT" python3 -m cli writing review '写一个企业产品宣传文案，包含首页主标题、卖点和 CTA。' --text 'Help operators cut reporting time in half. The workflow is faster, clearer, and easier to roll out across the team. Request pricing today.' --json > "$writing_review_copy_json"
@@ -5705,6 +5724,8 @@ export CLI_SMOKE_OK_WRITING_EXPAND_STORY_JSON="$ok_writing_expand_story_json"
 export CLI_SMOKE_OK_WRITING_EXPAND_BOOK_JSON="$ok_writing_expand_book_json"
 export CLI_SMOKE_OK_WRITING_EXPAND_DEEP_STORY_JSON="$ok_writing_expand_deep_story_json"
 export CLI_SMOKE_OK_WRITING_EXPAND_EMIT_TEXT_TXT="$ok_writing_expand_emit_text_txt"
+export CLI_SMOKE_OK_WRITING_EXPAND_OUTPUT_FILE_TEXT="$ok_writing_expand_output_file_text"
+export CLI_SMOKE_OK_WRITING_EXPAND_OUTPUT_FILE_JSON="$ok_writing_expand_output_file_json"
 export CLI_SMOKE_OK_WRITING_REVIEW_COPY_JSON="$ok_writing_review_copy_json"
 export CLI_SMOKE_OK_WRITING_REVIEW_STORY_JSON="$ok_writing_review_story_json"
 export CLI_SMOKE_OK_WRITING_REVIEW_EMIT_SUMMARY_TXT="$ok_writing_review_emit_summary_txt"
@@ -5910,6 +5931,8 @@ payload = {
         'writing_expand_book_json_ok': os.environ['CLI_SMOKE_OK_WRITING_EXPAND_BOOK_JSON'] == 'true',
         'writing_expand_deep_story_json_ok': os.environ['CLI_SMOKE_OK_WRITING_EXPAND_DEEP_STORY_JSON'] == 'true',
         'writing_expand_emit_text_txt_ok': os.environ['CLI_SMOKE_OK_WRITING_EXPAND_EMIT_TEXT_TXT'] == 'true',
+        'writing_expand_output_file_text_ok': os.environ['CLI_SMOKE_OK_WRITING_EXPAND_OUTPUT_FILE_TEXT'] == 'true',
+        'writing_expand_output_file_json_ok': os.environ['CLI_SMOKE_OK_WRITING_EXPAND_OUTPUT_FILE_JSON'] == 'true',
         'writing_review_copy_json_ok': os.environ['CLI_SMOKE_OK_WRITING_REVIEW_COPY_JSON'] == 'true',
         'writing_review_story_json_ok': os.environ['CLI_SMOKE_OK_WRITING_REVIEW_STORY_JSON'] == 'true',
         'writing_review_emit_summary_txt_ok': os.environ['CLI_SMOKE_OK_WRITING_REVIEW_EMIT_SUMMARY_TXT'] == 'true',
