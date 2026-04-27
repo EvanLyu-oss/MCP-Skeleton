@@ -58,6 +58,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 - added `writing bundle --emit-summary` plus a `summary_text` field so bundle results can be scanned quickly without opening the full JSON manifest
 - added `writing bundle --output-file` so the compact bundle summary or full bundle manifest can be written directly to disk
 - added `README.txt` inside each writing bundle so the exported directory explains file purpose and suggested reading order
+- added `manifest_version` and `bundle_created_at` to writing bundles so exported artifacts carry lightweight versioning and creation metadata
 
 ## 2026-04-19
 

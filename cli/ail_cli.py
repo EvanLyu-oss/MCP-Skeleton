@@ -5968,6 +5968,8 @@ def _build_writing_bundle_summary_text(payload: dict[str, Any]) -> str:
         f"status: {payload.get('status', '')}",
         f"writing_pack: {payload.get('writing_pack', '')}",
         f"expected_profile: {payload.get('expected_profile', '')}",
+        f"manifest_version: {payload.get('manifest_version', '')}",
+        f"bundle_created_at: {payload.get('bundle_created_at', '')}",
         f"bundle_root: {payload.get('bundle_root', '')}",
         f"deep_enabled: {payload.get('deep_enabled', False)}",
         f"zip_enabled: {payload.get('zip_enabled', False)}",
@@ -5989,6 +5991,8 @@ def _build_writing_bundle_readme_text(
     requirement: str,
     writing_pack: str,
     expected_profile: str,
+    manifest_version: str,
+    bundle_created_at: str,
     deep_enabled: bool,
     zip_enabled: bool,
     review_source: str,
@@ -6001,6 +6005,8 @@ def _build_writing_bundle_readme_text(
             f"requirement: {requirement}",
             f"writing_pack: {writing_pack}",
             f"expected_profile: {expected_profile}",
+            f"manifest_version: {manifest_version}",
+            f"bundle_created_at: {bundle_created_at}",
             f"deep_enabled: {deep_enabled}",
             f"zip_enabled: {zip_enabled}",
             f"review_source: {review_source}",
@@ -6045,6 +6051,8 @@ def _build_writing_bundle_payload(
     review_input = draft_text.strip() if draft_text.strip() else str(expand_payload.get("expanded_text") or "")
     review_source = "provided_draft" if draft_text.strip() else "expanded_text"
     review_payload, review_exit = _build_writing_review_payload(requirement=requirement, draft_text=review_input)
+    manifest_version = "writing_bundle.v1"
+    bundle_created_at = datetime.now().astimezone().isoformat(timespec="seconds")
 
     bundle_root = _resolve_writing_bundle_dir(requirement, output_dir)
     bundle_root.mkdir(parents=True, exist_ok=True)
@@ -6076,6 +6084,8 @@ def _build_writing_bundle_payload(
             requirement=requirement,
             writing_pack=str(check_payload.get("writing_pack", "")),
             expected_profile=str(check_payload.get("expected_profile", "")),
+            manifest_version=manifest_version,
+            bundle_created_at=bundle_created_at,
             deep_enabled=deep,
             zip_enabled=make_zip,
             review_source=review_source,
@@ -6089,6 +6099,8 @@ def _build_writing_bundle_payload(
         "requirement": requirement,
         "writing_pack": check_payload.get("writing_pack", ""),
         "expected_profile": check_payload.get("expected_profile", ""),
+        "manifest_version": manifest_version,
+        "bundle_created_at": bundle_created_at,
         "bundle_root": str(bundle_root),
         "deep_enabled": deep,
         "zip_enabled": make_zip,
