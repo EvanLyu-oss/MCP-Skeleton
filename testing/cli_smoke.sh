@@ -26,6 +26,8 @@ ok_writing_scaffold_story_json=false
 ok_writing_scaffold_book_json=false
 ok_writing_brief_json=false
 ok_writing_brief_emit_prompt_txt=false
+ok_writing_brief_output_file_prompt=false
+ok_writing_brief_output_file_json=false
 ok_writing_expand_copy_json=false
 ok_writing_expand_story_json=false
 ok_writing_expand_book_json=false
@@ -1567,6 +1569,23 @@ grep -q "^Current writing intent:$" "$writing_brief_emit_prompt_txt"
 grep -q "science fantasy" "$writing_brief_emit_prompt_txt"
 grep -q "^Scaffold summary:$" "$writing_brief_emit_prompt_txt"
 ok_writing_brief_emit_prompt_txt=true
+
+writing_brief_output_file_prompt="$TMP_ROOT/writing_brief_saved_prompt.txt"
+PYTHONPATH="$ROOT" python3 -m cli writing brief '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --emit-prompt --output-file "$writing_brief_output_file_prompt" > /dev/null
+grep -q "^You are continuing a writing task from an AIL Builder low-token scaffold\\.$" "$writing_brief_output_file_prompt"
+grep -q "^Scaffold summary:$" "$writing_brief_output_file_prompt"
+ok_writing_brief_output_file_prompt=true
+
+writing_brief_output_file_json="$TMP_ROOT/writing_brief_saved.json"
+PYTHONPATH="$ROOT" python3 -m cli writing brief '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --json --output-file "$writing_brief_output_file_json" > /dev/null
+python3 - "$writing_brief_output_file_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'writing-brief', payload
+assert payload['status'] == 'ok', payload
+assert payload['model_prompt'], payload
+PY
+ok_writing_brief_output_file_json=true
 
 writing_expand_copy_json="$TMP_ROOT/writing_expand_copy.json"
 PYTHONPATH="$ROOT" python3 -m cli writing expand '写一个企业产品宣传文案，包含首页主标题、卖点和 CTA。' --json > "$writing_expand_copy_json"
@@ -5719,6 +5738,8 @@ export CLI_SMOKE_OK_WRITING_SCAFFOLD_STORY_JSON="$ok_writing_scaffold_story_json
 export CLI_SMOKE_OK_WRITING_SCAFFOLD_BOOK_JSON="$ok_writing_scaffold_book_json"
 export CLI_SMOKE_OK_WRITING_BRIEF_JSON="$ok_writing_brief_json"
 export CLI_SMOKE_OK_WRITING_BRIEF_EMIT_PROMPT_TXT="$ok_writing_brief_emit_prompt_txt"
+export CLI_SMOKE_OK_WRITING_BRIEF_OUTPUT_FILE_PROMPT="$ok_writing_brief_output_file_prompt"
+export CLI_SMOKE_OK_WRITING_BRIEF_OUTPUT_FILE_JSON="$ok_writing_brief_output_file_json"
 export CLI_SMOKE_OK_WRITING_EXPAND_COPY_JSON="$ok_writing_expand_copy_json"
 export CLI_SMOKE_OK_WRITING_EXPAND_STORY_JSON="$ok_writing_expand_story_json"
 export CLI_SMOKE_OK_WRITING_EXPAND_BOOK_JSON="$ok_writing_expand_book_json"
@@ -5926,6 +5947,8 @@ payload = {
         'writing_scaffold_book_json_ok': os.environ['CLI_SMOKE_OK_WRITING_SCAFFOLD_BOOK_JSON'] == 'true',
         'writing_brief_json_ok': os.environ['CLI_SMOKE_OK_WRITING_BRIEF_JSON'] == 'true',
         'writing_brief_emit_prompt_txt_ok': os.environ['CLI_SMOKE_OK_WRITING_BRIEF_EMIT_PROMPT_TXT'] == 'true',
+        'writing_brief_output_file_prompt_ok': os.environ['CLI_SMOKE_OK_WRITING_BRIEF_OUTPUT_FILE_PROMPT'] == 'true',
+        'writing_brief_output_file_json_ok': os.environ['CLI_SMOKE_OK_WRITING_BRIEF_OUTPUT_FILE_JSON'] == 'true',
         'writing_expand_copy_json_ok': os.environ['CLI_SMOKE_OK_WRITING_EXPAND_COPY_JSON'] == 'true',
         'writing_expand_story_json_ok': os.environ['CLI_SMOKE_OK_WRITING_EXPAND_STORY_JSON'] == 'true',
         'writing_expand_book_json_ok': os.environ['CLI_SMOKE_OK_WRITING_EXPAND_BOOK_JSON'] == 'true',

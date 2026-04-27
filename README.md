@@ -213,6 +213,7 @@ PYTHONPATH="$REPO_ROOT" python3 -m cli writing packs --json
 PYTHONPATH="$REPO_ROOT" python3 -m cli writing check '写一个企业产品宣传文案，包含首页主标题、卖点和 CTA。' --json
 PYTHONPATH="$REPO_ROOT" python3 -m cli writing scaffold '写一本非虚构商业书目录和章节目标，帮助创业者搭建销售系统。' --json
 PYTHONPATH="$REPO_ROOT" python3 -m cli writing brief '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --emit-prompt
+PYTHONPATH="$REPO_ROOT" python3 -m cli writing brief '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --emit-prompt --output-file /absolute/path/to/brief-prompt.txt
 PYTHONPATH="$REPO_ROOT" python3 -m cli writing expand '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --emit-text
 PYTHONPATH="$REPO_ROOT" python3 -m cli writing expand '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --deep --json
 PYTHONPATH="$REPO_ROOT" python3 -m cli writing expand '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --emit-text --output-file /absolute/path/to/expand-draft.txt

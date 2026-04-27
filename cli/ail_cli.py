@@ -445,12 +445,19 @@ def cmd_writing(args: argparse.Namespace) -> int:
         if not requirement:
             return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "writing brief requires a non-empty requirement")
         payload, exit_code = _build_writing_brief_payload(requirement=requirement)
+        output_file = getattr(args, "output_file", None)
         if getattr(args, "emit_prompt", False):
+            if output_file:
+                _write_cli_output_file(Path(output_file), str(payload.get("model_prompt", "")))
             sys.stdout.write(str(payload.get("model_prompt", "")))
             return exit_code
         if args.json:
+            if output_file:
+                _write_cli_output_file(Path(output_file), payload, as_json=True)
             _print_json_payload(payload)
         else:
+            if output_file:
+                _write_cli_output_file(Path(output_file), str(payload.get("model_prompt", "")))
             print("Writing brief")
             print(f"- status: {payload['status']}")
             print(f"- writing_pack: {payload['writing_pack']}")
@@ -4229,6 +4236,7 @@ def _build_parser() -> argparse.ArgumentParser:
     writing_brief_parser.add_argument("requirement", nargs="?", help="Writing requirement text")
     writing_brief_parser.add_argument("--from-file", dest="from_file", help="Read requirement text from a file")
     writing_brief_parser.add_argument("--emit-prompt", action="store_true", help="Print only the prompt-ready writing handoff text for an external model")
+    writing_brief_parser.add_argument("--output-file", dest="output_file", help="Write the brief output to a file")
     writing_brief_parser.add_argument("--json", action="store_true", help="Print writing brief as JSON")
     writing_expand_parser = writing_subparsers.add_parser("expand", help="Expand one writing scaffold into a first drafting pass")
     writing_expand_parser.add_argument("requirement", nargs="?", help="Writing requirement text")
