@@ -16,6 +16,11 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .cloud_client import AILCloudClient, CloudClientError
+from .context_compression import (
+    build_context_compress_payload,
+    load_context_package,
+    restore_context_from_package,
+)
 from .context import MANAGED_ROOTS, ProjectContext, USER_ROOTS
 from .manifest_service import ManifestService
 from .skill_bridge import load_repair_module
@@ -62,6 +67,7 @@ def main(argv: list[str] | None = None) -> int:
     handlers = {
         "init": cmd_init,
         "generate": cmd_generate,
+        "context": cmd_context,
         "website": cmd_website,
         "writing": cmd_writing,
         "rc-check": cmd_rc_check,
@@ -143,6 +149,98 @@ def cmd_generate(args: argparse.Namespace) -> int:
     print(f"Generated AIL and wrote {ctx.to_relative(ctx.source_file)}")
     for notice in notices:
         print(f"note: {notice}")
+    return EXIT_OK
+
+
+def cmd_context(args: argparse.Namespace) -> int:
+    if getattr(args, "context_command", None) not in {"compress", "restore"}:
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported context subcommands: compress, restore")
+
+    if getattr(args, "context_command", None) == "compress":
+        inline_text = str(getattr(args, "context_text", "") or "").strip()
+        text_file = Path(args.text_file).expanduser() if getattr(args, "text_file", None) else None
+        input_file = Path(args.input_file).expanduser() if getattr(args, "input_file", None) else None
+        input_dir = Path(args.input_dir).expanduser() if getattr(args, "input_dir", None) else None
+        output_dir = Path(args.output_dir).expanduser() if getattr(args, "output_dir", None) else None
+        try:
+            payload = build_context_compress_payload(
+                inline_text=inline_text if inline_text else None,
+                text_file=text_file,
+                input_file=input_file,
+                input_dir=input_dir,
+                output_dir=output_dir,
+            )
+        except ValueError as exc:
+            return _emit_command_error(args, EXIT_USAGE, "invalid_usage", str(exc))
+        output_file = getattr(args, "output_file", None)
+        if getattr(args, "emit_skeleton", False):
+            if output_file:
+                _write_cli_output_file(Path(output_file), str(payload.get("skeleton_text", "")))
+            sys.stdout.write(str(payload.get("skeleton_text", "")))
+            return EXIT_OK
+        if args.json:
+            if output_file:
+                _write_cli_output_file(Path(output_file), payload, as_json=True)
+            _print_json_payload(payload)
+        else:
+            if output_file:
+                _write_cli_output_file(Path(output_file), str(payload.get("skeleton_text", "")))
+            print("Context compress")
+            print(f"- status: {payload['status']}")
+            print(f"- compression_mode: {payload.get('compression_mode', '')}")
+            print(f"- source_kind: {payload.get('source_kind', '')}")
+            print(f"- source_label: {payload.get('source_label', '')}")
+            print(f"- skeleton_language: {payload.get('skeleton_language', '')}")
+            print(f"- skeleton_char_count: {payload.get('skeleton_char_count', 0)}")
+            print(f"- compression_ratio: {payload.get('compression_ratio', 0)}")
+            if payload.get("output_dir"):
+                print(f"- output_dir: {payload.get('output_dir', '')}")
+            print("Next:")
+            for step in payload.get("next_steps", []):
+                print(f"- {step}")
+        return EXIT_OK
+
+    package_file = Path(str(getattr(args, "package_file", "") or "")).expanduser()
+    if not str(package_file).strip():
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "context restore requires --package-file")
+    try:
+        package_payload = load_context_package(package_file)
+        output_dir = Path(args.output_dir).expanduser() if getattr(args, "output_dir", None) else None
+        output_file = Path(args.output_file).expanduser() if getattr(args, "output_file", None) else None
+        restore_payload, restored_text = restore_context_from_package(
+            package_payload,
+            output_dir=output_dir,
+            output_file=output_file,
+        )
+    except ValueError as exc:
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", str(exc))
+    output_path = getattr(args, "output_file", None)
+    if getattr(args, "emit_text", False) or (restored_text is not None and not args.json):
+        if restored_text is None:
+            return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "context restore can emit raw text only for text-based packages")
+        if output_path:
+            _write_cli_output_file(Path(output_path), restored_text)
+        sys.stdout.write(restored_text)
+        return EXIT_OK
+    if args.json:
+        if output_path:
+            _write_cli_output_file(Path(output_path), restore_payload, as_json=True)
+        _print_json_payload(restore_payload)
+    else:
+        if output_path:
+            _write_cli_output_file(Path(output_path), json.dumps(_portable_payload(restore_payload), indent=2, ensure_ascii=False))
+        print("Context restore")
+        print(f"- status: {restore_payload['status']}")
+        print(f"- restore_mode: {restore_payload.get('restore_mode', '')}")
+        print(f"- source_kind: {restore_payload.get('source_kind', '')}")
+        print(f"- source_label: {restore_payload.get('source_label', '')}")
+        if restore_payload.get("restored_paths"):
+            print("Restored paths:")
+            for item in restore_payload.get("restored_paths", []):
+                print(f"- {item}")
+        print("Next:")
+        for step in restore_payload.get("next_steps", []):
+            print(f"- {step}")
     return EXIT_OK
 
 
@@ -4272,6 +4370,24 @@ def _build_parser() -> argparse.ArgumentParser:
     generate_parser.add_argument("requirement", nargs="?", help="Requirement text")
     generate_parser.add_argument("--from-file", dest="from_file", help="Read requirement text from a file")
     generate_parser.add_argument("--base-url", default=None, help="Cloud API base URL, defaults to AIL_CLOUD_BASE_URL or http://127.0.0.1:5002")
+
+    context_parser = subparsers.add_parser("context", help="Compress long code or text context into an MCP-oriented skeleton and restore it later")
+    context_subparsers = context_parser.add_subparsers(dest="context_command")
+    context_compress_parser = context_subparsers.add_parser("compress", help="Compress text, one file, or one directory into an MCP skeleton bundle")
+    context_compress_parser.add_argument("--text", dest="context_text", help="Inline text to compress")
+    context_compress_parser.add_argument("--text-file", dest="text_file", help="Read long-form text from a file")
+    context_compress_parser.add_argument("--input-file", dest="input_file", help="Compress one source file or project file")
+    context_compress_parser.add_argument("--input-dir", dest="input_dir", help="Compress one project directory tree")
+    context_compress_parser.add_argument("--emit-skeleton", action="store_true", help="Print only the MCP skeleton text")
+    context_compress_parser.add_argument("--output-file", dest="output_file", help="Write the output to a file")
+    context_compress_parser.add_argument("--output-dir", dest="output_dir", help="Write a full context bundle directory")
+    context_compress_parser.add_argument("--json", action="store_true", help="Print context compression as JSON")
+    context_restore_parser = context_subparsers.add_parser("restore", help="Restore the original text, file, or directory from a context bundle")
+    context_restore_parser.add_argument("--package-file", dest="package_file", required=True, help="Path to a context manifest JSON file produced by context compress")
+    context_restore_parser.add_argument("--output-file", dest="output_file", help="Write restored text or one restored file here")
+    context_restore_parser.add_argument("--output-dir", dest="output_dir", help="Directory where restored files or directories should be written")
+    context_restore_parser.add_argument("--emit-text", action="store_true", help="Print the restored text directly for text-based packages")
+    context_restore_parser.add_argument("--json", action="store_true", help="Print context restore as JSON")
 
     website_parser = subparsers.add_parser("website", help="Evaluate and validate static presentation-style website requests")
     website_subparsers = website_parser.add_subparsers(dest="website_command")

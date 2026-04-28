@@ -35,6 +35,7 @@ Architecture-first styling direction:
 
 - [`DESIGN_HANDOFF_SPEC_20260426.md`](DESIGN_HANDOFF_SPEC_20260426.md)
 - [`WRITING_TEST_MATRIX_20260428.md`](WRITING_TEST_MATRIX_20260428.md)
+- [`CONTEXT_COMPRESSION_SPEC_20260428.md`](CONTEXT_COMPRESSION_SPEC_20260428.md)
 
 Windows testers are supported too: see [`QUICKSTART_OPEN_SOURCE.md`](QUICKSTART_OPEN_SOURCE.md) for PowerShell equivalents and current cross-platform notes.
 
@@ -234,6 +235,16 @@ PYTHONPATH="$REPO_ROOT" python3 -m cli writing apply-check '写一个企业产�
 PYTHONPATH="$REPO_ROOT" python3 -m cli writing intent --audience 'indie founders' --format-mode copy --style-direction 'clear persuasive' --json
 ```
 
+If you want to compress oversized repo or writing context into an AI-facing MCP skeleton and restore it later:
+
+```bash
+REPO_ROOT="$PWD"
+PYTHONPATH="$REPO_ROOT" python3 -m cli context compress --text-file /absolute/path/to/long-text.md --json
+PYTHONPATH="$REPO_ROOT" python3 -m cli context compress --input-file "$REPO_ROOT/cli/context.py" --emit-skeleton
+PYTHONPATH="$REPO_ROOT" python3 -m cli context compress --input-dir "$REPO_ROOT" --output-dir /absolute/path/to/context-bundle --json
+PYTHONPATH="$REPO_ROOT" python3 -m cli context restore --package-file /absolute/path/to/context-bundle/context_manifest.json --output-dir /absolute/path/to/restore-root --json
+```
+
 ## What Already Works Well
 
 The repository already has real product truth in these areas:
@@ -245,6 +256,7 @@ The repository already has real product truth in these areas:
 - managed / unmanaged customization via `hook-guide`, `hook-init`, and `hook-continue`
 - durable override workflows without editing managed files directly
 - repo-level low-token writing classification, scaffolding, prompt handoff, and first-draft expansion via `writing check`, `writing packs`, `writing scaffold`, `writing brief`, `writing expand`, and `writing intent`
+- repo-level context compression and exact restore for long text, single files, and project trees via `context compress` and `context restore`
 - dual-line brand-distinction sample work on company and personal baselines
 
 ## Main Documents

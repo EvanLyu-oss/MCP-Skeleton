@@ -54,6 +54,10 @@ ok_writing_bundle_output_file_summary=false
 ok_writing_bundle_output_file_json=false
 ok_writing_intent_write_json=false
 ok_writing_intent_read_json=false
+ok_context_compress_text_json=false
+ok_context_restore_text_json=false
+ok_context_compress_code_skeleton_txt=false
+ok_context_compress_directory_json=false
 ok_website_assets_json=false
 ok_website_assets_experimental_dynamic_json=false
 ok_website_assets_pack_json=false
@@ -1908,6 +1912,79 @@ assert payload['summary_text'], payload
 assert payload['archive_path'], payload
 PY
 ok_writing_bundle_output_file_json=true
+
+context_compress_text_json="$TMP_ROOT/context_compress_text.json"
+context_compress_text_dir="$TMP_ROOT/context_compress_text_bundle"
+PYTHONPATH="$ROOT" python3 -m cli context compress --text-file "$ROOT/README.md" --output-dir "$context_compress_text_dir" --json > "$context_compress_text_json"
+python3 - "$context_compress_text_json" <<'PY'
+import json, os, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'context-compress', payload
+assert payload['status'] == 'ok', payload
+assert payload['compression_mode'] == 'text', payload
+assert payload['skeleton_language'] == 'MCP-SKL.v1', payload
+assert payload['restore_package']['encoding'] == 'zlib+base64+json', payload
+for key in ['manifest_file', 'skeleton_file', 'restore_file', 'readme_file']:
+    assert os.path.exists(payload['files'][key]), (key, payload)
+PY
+ok_context_compress_text_json=true
+
+context_restore_text_json="$TMP_ROOT/context_restore_text.json"
+PYTHONPATH="$ROOT" python3 -m cli context restore --package-file "$context_compress_text_dir/context_manifest.json" --json > "$context_restore_text_json"
+python3 - "$context_restore_text_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'context-restore', payload
+assert payload['status'] == 'ok', payload
+assert payload['restore_mode'] == 'text', payload
+assert payload['source_kind'] in {'markdown', 'text'}, payload
+PY
+ok_context_restore_text_json=true
+
+context_compress_code_skeleton_txt="$TMP_ROOT/context_code_skeleton.mcp"
+PYTHONPATH="$ROOT" python3 -m cli context compress --input-file "$ROOT/cli/context.py" --emit-skeleton > "$context_compress_code_skeleton_txt"
+grep -q "^MCP-SKL.v1$" "$context_compress_code_skeleton_txt"
+grep -q "^SOURCE_KIND: code$" "$context_compress_code_skeleton_txt"
+grep -q "^SKELETON:$" "$context_compress_code_skeleton_txt"
+grep -q "SYMBOLS:" "$context_compress_code_skeleton_txt"
+ok_context_compress_code_skeleton_txt=true
+
+context_directory_src="$TMP_ROOT/context_directory_src"
+context_directory_pkg="$TMP_ROOT/context_directory_pkg"
+context_directory_restore="$TMP_ROOT/context_directory_restore"
+mkdir -p "$context_directory_src/nested"
+cat > "$context_directory_src/app.py" <<'PY'
+import json
+
+class App:
+    def run(self):
+        return {"ok": True}
+PY
+cat > "$context_directory_src/notes.md" <<'MD'
+# Overview
+
+- alpha
+- beta
+
+This bundle explains routing and hooks.
+MD
+context_compress_directory_json="$TMP_ROOT/context_compress_directory.json"
+PYTHONPATH="$ROOT" python3 -m cli context compress --input-dir "$context_directory_src" --output-dir "$context_directory_pkg" --json > "$context_compress_directory_json"
+python3 - "$context_compress_directory_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'context-compress', payload
+assert payload['compression_mode'] == 'directory', payload
+assert payload['source_kind'] == 'mixed_project', payload
+assert payload['source_summary']['total_files'] == 2, payload
+assert payload['source_summary']['code_files'] == 1, payload
+assert payload['source_summary']['text_files'] == 1, payload
+assert 'context_skeleton.mcp' in payload['files']['skeleton_file'], payload
+PY
+PYTHONPATH="$ROOT" python3 -m cli context restore --package-file "$context_directory_pkg/context_manifest.json" --output-dir "$context_directory_restore" --json > /dev/null
+cmp -s "$context_directory_src/app.py" "$context_directory_restore/context_directory_src/app.py"
+cmp -s "$context_directory_src/notes.md" "$context_directory_restore/context_directory_src/notes.md"
+ok_context_compress_directory_json=true
 
 website_assets_json="$TMP_ROOT/website_assets.json"
 python3 -m cli website assets --json > "$website_assets_json"
@@ -5941,6 +6018,10 @@ export CLI_SMOKE_OK_WRITING_BUNDLE_OUTPUT_FILE_SUMMARY="$ok_writing_bundle_outpu
 export CLI_SMOKE_OK_WRITING_BUNDLE_OUTPUT_FILE_JSON="$ok_writing_bundle_output_file_json"
 export CLI_SMOKE_OK_WRITING_INTENT_WRITE_JSON="$ok_writing_intent_write_json"
 export CLI_SMOKE_OK_WRITING_INTENT_READ_JSON="$ok_writing_intent_read_json"
+export CLI_SMOKE_OK_CONTEXT_COMPRESS_TEXT_JSON="$ok_context_compress_text_json"
+export CLI_SMOKE_OK_CONTEXT_RESTORE_TEXT_JSON="$ok_context_restore_text_json"
+export CLI_SMOKE_OK_CONTEXT_COMPRESS_CODE_SKELETON_TXT="$ok_context_compress_code_skeleton_txt"
+export CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_JSON="$ok_context_compress_directory_json"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_REPO_JSON="$ok_project_hook_guide_repo_json"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_EMIT_SHELL_REPO="$ok_project_hook_guide_emit_shell_repo"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_COPY_COMMAND_REPO="$ok_project_hook_guide_copy_command_repo"
@@ -6162,6 +6243,10 @@ payload = {
         'writing_bundle_output_file_json_ok': os.environ['CLI_SMOKE_OK_WRITING_BUNDLE_OUTPUT_FILE_JSON'] == 'true',
         'writing_intent_write_json_ok': os.environ['CLI_SMOKE_OK_WRITING_INTENT_WRITE_JSON'] == 'true',
         'writing_intent_read_json_ok': os.environ['CLI_SMOKE_OK_WRITING_INTENT_READ_JSON'] == 'true',
+        'context_compress_text_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_TEXT_JSON'] == 'true',
+        'context_restore_text_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_RESTORE_TEXT_JSON'] == 'true',
+        'context_compress_code_skeleton_txt_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_CODE_SKELETON_TXT'] == 'true',
+        'context_compress_directory_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_JSON'] == 'true',
         'website_check_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_JSON'] == 'true',
         'website_check_out_of_scope_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_OUT_OF_SCOPE_JSON'] == 'true',
         'website_check_experimental_dynamic_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_EXPERIMENTAL_DYNAMIC_JSON'] == 'true',
