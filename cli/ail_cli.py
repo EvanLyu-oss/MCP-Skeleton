@@ -18,6 +18,7 @@ from typing import Any, Sequence
 from .cloud_client import AILCloudClient, CloudClientError
 from .context_compression import (
     build_context_compress_payload,
+    inspect_context_package,
     load_context_package,
     restore_context_from_package,
 )
@@ -153,8 +154,8 @@ def cmd_generate(args: argparse.Namespace) -> int:
 
 
 def cmd_context(args: argparse.Namespace) -> int:
-    if getattr(args, "context_command", None) not in {"compress", "restore"}:
-        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported context subcommands: compress, restore")
+    if getattr(args, "context_command", None) not in {"compress", "restore", "inspect"}:
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported context subcommands: compress, restore, inspect")
 
     if getattr(args, "context_command", None) == "compress":
         inline_text = str(getattr(args, "context_text", "") or "").strip()
@@ -202,9 +203,44 @@ def cmd_context(args: argparse.Namespace) -> int:
 
     package_file = Path(str(getattr(args, "package_file", "") or "")).expanduser()
     if not str(package_file).strip():
-        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "context restore requires --package-file")
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", f"context {getattr(args, 'context_command', '')} requires --package-file")
     try:
         package_payload = load_context_package(package_file)
+        if getattr(args, "context_command", None) == "inspect":
+            inspect_payload = inspect_context_package(package_payload)
+            output_file = getattr(args, "output_file", None)
+            if getattr(args, "emit_summary", False):
+                if output_file:
+                    _write_cli_output_file(Path(output_file), str(inspect_payload.get("summary_text", "")))
+                sys.stdout.write(str(inspect_payload.get("summary_text", "")))
+                return EXIT_OK
+            if args.json:
+                if output_file:
+                    _write_cli_output_file(Path(output_file), inspect_payload, as_json=True)
+                _print_json_payload(inspect_payload)
+            else:
+                if output_file:
+                    _write_cli_output_file(Path(output_file), str(inspect_payload.get("summary_text", "")))
+                print("Context inspect")
+                print(f"- status: {inspect_payload['status']}")
+                print(f"- compression_mode: {inspect_payload.get('compression_mode', '')}")
+                print(f"- source_kind: {inspect_payload.get('source_kind', '')}")
+                print(f"- source_label: {inspect_payload.get('source_label', '')}")
+                print(f"- restore_mode: {inspect_payload.get('restore_mode', '')}")
+                print(f"- skeleton_char_count: {inspect_payload.get('skeleton_char_count', 0)}")
+                print(f"- compression_ratio: {inspect_payload.get('compression_ratio', 0)}")
+                source_summary = inspect_payload.get("source_summary") or {}
+                if source_summary.get("total_files") is not None:
+                    print(f"- total_files: {source_summary.get('total_files', 0)}")
+                tree_preview = inspect_payload.get("tree_preview") or []
+                if tree_preview:
+                    print("Tree preview:")
+                    for item in tree_preview:
+                        print(f"- {item}")
+                print("Next:")
+                for step in inspect_payload.get("next_steps", []):
+                    print(f"- {step}")
+            return EXIT_OK
         output_dir = Path(args.output_dir).expanduser() if getattr(args, "output_dir", None) else None
         output_file = Path(args.output_file).expanduser() if getattr(args, "output_file", None) else None
         restore_payload, restored_text = restore_context_from_package(
@@ -4388,6 +4424,11 @@ def _build_parser() -> argparse.ArgumentParser:
     context_restore_parser.add_argument("--output-dir", dest="output_dir", help="Directory where restored files or directories should be written")
     context_restore_parser.add_argument("--emit-text", action="store_true", help="Print the restored text directly for text-based packages")
     context_restore_parser.add_argument("--json", action="store_true", help="Print context restore as JSON")
+    context_inspect_parser = context_subparsers.add_parser("inspect", help="Inspect one context bundle without restoring the original content")
+    context_inspect_parser.add_argument("--package-file", dest="package_file", required=True, help="Path to a context manifest JSON file produced by context compress")
+    context_inspect_parser.add_argument("--emit-summary", action="store_true", help="Print only a compact context bundle summary")
+    context_inspect_parser.add_argument("--output-file", dest="output_file", help="Write the inspect output to a file")
+    context_inspect_parser.add_argument("--json", action="store_true", help="Print context inspect as JSON")
 
     website_parser = subparsers.add_parser("website", help="Evaluate and validate static presentation-style website requests")
     website_subparsers = website_parser.add_subparsers(dest="website_command")

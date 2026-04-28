@@ -28,6 +28,13 @@ PYTHONPATH="$PWD" python3 -m cli context restore --package-file /absolute/path/t
 PYTHONPATH="$PWD" python3 -m cli context restore --package-file /absolute/path/to/context-bundle/context_manifest.json --output-dir /absolute/path/to/restore-root --json
 ```
 
+### Inspect
+
+```bash
+PYTHONPATH="$PWD" python3 -m cli context inspect --package-file /absolute/path/to/context-bundle/context_manifest.json --emit-summary
+PYTHONPATH="$PWD" python3 -m cli context inspect --package-file /absolute/path/to/context-bundle/context_manifest.json --json
+```
+
 ## Bundle Shape
 
 When `context compress` is run with `--output-dir`, it writes:
@@ -112,3 +119,5 @@ The current smoke coverage locks in:
 - text restore summary generation
 - code skeleton extraction
 - directory compression and exact file restore
+- bundle inspection summary generation
+- bundle inspection JSON payload generation

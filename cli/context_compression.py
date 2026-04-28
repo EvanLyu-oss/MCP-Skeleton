@@ -146,6 +146,41 @@ def load_context_package(package_file: Path) -> dict[str, Any]:
     return json.loads(package_file.read_text(encoding="utf-8"))
 
 
+def inspect_context_package(package_payload: dict[str, Any]) -> dict[str, Any]:
+    restore_package = package_payload.get("restore_package") or {}
+    decoded = _decode_restore_blob(restore_package)
+    restore_mode = str(decoded.get("mode") or "")
+    source_summary = package_payload.get("source_summary") or {}
+    tree_preview = list((source_summary.get("tree") or [])[:12])
+    inspect_payload = {
+        "status": "ok",
+        "entrypoint": "context-inspect",
+        "manifest_version": package_payload.get("manifest_version", MANIFEST_VERSION),
+        "bundle_created_at": package_payload.get("bundle_created_at", ""),
+        "skeleton_language": package_payload.get("skeleton_language", SKELETON_LANGUAGE),
+        "compression_mode": package_payload.get("compression_mode", restore_mode),
+        "source_kind": package_payload.get("source_kind", decoded.get("source_kind", "")),
+        "source_label": package_payload.get("source_label", decoded.get("source_label", "")),
+        "source_path": package_payload.get("source_path", ""),
+        "restore_mode": restore_mode,
+        "skeleton_char_count": int(package_payload.get("skeleton_char_count", 0) or 0),
+        "restore_encoding": restore_package.get("encoding", ""),
+        "restore_raw_byte_count": int(restore_package.get("raw_byte_count", 0) or 0),
+        "restore_compressed_byte_count": int(restore_package.get("compressed_byte_count", 0) or 0),
+        "compression_ratio": package_payload.get("compression_ratio", 0),
+        "source_summary": source_summary,
+        "tree_preview": tree_preview,
+        "has_restore_package": bool(restore_package),
+        "next_steps": [
+            "use context_skeleton.mcp or skeleton_text as the AI-facing context surface",
+            "keep the manifest and restore blob together if you need exact reconstruction later",
+            "run context restore when you want the original text, file, or directory tree back",
+        ],
+    }
+    inspect_payload["summary_text"] = _build_context_inspect_summary_text(inspect_payload)
+    return inspect_payload
+
+
 def _build_inline_text_source(text: str) -> dict[str, Any]:
     normalized = text.rstrip("\n")
     summary = _text_summary(normalized, label="inline-text")
@@ -347,6 +382,31 @@ def _build_context_readme_text(payload: dict[str, Any], files: dict[str, Path]) 
             "3. run context restore when you need the original text, file, or project tree back",
         ]
     ) + "\n"
+
+
+def _build_context_inspect_summary_text(payload: dict[str, Any]) -> str:
+    lines = [
+        f"status: {payload.get('status', '')}",
+        f"compression_mode: {payload.get('compression_mode', '')}",
+        f"source_kind: {payload.get('source_kind', '')}",
+        f"source_label: {payload.get('source_label', '')}",
+        f"restore_mode: {payload.get('restore_mode', '')}",
+        f"skeleton_language: {payload.get('skeleton_language', '')}",
+        f"skeleton_char_count: {payload.get('skeleton_char_count', 0)}",
+        f"restore_encoding: {payload.get('restore_encoding', '')}",
+        f"restore_raw_byte_count: {payload.get('restore_raw_byte_count', 0)}",
+        f"restore_compressed_byte_count: {payload.get('restore_compressed_byte_count', 0)}",
+        f"compression_ratio: {payload.get('compression_ratio', 0)}",
+    ]
+    source_summary = payload.get("source_summary") or {}
+    for key in ["total_files", "text_files", "code_files", "binary_files", "total_bytes", "total_chars", "paragraph_count", "lines"]:
+        if key in source_summary:
+            lines.append(f"{key}: {source_summary.get(key)}")
+    tree_preview = payload.get("tree_preview") or []
+    if tree_preview:
+        lines.append(f"tree_preview_count: {len(tree_preview)}")
+        lines.append(f"first_tree_item: {tree_preview[0]}")
+    return "\n".join(lines)
 
 
 def _encode_restore_blob(payload: dict[str, Any]) -> dict[str, Any]:

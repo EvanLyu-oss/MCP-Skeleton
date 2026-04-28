@@ -58,6 +58,8 @@ ok_context_compress_text_json=false
 ok_context_restore_text_json=false
 ok_context_compress_code_skeleton_txt=false
 ok_context_compress_directory_json=false
+ok_context_inspect_summary_txt=false
+ok_context_inspect_json=false
 ok_website_assets_json=false
 ok_website_assets_experimental_dynamic_json=false
 ok_website_assets_pack_json=false
@@ -1985,6 +1987,27 @@ PYTHONPATH="$ROOT" python3 -m cli context restore --package-file "$context_direc
 cmp -s "$context_directory_src/app.py" "$context_directory_restore/context_directory_src/app.py"
 cmp -s "$context_directory_src/notes.md" "$context_directory_restore/context_directory_src/notes.md"
 ok_context_compress_directory_json=true
+
+context_inspect_summary_txt="$TMP_ROOT/context_inspect_summary.txt"
+PYTHONPATH="$ROOT" python3 -m cli context inspect --package-file "$context_directory_pkg/context_manifest.json" --emit-summary > "$context_inspect_summary_txt"
+grep -q "^status: ok$" "$context_inspect_summary_txt"
+grep -q "^compression_mode: directory$" "$context_inspect_summary_txt"
+grep -q "^source_kind: mixed_project$" "$context_inspect_summary_txt"
+grep -q "^tree_preview_count: " "$context_inspect_summary_txt"
+ok_context_inspect_summary_txt=true
+
+context_inspect_json="$TMP_ROOT/context_inspect.json"
+PYTHONPATH="$ROOT" python3 -m cli context inspect --package-file "$context_directory_pkg/context_manifest.json" --json > "$context_inspect_json"
+python3 - "$context_inspect_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'context-inspect', payload
+assert payload['status'] == 'ok', payload
+assert payload['restore_mode'] == 'directory', payload
+assert payload['tree_preview'], payload
+assert payload['summary_text'], payload
+PY
+ok_context_inspect_json=true
 
 website_assets_json="$TMP_ROOT/website_assets.json"
 python3 -m cli website assets --json > "$website_assets_json"
@@ -6022,6 +6045,8 @@ export CLI_SMOKE_OK_CONTEXT_COMPRESS_TEXT_JSON="$ok_context_compress_text_json"
 export CLI_SMOKE_OK_CONTEXT_RESTORE_TEXT_JSON="$ok_context_restore_text_json"
 export CLI_SMOKE_OK_CONTEXT_COMPRESS_CODE_SKELETON_TXT="$ok_context_compress_code_skeleton_txt"
 export CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_JSON="$ok_context_compress_directory_json"
+export CLI_SMOKE_OK_CONTEXT_INSPECT_SUMMARY_TXT="$ok_context_inspect_summary_txt"
+export CLI_SMOKE_OK_CONTEXT_INSPECT_JSON="$ok_context_inspect_json"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_REPO_JSON="$ok_project_hook_guide_repo_json"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_EMIT_SHELL_REPO="$ok_project_hook_guide_emit_shell_repo"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_COPY_COMMAND_REPO="$ok_project_hook_guide_copy_command_repo"
@@ -6247,6 +6272,8 @@ payload = {
         'context_restore_text_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_RESTORE_TEXT_JSON'] == 'true',
         'context_compress_code_skeleton_txt_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_CODE_SKELETON_TXT'] == 'true',
         'context_compress_directory_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_JSON'] == 'true',
+        'context_inspect_summary_txt_ok': os.environ['CLI_SMOKE_OK_CONTEXT_INSPECT_SUMMARY_TXT'] == 'true',
+        'context_inspect_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_INSPECT_JSON'] == 'true',
         'website_check_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_JSON'] == 'true',
         'website_check_out_of_scope_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_OUT_OF_SCOPE_JSON'] == 'true',
         'website_check_experimental_dynamic_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_EXPERIMENTAL_DYNAMIC_JSON'] == 'true',

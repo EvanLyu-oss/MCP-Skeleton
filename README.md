@@ -242,6 +242,7 @@ REPO_ROOT="$PWD"
 PYTHONPATH="$REPO_ROOT" python3 -m cli context compress --text-file /absolute/path/to/long-text.md --json
 PYTHONPATH="$REPO_ROOT" python3 -m cli context compress --input-file "$REPO_ROOT/cli/context.py" --emit-skeleton
 PYTHONPATH="$REPO_ROOT" python3 -m cli context compress --input-dir "$REPO_ROOT" --output-dir /absolute/path/to/context-bundle --json
+PYTHONPATH="$REPO_ROOT" python3 -m cli context inspect --package-file /absolute/path/to/context-bundle/context_manifest.json --emit-summary
 PYTHONPATH="$REPO_ROOT" python3 -m cli context restore --package-file /absolute/path/to/context-bundle/context_manifest.json --output-dir /absolute/path/to/restore-root --json
 ```
 

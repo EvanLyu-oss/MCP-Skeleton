@@ -66,8 +66,9 @@ This changelog is intentionally lightweight for now. The repository already has 
 - stopped `writing bundle` from passively reading stdin when no review text was requested, which avoids hangs in wrapped shell environments such as PowerShell-based test runners
 - added `/Users/carwynmac/ai-cl/WRITING_TEST_MATRIX_20260428.md` so writing regressions can be run against one stable matrix across copy, story, book, out-of-scope, review, and bundle flows
 - added a universal `context` CLI surface with `context compress` and `context restore`, so long raw text, one source file, or one project tree can be turned into an AI-facing `MCP-SKL.v1` skeleton plus an exact restore bundle
+- added `context inspect`, so a context bundle can now be summarized or inspected as JSON without restoring the original content first
 - added `/Users/carwynmac/ai-cl/CONTEXT_COMPRESSION_SPEC_20260428.md` to document the new context-compression bundle shape, restore strategy, and MCP skeleton positioning
-- added smoke coverage for text, code, and directory context compression plus exact directory restore
+- added smoke coverage for text, code, and directory context compression, exact directory restore, and context bundle inspection
 
 ## 2026-04-19
 
