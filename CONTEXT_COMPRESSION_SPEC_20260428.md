@@ -45,6 +45,13 @@ PYTHONPATH="$PWD" python3 -m cli context apply-check --package-file /absolute/pa
 PYTHONPATH="$PWD" python3 -m cli context apply-check --package-file /absolute/path/to/context-bundle/context_manifest.json --input-dir /absolute/path/to/edited-project --json
 ```
 
+### Bundle
+
+```bash
+PYTHONPATH="$PWD" python3 -m cli context bundle --preset website --input-dir /absolute/path/to/project --zip --output-dir /absolute/path/to/context-bundle --json
+PYTHONPATH="$PWD" python3 -m cli context bundle --preset writing --text-file /absolute/path/to/long-text.md --candidate-text-file /absolute/path/to/edited-text.md --emit-summary
+```
+
 ## Presets
 
 Current presets:
@@ -66,6 +73,15 @@ When `context compress` is run with `--output-dir`, it writes:
 - `context_skeleton.mcp`
 - `context_restore.json`
 - `README.txt`
+
+When `context bundle` is run, it writes the same base package plus:
+
+- `inspect.json`
+- `inspect_summary.txt`
+- `bundle_manifest.json`
+- optional `apply_check.json`
+- optional `apply_check_summary.txt`
+- optional zip archive next to the bundle directory
 
 ## Skeleton Language
 
@@ -143,6 +159,24 @@ It is useful for:
 - catching missing files or missing core symbols before handoff
 - deciding whether to re-run compression, repair the edited output, or restore the original baseline
 
+## Bundle Positioning
+
+`context bundle` is the formal handoff surface for compression workflows.
+
+It combines:
+
+- compression output
+- bundle inspection output
+- optional apply-check output
+- optional zip packaging
+
+It is useful for:
+
+- handing one compact MCP skeleton plus one exact restore package to another AI or IDE
+- attaching an inspect summary so operators can review the package without opening the full manifest
+- attaching an apply-check result when an edited candidate already exists
+- preserving one stable artifact set for testing, collaboration, and rollback
+
 ## Recommended Workflow
 
 1. feed the raw long context into `context compress`
@@ -162,3 +196,7 @@ The current smoke coverage locks in:
 - bundle inspection JSON payload generation
 - apply-check pass/fail coverage for aligned and drifting candidates
 - preset catalog and selected-preset coverage
+- bundle export coverage
+- bundle zip export coverage
+- bundle apply-check export coverage
+- bundle summary output coverage

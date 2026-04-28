@@ -18,6 +18,7 @@ from typing import Any, Sequence
 from .cloud_client import AILCloudClient, CloudClientError
 from .context_compression import (
     build_context_apply_check_payload,
+    build_context_bundle_payload,
     build_context_compress_payload,
     build_context_preset_payload,
     inspect_context_package,
@@ -156,8 +157,8 @@ def cmd_generate(args: argparse.Namespace) -> int:
 
 
 def cmd_context(args: argparse.Namespace) -> int:
-    if getattr(args, "context_command", None) not in {"compress", "restore", "inspect", "apply-check", "preset"}:
-        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported context subcommands: compress, restore, inspect, apply-check, preset")
+    if getattr(args, "context_command", None) not in {"compress", "restore", "inspect", "apply-check", "preset", "bundle"}:
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported context subcommands: compress, restore, inspect, apply-check, preset, bundle")
 
     if getattr(args, "context_command", None) == "preset":
         try:
@@ -230,6 +231,66 @@ def cmd_context(args: argparse.Namespace) -> int:
             for step in payload.get("next_steps", []):
                 print(f"- {step}")
         return EXIT_OK
+
+    if getattr(args, "context_command", None) == "bundle":
+        inline_text = str(getattr(args, "context_text", "") or "").strip()
+        text_file = Path(args.text_file).expanduser() if getattr(args, "text_file", None) else None
+        input_file = Path(args.input_file).expanduser() if getattr(args, "input_file", None) else None
+        input_dir = Path(args.input_dir).expanduser() if getattr(args, "input_dir", None) else None
+        output_dir = Path(args.output_dir).expanduser() if getattr(args, "output_dir", None) else None
+        candidate_inline_text = str(getattr(args, "candidate_text", "") or "").strip()
+        candidate_text_file = Path(args.candidate_text_file).expanduser() if getattr(args, "candidate_text_file", None) else None
+        candidate_input_file = Path(args.candidate_input_file).expanduser() if getattr(args, "candidate_input_file", None) else None
+        candidate_input_dir = Path(args.candidate_input_dir).expanduser() if getattr(args, "candidate_input_dir", None) else None
+        try:
+            payload = build_context_bundle_payload(
+                inline_text=inline_text if inline_text else None,
+                text_file=text_file,
+                input_file=input_file,
+                input_dir=input_dir,
+                preset_id=getattr(args, "preset_id", None),
+                output_dir=output_dir,
+                make_zip=bool(getattr(args, "zip_bundle", False)),
+                candidate_inline_text=candidate_inline_text if candidate_inline_text else None,
+                candidate_text_file=candidate_text_file,
+                candidate_input_file=candidate_input_file,
+                candidate_input_dir=candidate_input_dir,
+            )
+        except ValueError as exc:
+            return _emit_command_error(args, EXIT_USAGE, "invalid_usage", str(exc))
+        output_file = getattr(args, "output_file", None)
+        exit_code = EXIT_OK if (payload.get("apply_check") is None or bool((payload.get("apply_check") or {}).get("apply_check_passed"))) else EXIT_VALIDATION
+        if getattr(args, "emit_summary", False):
+            if output_file:
+                _write_cli_output_file(Path(output_file), str(payload.get("summary_text", "")))
+            sys.stdout.write(str(payload.get("summary_text", "")))
+            return exit_code
+        if args.json:
+            if output_file:
+                _write_cli_output_file(Path(output_file), payload, as_json=True)
+            _print_json_payload(payload)
+        else:
+            if output_file:
+                _write_cli_output_file(Path(output_file), str(payload.get("summary_text", "")))
+            print("Context bundle")
+            print(f"- status: {payload['status']}")
+            print(f"- preset_id: {payload.get('preset_id', '')}")
+            print(f"- compression_mode: {payload.get('compression_mode', '')}")
+            print(f"- source_kind: {payload.get('source_kind', '')}")
+            print(f"- source_label: {payload.get('source_label', '')}")
+            print(f"- bundle_root: {payload.get('bundle_root', '')}")
+            print(f"- zip_enabled: {payload.get('zip_enabled', False)}")
+            print(f"- apply_check_included: {payload.get('apply_check_included', False)}")
+            print(f"- file_count: {payload.get('file_count', 0)}")
+            if payload.get("archive_path"):
+                print(f"- archive_path: {payload.get('archive_path', '')}")
+            print("Files:")
+            for label, path in (payload.get("files") or {}).items():
+                print(f"- {label}: {path}")
+            print("Next:")
+            for step in payload.get("next_steps", []):
+                print(f"- {step}")
+        return exit_code
 
     package_file = Path(str(getattr(args, "package_file", "") or "")).expanduser()
     if not str(package_file).strip():
@@ -4524,6 +4585,21 @@ def _build_parser() -> argparse.ArgumentParser:
     context_preset_parser = context_subparsers.add_parser("preset", help="List the available context compression presets or inspect one selected preset")
     context_preset_parser.add_argument("preset_id", nargs="?", default="generic", help="Optional preset id such as generic, codebase, writing, website, or ecommerce")
     context_preset_parser.add_argument("--json", action="store_true", help="Print context preset metadata as JSON")
+    context_bundle_parser = context_subparsers.add_parser("bundle", help="Export a full context bundle with compression, inspect, and optional apply-check artifacts")
+    context_bundle_parser.add_argument("--text", dest="context_text", help="Inline text to compress")
+    context_bundle_parser.add_argument("--text-file", dest="text_file", help="Read long-form text from a file")
+    context_bundle_parser.add_argument("--input-file", dest="input_file", help="Compress one source file or project file")
+    context_bundle_parser.add_argument("--input-dir", dest="input_dir", help="Compress one project directory tree")
+    context_bundle_parser.add_argument("--preset", dest="preset_id", default="generic", help="Compression preset such as generic, codebase, writing, website, or ecommerce")
+    context_bundle_parser.add_argument("--candidate-text", dest="candidate_text", help="Optional inline edited text for apply-check")
+    context_bundle_parser.add_argument("--candidate-text-file", dest="candidate_text_file", help="Read optional edited text for apply-check from a file")
+    context_bundle_parser.add_argument("--candidate-input-file", dest="candidate_input_file", help="Optional edited file for apply-check")
+    context_bundle_parser.add_argument("--candidate-input-dir", dest="candidate_input_dir", help="Optional edited directory tree for apply-check")
+    context_bundle_parser.add_argument("--zip", dest="zip_bundle", action="store_true", help="Also create a zip archive next to the bundle directory")
+    context_bundle_parser.add_argument("--emit-summary", action="store_true", help="Print only a compact context bundle summary")
+    context_bundle_parser.add_argument("--output-file", dest="output_file", help="Write the bundle output to a file")
+    context_bundle_parser.add_argument("--output-dir", dest="output_dir", help="Directory where the context bundle should be written")
+    context_bundle_parser.add_argument("--json", action="store_true", help="Print context bundle as JSON")
 
     website_parser = subparsers.add_parser("website", help="Evaluate and validate static presentation-style website requests")
     website_subparsers = website_parser.add_subparsers(dest="website_command")

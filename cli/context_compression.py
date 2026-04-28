@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import zlib
 from collections import Counter
 from datetime import datetime, timezone
@@ -217,6 +218,105 @@ def build_context_preset_payload(preset_id: str | None = None) -> dict[str, Any]
         ],
     }
     return payload
+
+
+def build_context_bundle_payload(
+    *,
+    inline_text: str | None,
+    text_file: Path | None,
+    input_file: Path | None,
+    input_dir: Path | None,
+    preset_id: str | None,
+    output_dir: Path | None,
+    make_zip: bool,
+    candidate_inline_text: str | None,
+    candidate_text_file: Path | None,
+    candidate_input_file: Path | None,
+    candidate_input_dir: Path | None,
+) -> dict[str, Any]:
+    compression_payload = build_context_compress_payload(
+        inline_text=inline_text,
+        text_file=text_file,
+        input_file=input_file,
+        input_dir=input_dir,
+        preset_id=preset_id,
+        output_dir=None,
+    )
+    inspect_payload = inspect_context_package(compression_payload)
+
+    bundle_root = _resolve_context_bundle_dir(
+        source_label=str(compression_payload.get("source_label") or "context"),
+        output_dir=output_dir,
+    )
+    bundle_root.mkdir(parents=True, exist_ok=True)
+    package_files = _write_context_package(bundle_root, compression_payload)
+
+    files: dict[str, Path] = {
+        **package_files,
+        "inspect_json": bundle_root / "inspect.json",
+        "inspect_summary_txt": bundle_root / "inspect_summary.txt",
+        "bundle_manifest_json": bundle_root / "bundle_manifest.json",
+    }
+    _write_json(files["inspect_json"], inspect_payload)
+    _write_text_file(files["inspect_summary_txt"], str(inspect_payload.get("summary_text", "")))
+
+    apply_check_requested = any(
+        item
+        for item in [
+            candidate_inline_text.strip() if candidate_inline_text else "",
+            candidate_text_file,
+            candidate_input_file,
+            candidate_input_dir,
+        ]
+    )
+    apply_check_payload = None
+    if apply_check_requested:
+        apply_check_payload = build_context_apply_check_payload(
+            package_payload=compression_payload,
+            inline_text=candidate_inline_text if candidate_inline_text and candidate_inline_text.strip() else None,
+            text_file=candidate_text_file,
+            input_file=candidate_input_file,
+            input_dir=candidate_input_dir,
+        )
+        files["apply_check_json"] = bundle_root / "apply_check.json"
+        files["apply_check_summary_txt"] = bundle_root / "apply_check_summary.txt"
+        _write_json(files["apply_check_json"], apply_check_payload)
+        _write_text_file(files["apply_check_summary_txt"], str(apply_check_payload.get("summary_text", "")))
+
+    bundle_manifest = {
+        "status": "ok" if compression_payload.get("status") == "ok" else compression_payload.get("status", "error"),
+        "entrypoint": "context-bundle",
+        "manifest_version": "context_bundle.v1",
+        "bundle_created_at": _utc_now(),
+        "preset_id": compression_payload.get("preset_id", "generic"),
+        "preset_label": compression_payload.get("preset_label", CONTEXT_PRESETS["generic"]["label"]),
+        "skeleton_language": compression_payload.get("skeleton_language", SKELETON_LANGUAGE),
+        "compression_mode": compression_payload.get("compression_mode", ""),
+        "source_kind": compression_payload.get("source_kind", ""),
+        "source_label": compression_payload.get("source_label", ""),
+        "bundle_root": str(bundle_root),
+        "zip_enabled": make_zip,
+        "apply_check_included": bool(apply_check_payload),
+        "files": {label: str(path) for label, path in files.items()},
+        "compression": compression_payload,
+        "inspect": inspect_payload,
+        "apply_check": apply_check_payload,
+        "next_steps": [
+            f"open {files['skeleton_file']}",
+            f"open {files['inspect_summary_txt']}",
+            "share the bundle directory or zip with the downstream AI or IDE",
+        ],
+    }
+    if apply_check_payload is not None:
+        bundle_manifest["next_steps"].insert(1, f"open {files['apply_check_summary_txt']}")
+    if make_zip:
+        archive_path = shutil.make_archive(str(bundle_root), "zip", root_dir=bundle_root.parent, base_dir=bundle_root.name)
+        bundle_manifest["archive_path"] = str(Path(archive_path).resolve())
+        bundle_manifest["next_steps"].insert(0, f"share {bundle_manifest['archive_path']}")
+    bundle_manifest["file_count"] = len(files)
+    bundle_manifest["summary_text"] = _build_context_bundle_summary_text(bundle_manifest)
+    _write_json(files["bundle_manifest_json"], bundle_manifest)
+    return bundle_manifest
 
 
 def build_context_apply_check_payload(
@@ -523,10 +623,10 @@ def _write_context_package(output_dir: Path, payload: dict[str, Any]) -> dict[st
         "restore_file": output_dir / "context_restore.json",
         "readme_file": output_dir / "README.txt",
     }
-    files["manifest_file"].write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    files["skeleton_file"].write_text(str(payload.get("skeleton_text") or ""), encoding="utf-8")
-    files["restore_file"].write_text(json.dumps(payload.get("restore_package") or {}, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    files["readme_file"].write_text(_build_context_readme_text(payload, files), encoding="utf-8")
+    _write_json(files["manifest_file"], payload)
+    _write_text_file(files["skeleton_file"], str(payload.get("skeleton_text") or ""))
+    _write_json(files["restore_file"], payload.get("restore_package") or {})
+    _write_text_file(files["readme_file"], _build_context_readme_text(payload, files))
     return files
 
 
@@ -608,6 +708,29 @@ def _build_context_apply_check_summary_text(payload: dict[str, Any]) -> str:
         lines.append(f"first_drift_finding: {(payload.get('drift_findings') or [''])[0]}")
     elif payload.get("strengths"):
         lines.append(f"first_strength: {(payload.get('strengths') or [''])[0]}")
+    return "\n".join(lines)
+
+
+def _build_context_bundle_summary_text(payload: dict[str, Any]) -> str:
+    lines = [
+        f"status: {payload.get('status', '')}",
+        f"preset_id: {payload.get('preset_id', '')}",
+        f"compression_mode: {payload.get('compression_mode', '')}",
+        f"source_kind: {payload.get('source_kind', '')}",
+        f"source_label: {payload.get('source_label', '')}",
+        f"bundle_root: {payload.get('bundle_root', '')}",
+        f"zip_enabled: {payload.get('zip_enabled', False)}",
+        f"apply_check_included: {payload.get('apply_check_included', False)}",
+        f"file_count: {payload.get('file_count', 0)}",
+    ]
+    if payload.get("archive_path"):
+        lines.append(f"archive_path: {payload.get('archive_path', '')}")
+    files = payload.get("files") or {}
+    if files:
+        lines.append(f"skeleton_file: {files.get('skeleton_file', '')}")
+        lines.append(f"inspect_summary_txt: {files.get('inspect_summary_txt', '')}")
+        if files.get("apply_check_summary_txt"):
+            lines.append(f"apply_check_summary_txt: {files.get('apply_check_summary_txt', '')}")
     return "\n".join(lines)
 
 
@@ -1027,6 +1150,41 @@ def _write_text(path: Path, text: str) -> None:
         target = (Path.cwd() / target).resolve()
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8")
+
+
+def _write_text_file(path: Path, text: str) -> None:
+    target = path.expanduser()
+    if not target.is_absolute():
+        target = (Path.cwd() / target).resolve()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    target = path.expanduser()
+    if not target.is_absolute():
+        target = (Path.cwd() / target).resolve()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _context_bundle_root() -> Path:
+    return (Path.cwd() / ".workspace_ail" / "context_bundles").resolve()
+
+
+def _resolve_context_bundle_dir(*, source_label: str, output_dir: Path | None) -> Path:
+    if output_dir is not None:
+        path = output_dir.expanduser()
+        return path if path.is_absolute() else (Path.cwd() / path).resolve()
+    _context_bundle_root().mkdir(parents=True, exist_ok=True)
+    slug = _slugify_context_label(source_label)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return _context_bundle_root() / f"{slug}-{stamp}"
+
+
+def _slugify_context_label(value: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", (value or "context").strip().lower()).strip("-")
+    return slug[:48] or "context"
 
 
 def _sha256_text(text: str) -> str:

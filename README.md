@@ -244,6 +244,7 @@ PYTHONPATH="$REPO_ROOT" python3 -m cli context preset --json
 PYTHONPATH="$REPO_ROOT" python3 -m cli context preset website --json
 PYTHONPATH="$REPO_ROOT" python3 -m cli context compress --input-file "$REPO_ROOT/cli/context.py" --emit-skeleton
 PYTHONPATH="$REPO_ROOT" python3 -m cli context compress --preset website --input-dir "$REPO_ROOT" --output-dir /absolute/path/to/context-bundle --json
+PYTHONPATH="$REPO_ROOT" python3 -m cli context bundle --preset website --input-dir "$REPO_ROOT" --zip --output-dir /absolute/path/to/context-bundle --json
 PYTHONPATH="$REPO_ROOT" python3 -m cli context inspect --package-file /absolute/path/to/context-bundle/context_manifest.json --emit-summary
 PYTHONPATH="$REPO_ROOT" python3 -m cli context apply-check --package-file /absolute/path/to/context-bundle/context_manifest.json --input-dir /absolute/path/to/edited-project --emit-summary
 PYTHONPATH="$REPO_ROOT" python3 -m cli context restore --package-file /absolute/path/to/context-bundle/context_manifest.json --output-dir /absolute/path/to/restore-root --json

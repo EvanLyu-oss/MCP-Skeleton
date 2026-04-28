@@ -65,6 +65,10 @@ ok_context_inspect_json=false
 ok_context_apply_check_text_json=false
 ok_context_apply_check_drift_json=false
 ok_context_apply_check_emit_summary_txt=false
+ok_context_bundle_json=false
+ok_context_bundle_zip_json=false
+ok_context_bundle_apply_check_json=false
+ok_context_bundle_emit_summary_txt=false
 ok_website_assets_json=false
 ok_website_assets_experimental_dynamic_json=false
 ok_website_assets_pack_json=false
@@ -2086,6 +2090,59 @@ grep -q "^status: warning$" "$context_apply_check_emit_summary_txt"
 grep -q "^apply_check_passed: False$" "$context_apply_check_emit_summary_txt"
 grep -q "^alignment_score: " "$context_apply_check_emit_summary_txt"
 ok_context_apply_check_emit_summary_txt=true
+
+context_bundle_json="$TMP_ROOT/context_bundle.json"
+context_bundle_dir="$TMP_ROOT/context_bundle_dir"
+PYTHONPATH="$ROOT" python3 -m cli context bundle --preset website --input-dir "$context_directory_src" --output-dir "$context_bundle_dir" --json > "$context_bundle_json"
+python3 - "$context_bundle_json" <<'PY'
+import json, os, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'context-bundle', payload
+assert payload['status'] == 'ok', payload
+assert payload['preset_id'] == 'website', payload
+assert payload['compression_mode'] == 'directory', payload
+assert payload['apply_check_included'] is False, payload
+assert payload['file_count'] >= 7, payload
+for key in ['manifest_file', 'skeleton_file', 'restore_file', 'readme_file', 'inspect_json', 'inspect_summary_txt', 'bundle_manifest_json']:
+    assert os.path.exists(payload['files'][key]), (key, payload)
+PY
+ok_context_bundle_json=true
+
+context_bundle_zip_json="$TMP_ROOT/context_bundle_zip.json"
+context_bundle_zip_dir="$TMP_ROOT/context_bundle_zip_dir"
+PYTHONPATH="$ROOT" python3 -m cli context bundle --preset website --input-dir "$context_directory_src" --zip --output-dir "$context_bundle_zip_dir" --json > "$context_bundle_zip_json"
+python3 - "$context_bundle_zip_json" <<'PY'
+import json, os, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'context-bundle', payload
+assert payload['zip_enabled'] is True, payload
+assert payload['archive_path'], payload
+assert os.path.exists(payload['archive_path']), payload
+PY
+ok_context_bundle_zip_json=true
+
+context_bundle_apply_check_json="$TMP_ROOT/context_bundle_apply_check.json"
+context_bundle_apply_check_dir="$TMP_ROOT/context_bundle_apply_check_dir"
+PYTHONPATH="$ROOT" python3 -m cli context bundle --preset website --input-dir "$context_directory_src" --candidate-input-dir "$context_directory_src" --output-dir "$context_bundle_apply_check_dir" --json > "$context_bundle_apply_check_json"
+python3 - "$context_bundle_apply_check_json" <<'PY'
+import json, os, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'context-bundle', payload
+assert payload['apply_check_included'] is True, payload
+assert payload['apply_check']['apply_check_passed'] is True, payload
+assert os.path.exists(payload['files']['apply_check_json']), payload
+assert os.path.exists(payload['files']['apply_check_summary_txt']), payload
+PY
+ok_context_bundle_apply_check_json=true
+
+context_bundle_emit_summary_txt="$TMP_ROOT/context_bundle_emit_summary.txt"
+context_bundle_emit_summary_dir="$TMP_ROOT/context_bundle_emit_summary_dir"
+PYTHONPATH="$ROOT" python3 -m cli context bundle --preset website --input-dir "$context_directory_src" --zip --output-dir "$context_bundle_emit_summary_dir" --emit-summary > "$context_bundle_emit_summary_txt"
+grep -q "^status: ok$" "$context_bundle_emit_summary_txt"
+grep -q "^preset_id: website$" "$context_bundle_emit_summary_txt"
+grep -q "^zip_enabled: True$" "$context_bundle_emit_summary_txt"
+grep -q "^bundle_root: " "$context_bundle_emit_summary_txt"
+ok_context_bundle_emit_summary_txt=true
 
 website_assets_json="$TMP_ROOT/website_assets.json"
 python3 -m cli website assets --json > "$website_assets_json"
@@ -6130,6 +6187,10 @@ export CLI_SMOKE_OK_CONTEXT_INSPECT_JSON="$ok_context_inspect_json"
 export CLI_SMOKE_OK_CONTEXT_APPLY_CHECK_TEXT_JSON="$ok_context_apply_check_text_json"
 export CLI_SMOKE_OK_CONTEXT_APPLY_CHECK_DRIFT_JSON="$ok_context_apply_check_drift_json"
 export CLI_SMOKE_OK_CONTEXT_APPLY_CHECK_EMIT_SUMMARY_TXT="$ok_context_apply_check_emit_summary_txt"
+export CLI_SMOKE_OK_CONTEXT_BUNDLE_JSON="$ok_context_bundle_json"
+export CLI_SMOKE_OK_CONTEXT_BUNDLE_ZIP_JSON="$ok_context_bundle_zip_json"
+export CLI_SMOKE_OK_CONTEXT_BUNDLE_APPLY_CHECK_JSON="$ok_context_bundle_apply_check_json"
+export CLI_SMOKE_OK_CONTEXT_BUNDLE_EMIT_SUMMARY_TXT="$ok_context_bundle_emit_summary_txt"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_REPO_JSON="$ok_project_hook_guide_repo_json"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_EMIT_SHELL_REPO="$ok_project_hook_guide_emit_shell_repo"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_COPY_COMMAND_REPO="$ok_project_hook_guide_copy_command_repo"
@@ -6362,6 +6423,10 @@ payload = {
         'context_apply_check_text_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_APPLY_CHECK_TEXT_JSON'] == 'true',
         'context_apply_check_drift_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_APPLY_CHECK_DRIFT_JSON'] == 'true',
         'context_apply_check_emit_summary_txt_ok': os.environ['CLI_SMOKE_OK_CONTEXT_APPLY_CHECK_EMIT_SUMMARY_TXT'] == 'true',
+        'context_bundle_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_BUNDLE_JSON'] == 'true',
+        'context_bundle_zip_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_BUNDLE_ZIP_JSON'] == 'true',
+        'context_bundle_apply_check_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_BUNDLE_APPLY_CHECK_JSON'] == 'true',
+        'context_bundle_emit_summary_txt_ok': os.environ['CLI_SMOKE_OK_CONTEXT_BUNDLE_EMIT_SUMMARY_TXT'] == 'true',
         'website_check_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_JSON'] == 'true',
         'website_check_out_of_scope_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_OUT_OF_SCOPE_JSON'] == 'true',
         'website_check_experimental_dynamic_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_EXPERIMENTAL_DYNAMIC_JSON'] == 'true',
