@@ -60,6 +60,9 @@ ok_context_compress_code_skeleton_txt=false
 ok_context_compress_directory_json=false
 ok_context_inspect_summary_txt=false
 ok_context_inspect_json=false
+ok_context_apply_check_text_json=false
+ok_context_apply_check_drift_json=false
+ok_context_apply_check_emit_summary_txt=false
 ok_website_assets_json=false
 ok_website_assets_experimental_dynamic_json=false
 ok_website_assets_pack_json=false
@@ -2008,6 +2011,52 @@ assert payload['tree_preview'], payload
 assert payload['summary_text'], payload
 PY
 ok_context_inspect_json=true
+
+context_apply_check_text_json="$TMP_ROOT/context_apply_check_text.json"
+cat > "$TMP_ROOT/context_candidate_good.md" <<'MD'
+# Context Compression
+
+This is a long-form note about ecommerce storefront structure, writing bundles, and route continuity.
+
+- preserve business logic
+- preserve framework relationships
+- reduce raw prompt bloat
+MD
+PYTHONPATH="$ROOT" python3 -m cli context compress --text-file "$TMP_ROOT/context_candidate_good.md" --output-dir "$TMP_ROOT/context_text_apply_bundle" --json > /dev/null
+PYTHONPATH="$ROOT" python3 -m cli context apply-check --package-file "$TMP_ROOT/context_text_apply_bundle/context_manifest.json" --text-file "$TMP_ROOT/context_candidate_good.md" --json > "$context_apply_check_text_json"
+python3 - "$context_apply_check_text_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'context-apply-check', payload
+assert payload['status'] == 'ok', payload
+assert payload['apply_check_passed'] is True, payload
+assert payload['alignment_band'] in {'workable', 'strong'}, payload
+assert payload['summary_text'], payload
+PY
+ok_context_apply_check_text_json=true
+
+context_apply_check_drift_json="$TMP_ROOT/context_apply_check_drift.json"
+cat > "$TMP_ROOT/context_candidate_drift.txt" <<'TXT'
+Moonlight moved across the tower while the prince waited for the gate to open.
+TXT
+PYTHONPATH="$ROOT" python3 -m cli context apply-check --package-file "$TMP_ROOT/context_text_apply_bundle/context_manifest.json" --text-file "$TMP_ROOT/context_candidate_drift.txt" --json > "$context_apply_check_drift_json"
+python3 - "$context_apply_check_drift_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'context-apply-check', payload
+assert payload['status'] == 'warning', payload
+assert payload['apply_check_passed'] is False, payload
+assert payload['drift_findings'], payload
+assert payload['revision_targets'], payload
+PY
+ok_context_apply_check_drift_json=true
+
+context_apply_check_emit_summary_txt="$TMP_ROOT/context_apply_check_emit_summary.txt"
+PYTHONPATH="$ROOT" python3 -m cli context apply-check --package-file "$TMP_ROOT/context_text_apply_bundle/context_manifest.json" --text-file "$TMP_ROOT/context_candidate_drift.txt" --emit-summary > "$context_apply_check_emit_summary_txt"
+grep -q "^status: warning$" "$context_apply_check_emit_summary_txt"
+grep -q "^apply_check_passed: False$" "$context_apply_check_emit_summary_txt"
+grep -q "^alignment_score: " "$context_apply_check_emit_summary_txt"
+ok_context_apply_check_emit_summary_txt=true
 
 website_assets_json="$TMP_ROOT/website_assets.json"
 python3 -m cli website assets --json > "$website_assets_json"
@@ -6047,6 +6096,9 @@ export CLI_SMOKE_OK_CONTEXT_COMPRESS_CODE_SKELETON_TXT="$ok_context_compress_cod
 export CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_JSON="$ok_context_compress_directory_json"
 export CLI_SMOKE_OK_CONTEXT_INSPECT_SUMMARY_TXT="$ok_context_inspect_summary_txt"
 export CLI_SMOKE_OK_CONTEXT_INSPECT_JSON="$ok_context_inspect_json"
+export CLI_SMOKE_OK_CONTEXT_APPLY_CHECK_TEXT_JSON="$ok_context_apply_check_text_json"
+export CLI_SMOKE_OK_CONTEXT_APPLY_CHECK_DRIFT_JSON="$ok_context_apply_check_drift_json"
+export CLI_SMOKE_OK_CONTEXT_APPLY_CHECK_EMIT_SUMMARY_TXT="$ok_context_apply_check_emit_summary_txt"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_REPO_JSON="$ok_project_hook_guide_repo_json"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_EMIT_SHELL_REPO="$ok_project_hook_guide_emit_shell_repo"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_COPY_COMMAND_REPO="$ok_project_hook_guide_copy_command_repo"
@@ -6274,6 +6326,9 @@ payload = {
         'context_compress_directory_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_JSON'] == 'true',
         'context_inspect_summary_txt_ok': os.environ['CLI_SMOKE_OK_CONTEXT_INSPECT_SUMMARY_TXT'] == 'true',
         'context_inspect_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_INSPECT_JSON'] == 'true',
+        'context_apply_check_text_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_APPLY_CHECK_TEXT_JSON'] == 'true',
+        'context_apply_check_drift_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_APPLY_CHECK_DRIFT_JSON'] == 'true',
+        'context_apply_check_emit_summary_txt_ok': os.environ['CLI_SMOKE_OK_CONTEXT_APPLY_CHECK_EMIT_SUMMARY_TXT'] == 'true',
         'website_check_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_JSON'] == 'true',
         'website_check_out_of_scope_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_OUT_OF_SCOPE_JSON'] == 'true',
         'website_check_experimental_dynamic_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_EXPERIMENTAL_DYNAMIC_JSON'] == 'true',

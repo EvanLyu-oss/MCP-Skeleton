@@ -17,6 +17,7 @@ from typing import Any, Sequence
 
 from .cloud_client import AILCloudClient, CloudClientError
 from .context_compression import (
+    build_context_apply_check_payload,
     build_context_compress_payload,
     inspect_context_package,
     load_context_package,
@@ -154,8 +155,8 @@ def cmd_generate(args: argparse.Namespace) -> int:
 
 
 def cmd_context(args: argparse.Namespace) -> int:
-    if getattr(args, "context_command", None) not in {"compress", "restore", "inspect"}:
-        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported context subcommands: compress, restore, inspect")
+    if getattr(args, "context_command", None) not in {"compress", "restore", "inspect", "apply-check"}:
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported context subcommands: compress, restore, inspect, apply-check")
 
     if getattr(args, "context_command", None) == "compress":
         inline_text = str(getattr(args, "context_text", "") or "").strip()
@@ -241,6 +242,56 @@ def cmd_context(args: argparse.Namespace) -> int:
                 for step in inspect_payload.get("next_steps", []):
                     print(f"- {step}")
             return EXIT_OK
+        if getattr(args, "context_command", None) == "apply-check":
+            inline_text = str(getattr(args, "context_text", "") or "").strip()
+            text_file = Path(args.text_file).expanduser() if getattr(args, "text_file", None) else None
+            input_file = Path(args.input_file).expanduser() if getattr(args, "input_file", None) else None
+            input_dir = Path(args.input_dir).expanduser() if getattr(args, "input_dir", None) else None
+            apply_payload = build_context_apply_check_payload(
+                package_payload=package_payload,
+                inline_text=inline_text if inline_text else None,
+                text_file=text_file,
+                input_file=input_file,
+                input_dir=input_dir,
+            )
+            output_file = getattr(args, "output_file", None)
+            exit_code = EXIT_OK if apply_payload.get("apply_check_passed") else EXIT_VALIDATION
+            if getattr(args, "emit_summary", False):
+                if output_file:
+                    _write_cli_output_file(Path(output_file), str(apply_payload.get("summary_text", "")))
+                sys.stdout.write(str(apply_payload.get("summary_text", "")))
+                return exit_code
+            if args.json:
+                if output_file:
+                    _write_cli_output_file(Path(output_file), apply_payload, as_json=True)
+                _print_json_payload(apply_payload)
+            else:
+                if output_file:
+                    _write_cli_output_file(Path(output_file), str(apply_payload.get("summary_text", "")))
+                print("Context apply-check")
+                print(f"- status: {apply_payload['status']}")
+                print(f"- apply_check_mode: {apply_payload.get('apply_check_mode', '')}")
+                print(f"- apply_check_passed: {apply_payload.get('apply_check_passed', False)}")
+                print(f"- source_kind: {apply_payload.get('source_kind', '')}")
+                print(f"- candidate_source_kind: {apply_payload.get('candidate_source_kind', '')}")
+                print(f"- alignment_score: {apply_payload.get('alignment_score', 0)}")
+                print(f"- alignment_band: {apply_payload.get('alignment_band', '')}")
+                if apply_payload.get("strengths"):
+                    print("Strengths:")
+                    for item in apply_payload.get("strengths", []):
+                        print(f"- {item}")
+                if apply_payload.get("drift_findings"):
+                    print("Drift findings:")
+                    for item in apply_payload.get("drift_findings", []):
+                        print(f"- {item}")
+                if apply_payload.get("revision_targets"):
+                    print("Revision targets:")
+                    for item in apply_payload.get("revision_targets", []):
+                        print(f"- {item}")
+                print("Next:")
+                for step in apply_payload.get("next_steps", []):
+                    print(f"- {step}")
+            return exit_code
         output_dir = Path(args.output_dir).expanduser() if getattr(args, "output_dir", None) else None
         output_file = Path(args.output_file).expanduser() if getattr(args, "output_file", None) else None
         restore_payload, restored_text = restore_context_from_package(
@@ -4429,6 +4480,15 @@ def _build_parser() -> argparse.ArgumentParser:
     context_inspect_parser.add_argument("--emit-summary", action="store_true", help="Print only a compact context bundle summary")
     context_inspect_parser.add_argument("--output-file", dest="output_file", help="Write the inspect output to a file")
     context_inspect_parser.add_argument("--json", action="store_true", help="Print context inspect as JSON")
+    context_apply_check_parser = context_subparsers.add_parser("apply-check", help="Validate that edited text, a file, or a directory still stays inside the original context skeleton boundary")
+    context_apply_check_parser.add_argument("--package-file", dest="package_file", required=True, help="Path to a context manifest JSON file produced by context compress")
+    context_apply_check_parser.add_argument("--text", dest="context_text", help="Inline candidate text to validate")
+    context_apply_check_parser.add_argument("--text-file", dest="text_file", help="Read candidate text from a file")
+    context_apply_check_parser.add_argument("--input-file", dest="input_file", help="Validate one edited file against the original context bundle")
+    context_apply_check_parser.add_argument("--input-dir", dest="input_dir", help="Validate one edited directory tree against the original context bundle")
+    context_apply_check_parser.add_argument("--emit-summary", action="store_true", help="Print only a compact context apply-check summary")
+    context_apply_check_parser.add_argument("--output-file", dest="output_file", help="Write the apply-check output to a file")
+    context_apply_check_parser.add_argument("--json", action="store_true", help="Print context apply-check as JSON")
 
     website_parser = subparsers.add_parser("website", help="Evaluate and validate static presentation-style website requests")
     website_subparsers = website_parser.add_subparsers(dest="website_command")

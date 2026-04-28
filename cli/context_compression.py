@@ -30,6 +30,9 @@ STOPWORDS = {
     "以及", "可以", "这个", "那个", "需要", "进行", "通过", "作为", "用于", "项目", "内容",
 }
 
+ALIGNMENT_STRONG_THRESHOLD = 82
+ALIGNMENT_WORKABLE_THRESHOLD = 64
+
 
 def build_context_compress_payload(
     *,
@@ -39,20 +42,13 @@ def build_context_compress_payload(
     input_dir: Path | None,
     output_dir: Path | None = None,
 ) -> dict[str, Any]:
-    source_count = sum(1 for item in [inline_text.strip() if inline_text else "", text_file, input_file, input_dir] if item)
-    if source_count != 1:
-        raise ValueError("context compress requires exactly one input source: --text, --text-file, --input-file, or --input-dir")
-
-    if inline_text is not None and inline_text.strip():
-        source = _build_inline_text_source(inline_text)
-    elif text_file is not None:
-        source = _build_text_file_source(text_file)
-    elif input_file is not None:
-        source = _build_file_source(input_file)
-    elif input_dir is not None:
-        source = _build_directory_source(input_dir)
-    else:
-        raise ValueError("context compress did not receive a usable input source")
+    source = _resolve_context_input_source(
+        inline_text=inline_text,
+        text_file=text_file,
+        input_file=input_file,
+        input_dir=input_dir,
+        command_label="context compress",
+    )
 
     skeleton_text = _render_skeleton_text(source)
     restore_blob = _encode_restore_blob(source["restore_blob"])
@@ -144,6 +140,100 @@ def restore_context_from_package(
 
 def load_context_package(package_file: Path) -> dict[str, Any]:
     return json.loads(package_file.read_text(encoding="utf-8"))
+
+
+def build_context_apply_check_payload(
+    *,
+    package_payload: dict[str, Any],
+    inline_text: str | None,
+    text_file: Path | None,
+    input_file: Path | None,
+    input_dir: Path | None,
+) -> dict[str, Any]:
+    candidate = _resolve_context_input_source(
+        inline_text=inline_text,
+        text_file=text_file,
+        input_file=input_file,
+        input_dir=input_dir,
+        command_label="context apply-check",
+    )
+    original_mode = str(package_payload.get("compression_mode") or "")
+    original_kind = str(package_payload.get("source_kind") or "")
+    original_summary = package_payload.get("source_summary") or {}
+    candidate_mode = str(candidate.get("compression_mode") or "")
+    candidate_summary = candidate.get("source_summary") or {}
+
+    if original_mode != candidate_mode:
+        payload = {
+            "status": "warning",
+            "entrypoint": "context-apply-check",
+            "apply_check_mode": "skeleton_continuity_gate",
+            "apply_check_passed": False,
+            "source_kind": original_kind,
+            "source_label": package_payload.get("source_label", ""),
+            "candidate_source_kind": candidate.get("source_kind", ""),
+            "candidate_source_label": candidate.get("source_label", ""),
+            "alignment_score": 0,
+            "alignment_band": "drifting",
+            "strengths": [],
+            "drift_findings": [
+                f"Candidate input mode `{candidate_mode}` does not match the bundle mode `{original_mode}`."
+            ],
+            "revision_targets": [
+                "Re-run apply-check with a candidate input that matches the original bundle mode."
+            ],
+            "source_summary": original_summary,
+            "candidate_summary": candidate_summary,
+            "next_steps": [
+                "use a text candidate for a text bundle, a file candidate for a file bundle, or a directory candidate for a directory bundle",
+                "re-run context inspect if you need a quick reminder of the original bundle shape",
+            ],
+        }
+        payload["summary_text"] = _build_context_apply_check_summary_text(payload)
+        return payload
+
+    if original_mode == "text":
+        review = _build_text_apply_check(original_summary, candidate_summary)
+    elif original_mode == "file":
+        review = _build_file_apply_check(original_summary, candidate_summary)
+    elif original_mode == "directory":
+        review = _build_directory_apply_check(original_summary, candidate_summary)
+    else:
+        raise ValueError(f"Unsupported context apply-check mode: {original_mode}")
+
+    alignment_score = int(review["score"])
+    alignment_band = _alignment_band(alignment_score)
+    apply_check_passed = bool(alignment_band in {"workable", "strong"} and not review["drift_findings"])
+    payload = {
+        "status": "ok" if apply_check_passed else "warning",
+        "entrypoint": "context-apply-check",
+        "apply_check_mode": "skeleton_continuity_gate",
+        "apply_check_passed": apply_check_passed,
+        "source_kind": original_kind,
+        "source_label": package_payload.get("source_label", ""),
+        "candidate_source_kind": candidate.get("source_kind", ""),
+        "candidate_source_label": candidate.get("source_label", ""),
+        "alignment_score": alignment_score,
+        "alignment_band": alignment_band,
+        "strengths": review["strengths"],
+        "drift_findings": review["drift_findings"],
+        "revision_targets": review["revision_targets"],
+        "source_summary": original_summary,
+        "candidate_summary": candidate_summary,
+        "next_steps": (
+            [
+                "candidate still looks structurally aligned to the original bundle",
+                "run context restore if you need to compare against the exact original content",
+            ]
+            if apply_check_passed
+            else [
+                "inspect the drift findings and restore the original bundle if you need a precise baseline",
+                "repair one structural gap at a time before re-running context apply-check",
+            ]
+        ),
+    }
+    payload["summary_text"] = _build_context_apply_check_summary_text(payload)
+    return payload
 
 
 def inspect_context_package(package_payload: dict[str, Any]) -> dict[str, Any]:
@@ -409,6 +499,29 @@ def _build_context_inspect_summary_text(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _build_context_apply_check_summary_text(payload: dict[str, Any]) -> str:
+    lines = [
+        f"status: {payload.get('status', '')}",
+        f"apply_check_mode: {payload.get('apply_check_mode', '')}",
+        f"apply_check_passed: {payload.get('apply_check_passed', False)}",
+        f"source_kind: {payload.get('source_kind', '')}",
+        f"source_label: {payload.get('source_label', '')}",
+        f"candidate_source_kind: {payload.get('candidate_source_kind', '')}",
+        f"candidate_source_label: {payload.get('candidate_source_label', '')}",
+        f"alignment_score: {payload.get('alignment_score', 0)}",
+        f"alignment_band: {payload.get('alignment_band', '')}",
+        f"drift_count: {len(payload.get('drift_findings') or [])}",
+        f"revision_target_count: {len(payload.get('revision_targets') or [])}",
+    ]
+    if payload.get("revision_targets"):
+        lines.append(f"first_revision_target: {(payload.get('revision_targets') or [''])[0]}")
+    elif payload.get("drift_findings"):
+        lines.append(f"first_drift_finding: {(payload.get('drift_findings') or [''])[0]}")
+    elif payload.get("strengths"):
+        lines.append(f"first_strength: {(payload.get('strengths') or [''])[0]}")
+    return "\n".join(lines)
+
+
 def _encode_restore_blob(payload: dict[str, Any]) -> dict[str, Any]:
     raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     compressed = zlib.compress(raw, level=9)
@@ -448,6 +561,28 @@ def _render_skeleton_text(source: dict[str, Any]) -> str:
     lines.append("SKELETON:")
     lines.extend(_render_structural_lines(source["source_summary"], indent="  "))
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _resolve_context_input_source(
+    *,
+    inline_text: str | None,
+    text_file: Path | None,
+    input_file: Path | None,
+    input_dir: Path | None,
+    command_label: str,
+) -> dict[str, Any]:
+    source_count = sum(1 for item in [inline_text.strip() if inline_text else "", text_file, input_file, input_dir] if item)
+    if source_count != 1:
+        raise ValueError(f"{command_label} requires exactly one input source: --text, --text-file, --input-file, or --input-dir")
+    if inline_text is not None and inline_text.strip():
+        return _build_inline_text_source(inline_text)
+    if text_file is not None:
+        return _build_text_file_source(text_file)
+    if input_file is not None:
+        return _build_file_source(input_file)
+    if input_dir is not None:
+        return _build_directory_source(input_dir)
+    raise ValueError(f"{command_label} did not receive a usable input source")
 
 
 def _render_core_summary_lines(summary: dict[str, Any], *, indent: str) -> list[str]:
@@ -499,6 +634,161 @@ def _render_structural_lines(summary: dict[str, Any], *, indent: str) -> list[st
     if source_kind == "binary":
         return [f"{indent}- binary payload preserved for exact restore; skeleton intentionally exposes metadata only"]
     return [f"{indent}- no structural renderer available for source_kind={source_kind}"]
+
+
+def _build_text_apply_check(original: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    strengths: list[str] = []
+    drift_findings: list[str] = []
+    revision_targets: list[str] = []
+    score = 84
+
+    original_headings = set(original.get("headings") or [])
+    candidate_headings = set(candidate.get("headings") or [])
+    if original_headings:
+        overlap = len(original_headings & candidate_headings) / max(1, len(original_headings))
+        if overlap >= 0.6:
+            strengths.append("The candidate preserved most of the original heading structure.")
+            score += 4
+        else:
+            drift_findings.append("The candidate dropped too much of the original heading structure.")
+            revision_targets.append("Restore the major headings or section anchors from the original context.")
+            score -= 18
+
+    original_paragraphs = int(original.get("paragraph_count", 0) or 0)
+    candidate_paragraphs = int(candidate.get("paragraph_count", 0) or 0)
+    if original_paragraphs and candidate_paragraphs < max(1, int(original_paragraphs * 0.4)):
+        drift_findings.append("The candidate is much thinner than the original paragraph structure.")
+        revision_targets.append("Bring back more of the original section development before handing it to another model.")
+        score -= 12
+    else:
+        strengths.append("The candidate still carries a comparable amount of section development.")
+
+    original_terms = set(original.get("top_terms") or [])
+    candidate_terms = set(candidate.get("top_terms") or [])
+    if original_terms:
+        term_overlap = len(original_terms & candidate_terms) / max(1, len(original_terms))
+        if term_overlap >= 0.35:
+            strengths.append("The candidate still keeps the core topic vocabulary visible.")
+            score += 4
+        else:
+            drift_findings.append("The candidate topic vocabulary drifted away from the original emphasis.")
+            revision_targets.append("Reintroduce the original core terms and domain anchors.")
+            score -= 16
+
+    return {
+        "score": max(0, min(100, score)),
+        "strengths": strengths,
+        "drift_findings": drift_findings,
+        "revision_targets": revision_targets,
+    }
+
+
+def _build_file_apply_check(original: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    strengths: list[str] = []
+    drift_findings: list[str] = []
+    revision_targets: list[str] = []
+    score = 84
+    original_kind = str(original.get("source_kind") or "")
+    candidate_kind = str(candidate.get("source_kind") or "")
+    if original_kind != candidate_kind:
+        drift_findings.append(f"The candidate file kind `{candidate_kind}` does not match the original `{original_kind}`.")
+        revision_targets.append("Keep the candidate in the same file lane as the original bundle.")
+        score -= 24
+
+    if original_kind == "code":
+        original_symbols = set(original.get("symbols") or [])
+        candidate_symbols = set(candidate.get("symbols") or [])
+        original_imports = set(original.get("imports") or [])
+        candidate_imports = set(candidate.get("imports") or [])
+        symbol_overlap = len(original_symbols & candidate_symbols) / max(1, len(original_symbols)) if original_symbols else 1.0
+        import_overlap = len(original_imports & candidate_imports) / max(1, len(original_imports)) if original_imports else 1.0
+        if symbol_overlap >= 0.45:
+            strengths.append("The candidate kept a workable share of the original symbol surface.")
+            score += 4
+        else:
+            drift_findings.append("The candidate lost too many of the original code symbols.")
+            revision_targets.append("Restore the main exported functions, classes, or component definitions.")
+            score -= 20
+        if import_overlap < 0.35:
+            drift_findings.append("The candidate import surface drifted away from the original dependencies.")
+            revision_targets.append("Bring back the original dependency surface or explain the dependency rewrite elsewhere.")
+            score -= 12
+        else:
+            strengths.append("The dependency surface still looks broadly related to the original file.")
+    else:
+        text_review = _build_text_apply_check(original, candidate)
+        score = min(score, text_review["score"])
+        strengths.extend(text_review["strengths"])
+        drift_findings.extend(text_review["drift_findings"])
+        revision_targets.extend(text_review["revision_targets"])
+
+    return {
+        "score": max(0, min(100, score)),
+        "strengths": strengths,
+        "drift_findings": drift_findings,
+        "revision_targets": revision_targets,
+    }
+
+
+def _build_directory_apply_check(original: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    strengths: list[str] = []
+    drift_findings: list[str] = []
+    revision_targets: list[str] = []
+    score = 86
+
+    original_entries = {item["relative_path"]: item for item in (original.get("entries") or []) if item.get("relative_path")}
+    candidate_entries = {item["relative_path"]: item for item in (candidate.get("entries") or []) if item.get("relative_path")}
+    original_paths = set(original_entries.keys())
+    candidate_paths = set(candidate_entries.keys())
+    missing_paths = sorted(original_paths - candidate_paths)
+    extra_paths = sorted(candidate_paths - original_paths)
+    path_overlap = len(original_paths & candidate_paths) / max(1, len(original_paths)) if original_paths else 1.0
+
+    if path_overlap >= 0.8:
+        strengths.append("The candidate kept most of the original file tree.")
+        score += 4
+    else:
+        drift_findings.append("The candidate file tree dropped too much of the original project surface.")
+        revision_targets.append("Restore the missing files or re-run the edit on a fuller project copy.")
+        score -= 22
+
+    if missing_paths:
+        drift_findings.append(f"Missing files: {', '.join(missing_paths[:6])}")
+    if extra_paths:
+        strengths.append("The candidate added files beyond the original tree, which may be acceptable if the core tree stayed intact.")
+
+    if int(candidate.get("code_files", 0) or 0) < max(0, int(original.get("code_files", 0) or 0) - 2):
+        drift_findings.append("The candidate now exposes notably fewer code files than the original bundle.")
+        revision_targets.append("Recover the dropped code files or compress a narrower subdirectory before editing.")
+        score -= 12
+    else:
+        strengths.append("The code-file footprint still looks close to the original bundle.")
+
+    mismatched_kinds = []
+    for relpath in sorted(original_paths & candidate_paths):
+        original_kind = str(original_entries[relpath].get("kind") or "")
+        candidate_kind = str(candidate_entries[relpath].get("kind") or "")
+        if original_kind != candidate_kind:
+            mismatched_kinds.append(f"{relpath} ({original_kind} -> {candidate_kind})")
+    if mismatched_kinds:
+        drift_findings.append(f"File kinds changed unexpectedly: {', '.join(mismatched_kinds[:4])}")
+        revision_targets.append("Keep file roles stable when possible so the original project structure stays legible.")
+        score -= 10
+
+    return {
+        "score": max(0, min(100, score)),
+        "strengths": strengths,
+        "drift_findings": drift_findings,
+        "revision_targets": revision_targets,
+    }
+
+
+def _alignment_band(score: int) -> str:
+    if score >= ALIGNMENT_STRONG_THRESHOLD:
+        return "strong"
+    if score >= ALIGNMENT_WORKABLE_THRESHOLD:
+        return "workable"
+    return "drifting"
 
 
 def _text_summary(text: str, *, label: str) -> dict[str, Any]:

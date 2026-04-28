@@ -35,6 +35,14 @@ PYTHONPATH="$PWD" python3 -m cli context inspect --package-file /absolute/path/t
 PYTHONPATH="$PWD" python3 -m cli context inspect --package-file /absolute/path/to/context-bundle/context_manifest.json --json
 ```
 
+### Apply-check
+
+```bash
+PYTHONPATH="$PWD" python3 -m cli context apply-check --package-file /absolute/path/to/context-bundle/context_manifest.json --text-file /absolute/path/to/edited-text.md --emit-summary
+PYTHONPATH="$PWD" python3 -m cli context apply-check --package-file /absolute/path/to/context-bundle/context_manifest.json --input-file /absolute/path/to/edited-file.py --json
+PYTHONPATH="$PWD" python3 -m cli context apply-check --package-file /absolute/path/to/context-bundle/context_manifest.json --input-dir /absolute/path/to/edited-project --json
+```
+
 ## Bundle Shape
 
 When `context compress` is run with `--output-dir`, it writes:
@@ -104,6 +112,22 @@ It is not yet positioned as:
 - AST-perfect language-specific recompilation
 - cross-file dependency reasoning beyond the exported skeleton surface
 
+## Apply-check Positioning
+
+`context apply-check` is a structural continuity gate.
+
+It currently checks whether edited content still broadly preserves:
+
+- major heading and section structure for text bundles
+- import and symbol surface for code files
+- file-tree continuity and file-kind continuity for directory bundles
+
+It is useful for:
+
+- checking whether an AI pass drifted too far from the compressed skeleton
+- catching missing files or missing core symbols before handoff
+- deciding whether to re-run compression, repair the edited output, or restore the original baseline
+
 ## Recommended Workflow
 
 1. feed the raw long context into `context compress`
@@ -121,3 +145,4 @@ The current smoke coverage locks in:
 - directory compression and exact file restore
 - bundle inspection summary generation
 - bundle inspection JSON payload generation
+- apply-check pass/fail coverage for aligned and drifting candidates
