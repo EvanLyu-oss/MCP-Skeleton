@@ -53,6 +53,9 @@ Git transport note:
 - if `git pull` or `git push` appears to hang against GitHub on one machine, try:
   - `git -c http.version=HTTP/1.1 pull origin main`
   - `git -c http.version=HTTP/1.1 push origin main`
+- browser login alone is not enough to rule Git transport out:
+  - browsers, Python HTTPS clients, and `git` can succeed or fail on different network paths
+  - one tested macOS environment could sign in to GitHub normally, while `curl` and `git` intermittently timed out unless Git was forced onto `HTTP/1.1`
 - one tested macOS environment needed this Git-only workaround even though browser and Python HTTPS access to GitHub were healthy
 
 Recent outward-facing changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
