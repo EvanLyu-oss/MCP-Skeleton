@@ -264,6 +264,14 @@ Optional install for tokenizer-backed metrics:
 python3 -m pip install '.[context-metrics]'
 ```
 
+On Windows PowerShell, prefer:
+
+```powershell
+py -3 -m pip install tiktoken
+```
+
+That keeps `tiktoken` in the same Python environment used by `py -3 -m cli`, which avoids the common "installed, but not importable from this interpreter" mismatch.
+
 ## What Already Works Well
 
 The repository already has real product truth in these areas:

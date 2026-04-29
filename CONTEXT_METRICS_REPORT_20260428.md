@@ -76,6 +76,29 @@ Equivalent reading:
 - observed raw-to-skeleton char reduction was about `97.83%`
 - estimated token footprint fell to roughly `2.17%` of the raw source in that sample
 
+One later Windows validation pass also confirmed the optional tokenizer-backed path with:
+
+- tokenizer backend: `tiktoken`
+- tokenizer model / encoding: `cl100k_base`
+- raw characters: `8,119`
+- skeleton characters: `2,652`
+- tokenizer-counted source tokens: `1,346`
+- tokenizer-counted skeleton tokens: `569`
+- tokenizer-counted tokens saved: `777`
+
+Equivalent reading:
+
+- observed raw-to-skeleton char reduction was about `67%`
+- tokenizer-counted token footprint fell to about `42.27%` of the raw source in that sample
+
+That Windows pass also surfaced one practical setup note:
+
+- on Windows, `pip install tiktoken` may target a different interpreter than `py -3 -m cli`
+- the safer install path is:
+  - `py -3 -m pip install tiktoken`
+
+That note matters because the CLI feature itself was fine; the real issue was environment mismatch.
+
 ## How To Read These Numbers
 
 The sample above is meaningful, but only inside its scope.
