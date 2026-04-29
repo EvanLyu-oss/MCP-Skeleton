@@ -2368,6 +2368,24 @@ grep -q "^merge_check_passed: False$" "$context_patch_apply_merge_conflict_summa
 grep -q "^merge_conflict_count: " "$context_patch_apply_merge_conflict_summary_txt"
 ok_context_patch_apply_merge_conflict_summary_txt=true
 
+context_patch_apply_merge_report_json="$TMP_ROOT/context_patch_apply_merge_report.json"
+set +e
+PYTHONPATH="$ROOT" python3 -m cli context patch-apply --patch-file "$context_patch_text_dir/patch_manifest.json" --merge-mode reject-conflicts --source-package-file "$TMP_ROOT/context_text_apply_bundle/context_manifest.json" --output-file "$context_patch_apply_merge_conflict_output" --write-merge-report "$context_patch_apply_merge_report_json" --json > /dev/null
+context_patch_apply_merge_report_exit=$?
+set -e
+[ "$context_patch_apply_merge_report_exit" -eq 3 ]
+python3 - "$context_patch_apply_merge_report_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'context-patch-apply-merge-report', payload
+assert payload['apply_mode'] == 'merge_conflict_blocked', payload
+assert payload['merge_mode'] == 'reject-conflicts', payload
+assert payload['merge_check_passed'] is False, payload
+assert payload['merge_conflict_records'], payload
+assert payload['merge_conflict_records'][0]['conflict_kind'] == 'target_diverged_from_base', payload
+PY
+ok_context_patch_apply_merge_report_json=true
+
 context_patch_policy_template_json="$TMP_ROOT/context_patch_policy_template.json"
 PYTHONPATH="$ROOT" python3 -m cli context patch-apply --policy-mode strict --allow-root src --forbid-root src/generated --emit-policy-template --json > "$context_patch_policy_template_json"
 python3 - "$context_patch_policy_template_json" <<'PY'

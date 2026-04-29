@@ -569,6 +569,7 @@ def apply_context_patch_payload(
             "merge_mode": merge_mode,
             "merge_check_passed": False,
             "merge_conflicts": merge_review["conflicts"],
+            "merge_conflict_records": merge_review.get("conflict_records", []),
             "merge_conflict_count": len(merge_review["conflicts"]),
             "policy_mode": policy_review["policy_mode"],
             "policy_passed": True,
@@ -607,6 +608,7 @@ def apply_context_patch_payload(
             "merge_mode": merge_mode,
             "merge_check_passed": True,
             "merge_conflicts": [],
+            "merge_conflict_records": [],
             "merge_conflict_count": 0,
             "policy_mode": policy_review["policy_mode"],
             "policy_passed": True,
@@ -640,6 +642,7 @@ def apply_context_patch_payload(
             "merge_mode": merge_mode,
             "merge_check_passed": True,
             "merge_conflicts": [],
+            "merge_conflict_records": [],
             "merge_conflict_count": 0,
             "policy_mode": policy_review["policy_mode"],
             "policy_passed": True,
@@ -686,6 +689,7 @@ def apply_context_patch_payload(
             "merge_mode": merge_mode,
             "merge_check_passed": True,
             "merge_conflicts": [],
+            "merge_conflict_records": [],
             "merge_conflict_count": 0,
             "policy_mode": policy_review["policy_mode"],
             "policy_passed": True,
@@ -1941,47 +1945,86 @@ def _evaluate_patch_apply_merge(
     merge_mode: str,
 ) -> dict[str, Any]:
     if merge_mode == "overwrite":
-        return {"passed": True, "conflicts": []}
+        return {"passed": True, "conflicts": [], "conflict_records": []}
     if source_package_payload is None:
         return {
             "passed": False,
             "conflicts": ["Merge-aware replay requires the original source package so the current target can be compared to the original base."],
+            "conflict_records": [
+                {
+                    "path": "",
+                    "conflict_kind": "missing_source_package_base",
+                    "message": "Merge-aware replay requires the original source package so the current target can be compared to the original base.",
+                }
+            ],
         }
     decoded = _decode_restore_blob(source_package_payload.get("restore_package") or {})
     conflicts: list[str] = []
+    conflict_records: list[dict[str, str]] = []
     if patch_mode == "text_unified_diff":
         if output_file is not None:
             target_path = _resolve_output_target_file(output_file)
         elif output_dir is not None:
             target_path = output_dir.expanduser().resolve() / source_label
         else:
-            return {"passed": False, "conflicts": ["Merge-aware text replay requires --output-file or --output-dir."]}
+            message = "Merge-aware text replay requires --output-file or --output-dir."
+            return {
+                "passed": False,
+                "conflicts": [message],
+                "conflict_records": [{"path": source_label, "conflict_kind": "missing_replay_target", "message": message}],
+            }
         if target_path.exists():
             current_text = target_path.read_text(encoding="utf-8")
             base_text = str(decoded.get("text") or "")
             if current_text != base_text:
-                conflicts.append(f"Target file already diverged from the original base: {target_path}")
-        return {"passed": not conflicts, "conflicts": conflicts}
+                message = f"Target file already diverged from the original base: {target_path}"
+                conflicts.append(message)
+                conflict_records.append(
+                    {
+                        "path": str(target_path),
+                        "conflict_kind": "target_diverged_from_base",
+                        "message": message,
+                    }
+                )
+        return {"passed": not conflicts, "conflicts": conflicts, "conflict_records": conflict_records}
     if patch_mode in {"file_unified_diff", "file_binary_replace"}:
         if output_file is not None:
             target_path = _resolve_output_target_file(output_file)
         elif output_dir is not None:
             target_path = output_dir.expanduser().resolve() / str(decoded.get("file_name") or source_label)
         else:
-            return {"passed": False, "conflicts": ["Merge-aware file replay requires --output-file or --output-dir."]}
+            message = "Merge-aware file replay requires --output-file or --output-dir."
+            return {
+                "passed": False,
+                "conflicts": [message],
+                "conflict_records": [{"path": source_label, "conflict_kind": "missing_replay_target", "message": message}],
+            }
         if target_path.exists():
             current_bytes = target_path.read_bytes()
             base_bytes = _decode_restore_content_b64(decoded.get("content_b64"))
             if current_bytes != base_bytes:
-                conflicts.append(f"Target file already diverged from the original base: {target_path}")
-        return {"passed": not conflicts, "conflicts": conflicts}
+                message = f"Target file already diverged from the original base: {target_path}"
+                conflicts.append(message)
+                conflict_records.append(
+                    {
+                        "path": str(target_path),
+                        "conflict_kind": "target_diverged_from_base",
+                        "message": message,
+                    }
+                )
+        return {"passed": not conflicts, "conflicts": conflicts, "conflict_records": conflict_records}
     if patch_mode == "directory_structural_patch":
         if output_dir is None:
-            return {"passed": False, "conflicts": ["Merge-aware directory replay requires --output-dir."]}
+            message = "Merge-aware directory replay requires --output-dir."
+            return {
+                "passed": False,
+                "conflicts": [message],
+                "conflict_records": [{"path": source_label, "conflict_kind": "missing_replay_target", "message": message}],
+            }
         root_name = str(decoded.get("root_name") or source_label or "restored-context")
         target_root = output_dir.expanduser().resolve() / root_name
         if not target_root.exists():
-            return {"passed": True, "conflicts": []}
+            return {"passed": True, "conflicts": [], "conflict_records": []}
         original_files = {str(item.get("relative_path") or ""): _decode_restore_content_b64(item.get("content_b64")) for item in (decoded.get("files") or [])}
         changed_paths = [str(item) for item in (patch_payload.get("changed_paths") or []) if str(item).strip()]
         added_paths = [str(item) for item in (patch_payload.get("added_paths") or []) if str(item).strip()]
@@ -1992,15 +2035,54 @@ def _evaluate_patch_apply_merge(
             if target_path.exists():
                 current_bytes = target_path.read_bytes()
                 if base_bytes is None or current_bytes != base_bytes:
-                    conflicts.append(f"Target path already diverged from the original base: {target_path}")
+                    message = f"Target path already diverged from the original base: {target_path}"
+                    conflicts.append(message)
+                    conflict_records.append(
+                        {
+                            "path": rel_path,
+                            "conflict_kind": "target_diverged_from_base",
+                            "message": message,
+                        }
+                    )
             elif base_bytes is not None:
-                conflicts.append(f"Target path is already missing before replay: {target_path}")
+                message = f"Target path is already missing before replay: {target_path}"
+                conflicts.append(message)
+                conflict_records.append(
+                    {
+                        "path": rel_path,
+                        "conflict_kind": "target_missing_before_replay",
+                        "message": message,
+                    }
+                )
         for rel_path in added_paths:
             target_path = target_root / rel_path
             if target_path.exists():
-                conflicts.append(f"Target path already exists where this patch wants to add content: {target_path}")
-        return {"passed": not conflicts, "conflicts": conflicts}
-    return {"passed": True, "conflicts": []}
+                message = f"Target path already exists where this patch wants to add content: {target_path}"
+                conflicts.append(message)
+                conflict_records.append(
+                    {
+                        "path": rel_path,
+                        "conflict_kind": "target_exists_for_added_path",
+                        "message": message,
+                    }
+                )
+        return {"passed": not conflicts, "conflicts": conflicts, "conflict_records": conflict_records}
+    return {"passed": True, "conflicts": [], "conflict_records": []}
+
+
+def build_context_patch_merge_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "status": payload.get("status", ""),
+        "entrypoint": "context-patch-apply-merge-report",
+        "apply_mode": payload.get("apply_mode", ""),
+        "patch_mode": payload.get("patch_mode", ""),
+        "source_label": payload.get("source_label", ""),
+        "merge_mode": payload.get("merge_mode", "overwrite"),
+        "merge_check_passed": bool(payload.get("merge_check_passed", True)),
+        "merge_conflict_count": len(payload.get("merge_conflicts") or []),
+        "merge_conflicts": list(payload.get("merge_conflicts") or []),
+        "merge_conflict_records": list(payload.get("merge_conflict_records") or []),
+    }
 
 
 def _evaluate_patch_apply_policy(*, patch_payload: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:

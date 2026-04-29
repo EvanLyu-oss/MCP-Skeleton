@@ -64,6 +64,7 @@ PYTHONPATH="$PWD" python3 -m cli context patch --package-file /absolute/path/to/
 ```bash
 PYTHONPATH="$PWD" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --output-dir /absolute/path/to/replayed-project --json
 PYTHONPATH="$PWD" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --merge-mode reject-conflicts --output-dir /absolute/path/to/replayed-project --emit-summary
+PYTHONPATH="$PWD" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --merge-mode reject-conflicts --write-merge-report /absolute/path/to/merge-report.json --json
 PYTHONPATH="$PWD" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --output-file /absolute/path/to/replayed.txt --emit-summary
 PYTHONPATH="$PWD" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --policy-mode safe --output-dir /absolute/path/to/replayed-project --emit-summary
 PYTHONPATH="$PWD" python3 -m cli context patch-apply --sample-policy strict --emit-policy-template
@@ -142,6 +143,8 @@ It also supports one merge-aware replay gate:
     - `status = warning`
     - `apply_mode = merge_conflict_blocked`
     - `merge_conflicts`
+  - can also write one structured merge report with:
+    - `--write-merge-report /absolute/path/to/merge-report.json`
 
 Formal example policy files now live at:
 
