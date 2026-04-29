@@ -22,6 +22,7 @@ from .context_compression import (
     build_context_bundle_payload,
     build_context_compress_payload,
     build_context_patch_payload,
+    build_context_patch_policy_template_payload,
     build_context_preset_payload,
     inspect_context_package,
     load_context_package,
@@ -371,12 +372,40 @@ def cmd_context(args: argparse.Namespace) -> int:
 
     if getattr(args, "context_command", None) == "patch-apply":
         patch_file = Path(str(getattr(args, "patch_file", "") or "")).expanduser()
-        if not str(patch_file).strip():
-            return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "context patch-apply requires --patch-file")
         source_package_file = Path(args.source_package_file).expanduser() if getattr(args, "source_package_file", None) else None
         output_file = Path(args.output_file).expanduser() if getattr(args, "output_file", None) else None
         output_dir = Path(args.output_dir).expanduser() if getattr(args, "output_dir", None) else None
         policy_file = Path(args.policy_file).expanduser() if getattr(args, "policy_file", None) else None
+        report_path = None
+        if getattr(args, "output_report_file", None):
+            report_path = Path(args.output_report_file).expanduser()
+        elif getattr(args, "emit_policy_template", False) and output_file is not None:
+            report_path = output_file
+        if getattr(args, "emit_policy_template", False):
+            try:
+                payload = build_context_patch_policy_template_payload(
+                    policy_mode=getattr(args, "policy_mode", None),
+                    policy_file=policy_file,
+                    allow_roots=list(getattr(args, "allow_roots", None) or []),
+                    forbid_roots=list(getattr(args, "forbid_roots", None) or []),
+                    block_removals=bool(getattr(args, "block_removals", False)),
+                    block_additions=bool(getattr(args, "block_additions", False)),
+                    require_apply_check_passed=bool(getattr(args, "require_apply_check_passed", False)),
+                    max_changed_paths=getattr(args, "max_changed_paths", None),
+                )
+            except ValueError as exc:
+                return _emit_command_error(args, EXIT_USAGE, "invalid_usage", str(exc))
+            if args.json:
+                if report_path is not None:
+                    _write_cli_output_file(report_path, payload, as_json=True)
+                _print_json_payload(payload)
+            else:
+                if report_path is not None:
+                    _write_cli_output_file(report_path, str(payload.get("summary_text", "")))
+                sys.stdout.write(str(payload.get("summary_text", "")))
+            return EXIT_OK
+        if not str(patch_file).strip():
+            return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "context patch-apply requires --patch-file")
         try:
             patch_payload = load_context_package(patch_file)
             if source_package_file is None:
@@ -402,17 +431,17 @@ def cmd_context(args: argparse.Namespace) -> int:
             return _emit_command_error(args, EXIT_USAGE, "invalid_usage", str(exc))
         exit_code = EXIT_OK if bool(payload.get("policy_passed", True)) else EXIT_VALIDATION
         if getattr(args, "emit_summary", False):
-            if getattr(args, "output_report_file", None):
-                _write_cli_output_file(Path(args.output_report_file), str(payload.get("summary_text", "")))
+            if report_path is not None:
+                _write_cli_output_file(report_path, str(payload.get("summary_text", "")))
             sys.stdout.write(str(payload.get("summary_text", "")))
             return exit_code
         if args.json:
-            if getattr(args, "output_report_file", None):
-                _write_cli_output_file(Path(args.output_report_file), payload, as_json=True)
+            if report_path is not None:
+                _write_cli_output_file(report_path, payload, as_json=True)
             _print_json_payload(payload)
         else:
-            if getattr(args, "output_report_file", None):
-                _write_cli_output_file(Path(args.output_report_file), str(payload.get("summary_text", "")))
+            if report_path is not None:
+                _write_cli_output_file(report_path, str(payload.get("summary_text", "")))
             print("Context patch-apply")
             print(f"- status: {payload['status']}")
             print(f"- apply_mode: {payload.get('apply_mode', '')}")
@@ -4778,7 +4807,7 @@ def _build_parser() -> argparse.ArgumentParser:
     context_patch_parser.add_argument("--output-dir", dest="output_dir", help="Directory where the context patch bundle should be written")
     context_patch_parser.add_argument("--json", action="store_true", help="Print context patch as JSON")
     context_patch_apply_parser = context_subparsers.add_parser("patch-apply", help="Replay one context patch bundle into a safe output target")
-    context_patch_apply_parser.add_argument("--patch-file", dest="patch_file", required=True, help="Path to a context patch manifest JSON file produced by context patch")
+    context_patch_apply_parser.add_argument("--patch-file", dest="patch_file", help="Path to a context patch manifest JSON file produced by context patch")
     context_patch_apply_parser.add_argument("--source-package-file", dest="source_package_file", help="Optional original context manifest JSON file; required for directory patch replay unless already recorded in the patch manifest")
     context_patch_apply_parser.add_argument("--output-file", dest="output_file", help="Target file path for text or single-file patch replay")
     context_patch_apply_parser.add_argument("--output-dir", dest="output_dir", help="Target directory root for directory patch replay or inferred file output")
@@ -4790,6 +4819,7 @@ def _build_parser() -> argparse.ArgumentParser:
     context_patch_apply_parser.add_argument("--block-additions", action="store_true", help="Block replay when the patch adds any path")
     context_patch_apply_parser.add_argument("--require-apply-check-pass", dest="require_apply_check_passed", action="store_true", help="Block replay unless the patch bundle recorded a passing apply-check result")
     context_patch_apply_parser.add_argument("--max-changed-paths", dest="max_changed_paths", type=int, help="Block replay when the patch touches more than this many changed, added, or removed paths")
+    context_patch_apply_parser.add_argument("--emit-policy-template", action="store_true", help="Print the resolved patch replay policy as reusable JSON and exit")
     context_patch_apply_parser.add_argument("--emit-summary", action="store_true", help="Print only a compact context patch-apply summary")
     context_patch_apply_parser.add_argument("--output-report-file", dest="output_report_file", help="Write the patch-apply report to a file")
     context_patch_apply_parser.add_argument("--json", action="store_true", help="Print context patch-apply as JSON")

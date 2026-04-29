@@ -1803,6 +1803,40 @@ def _resolve_patch_apply_policy(
     return policy
 
 
+def build_context_patch_policy_template_payload(
+    *,
+    policy_mode: str | None,
+    policy_file: Path | None,
+    allow_roots: list[str] | None,
+    forbid_roots: list[str] | None,
+    block_removals: bool,
+    block_additions: bool,
+    require_apply_check_passed: bool,
+    max_changed_paths: int | None,
+) -> dict[str, Any]:
+    policy = _resolve_patch_apply_policy(
+        policy_mode=policy_mode,
+        policy_file=policy_file,
+        allow_roots=allow_roots,
+        forbid_roots=forbid_roots,
+        block_removals=block_removals,
+        block_additions=block_additions,
+        require_apply_check_passed=require_apply_check_passed,
+        max_changed_paths=max_changed_paths,
+    )
+    return {
+        "status": "ok",
+        "entrypoint": "context-patch-apply-policy-template",
+        "policy_mode": str(policy.get("policy_mode") or "open"),
+        "policy_template": policy,
+        "summary_text": json.dumps(policy, ensure_ascii=False, indent=2),
+        "next_steps": [
+            "save this JSON as a reusable context patch-apply policy file",
+            "pass it back through --policy-file when replaying one patch bundle",
+        ],
+    }
+
+
 def _evaluate_patch_apply_policy(*, patch_payload: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
     changed_paths = [_normalize_patch_relpath(item) for item in (patch_payload.get("changed_paths") or []) if _normalize_patch_relpath(item)]
     added_paths = [_normalize_patch_relpath(item) for item in (patch_payload.get("added_paths") or []) if _normalize_patch_relpath(item)]

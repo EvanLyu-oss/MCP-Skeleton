@@ -10,6 +10,12 @@ Use a policy file when you want replay rules that are:
 - more explicit than repeating many CLI flags
 - easy to reuse across multiple bundles or operators
 
+If you only need a generated starter JSON, you can also ask the CLI to emit one directly:
+
+```bash
+PYTHONPATH="$PWD" python3 -m cli context patch-apply --policy-mode strict --allow-root src --forbid-root src/generated --emit-policy-template
+```
+
 ## Recommended Starter File
 
 Example template:

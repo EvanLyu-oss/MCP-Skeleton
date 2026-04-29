@@ -258,6 +258,7 @@ PYTHONPATH="$REPO_ROOT" python3 -m cli context apply-check --package-file /absol
 PYTHONPATH="$REPO_ROOT" python3 -m cli context patch --package-file /absolute/path/to/context-bundle/context_manifest.json --input-dir /absolute/path/to/edited-project --zip --output-dir /absolute/path/to/context-patch --json
 PYTHONPATH="$REPO_ROOT" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --output-dir /absolute/path/to/replayed-project --json
 PYTHONPATH="$REPO_ROOT" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --policy-mode safe --output-dir /absolute/path/to/replayed-project --emit-summary
+PYTHONPATH="$REPO_ROOT" python3 -m cli context patch-apply --policy-mode strict --allow-root src --forbid-root src/generated --emit-policy-template
 PYTHONPATH="$REPO_ROOT" python3 -m cli context restore --package-file /absolute/path/to/context-bundle/context_manifest.json --output-dir /absolute/path/to/restore-root --json
 ```
 

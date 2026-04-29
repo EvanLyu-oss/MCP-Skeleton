@@ -2331,6 +2331,24 @@ grep -q "^policy_passed: False$" "$context_patch_apply_safe_summary_txt"
 grep -q "^policy_finding_count: " "$context_patch_apply_safe_summary_txt"
 ok_context_patch_apply_safe_summary_txt=true
 
+context_patch_policy_template_json="$TMP_ROOT/context_patch_policy_template.json"
+PYTHONPATH="$ROOT" python3 -m cli context patch-apply --policy-mode strict --allow-root src --forbid-root src/generated --emit-policy-template --json > "$context_patch_policy_template_json"
+python3 - "$context_patch_policy_template_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'context-patch-apply-policy-template', payload
+assert payload['policy_mode'] == 'strict', payload
+policy = payload['policy_template']
+assert policy['policy_mode'] == 'strict', policy
+assert policy['require_apply_check_passed'] is True, policy
+assert policy['block_removals'] is True, policy
+assert policy['block_additions'] is True, policy
+assert policy['max_changed_paths'] == 12, policy
+assert policy['allow_roots'] == ['src'], policy
+assert policy['forbid_roots'] == ['src/generated'], policy
+PY
+ok_context_patch_policy_template_json=true
+
 website_assets_json="$TMP_ROOT/website_assets.json"
 python3 -m cli website assets --json > "$website_assets_json"
 python3 - "$website_assets_json" <<'PY'

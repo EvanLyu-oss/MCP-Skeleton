@@ -65,6 +65,7 @@ PYTHONPATH="$PWD" python3 -m cli context patch --package-file /absolute/path/to/
 PYTHONPATH="$PWD" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --output-dir /absolute/path/to/replayed-project --json
 PYTHONPATH="$PWD" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --output-file /absolute/path/to/replayed.txt --emit-summary
 PYTHONPATH="$PWD" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --policy-mode safe --output-dir /absolute/path/to/replayed-project --emit-summary
+PYTHONPATH="$PWD" python3 -m cli context patch-apply --policy-mode strict --allow-root src --forbid-root src/generated --emit-policy-template
 ```
 
 ## Presets
@@ -137,6 +138,12 @@ When a replay is blocked by policy, `context patch-apply` returns:
 - `policy_findings`
 
 and exits with the validation status instead of mutating the output target.
+
+If you want a reusable starter JSON without replaying any patch at all, use:
+
+- `--emit-policy-template`
+
+That mode resolves the current preset plus CLI overrides and prints the final JSON policy body you can save for later reuse.
 
 ## Skeleton Language
 
