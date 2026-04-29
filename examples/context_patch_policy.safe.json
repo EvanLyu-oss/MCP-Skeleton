@@ -1,0 +1,14 @@
+{
+  "require_apply_check_passed": true,
+  "block_removals": true,
+  "block_additions": false,
+  "max_changed_paths": 12,
+  "allow_roots": [
+    "src",
+    "docs"
+  ],
+  "forbid_roots": [
+    "src/generated",
+    "secrets"
+  ]
+}

@@ -124,6 +124,11 @@ It now also supports optional replay policies.
 - `--policy-file` can refine those defaults with explicit JSON settings
 - `--allow-root` and `--forbid-root` let operators constrain replay to relative path prefixes
 
+Formal example policy files now live at:
+
+- `/Users/carwynmac/ai-cl/examples/context_patch_policy.safe.json`
+- `/Users/carwynmac/ai-cl/CONTEXT_PATCH_POLICY_TEMPLATE_20260429.md`
+
 When a replay is blocked by policy, `context patch-apply` returns:
 
 - `status = warning`

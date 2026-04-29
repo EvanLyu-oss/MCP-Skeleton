@@ -261,6 +261,11 @@ PYTHONPATH="$REPO_ROOT" python3 -m cli context patch-apply --patch-file /absolut
 PYTHONPATH="$REPO_ROOT" python3 -m cli context restore --package-file /absolute/path/to/context-bundle/context_manifest.json --output-dir /absolute/path/to/restore-root --json
 ```
 
+Policy-aware replay template:
+
+- `/Users/carwynmac/ai-cl/CONTEXT_PATCH_POLICY_TEMPLATE_20260429.md`
+- `/Users/carwynmac/ai-cl/examples/context_patch_policy.safe.json`
+
 `context compress` and `context inspect` now emit formal `metrics`, including source characters, skeleton characters, token direction, and estimated size ratios. By default the CLI uses heuristic token estimates and reports that basis explicitly. If `tiktoken` is installed, you can request tokenizer-backed metrics with `--tokenizer-backend tiktoken` and an optional `--tokenizer-model` such as `cl100k_base`. On very small inputs the skeleton can be larger than the source, and the metrics surface reports that honestly instead of pretending every input always compresses.
 
 Optional install for tokenizer-backed metrics:
