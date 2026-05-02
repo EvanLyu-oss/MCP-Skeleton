@@ -78,6 +78,7 @@ ok_context_patch_apply_emit_summary_txt=false
 ok_context_patch_apply_dry_run_text_json=false
 ok_context_patch_apply_dry_run_directory_json=false
 ok_context_patch_apply_dry_run_summary_txt=false
+ok_context_patch_apply_dry_run_report_json=false
 ok_website_assets_json=false
 ok_website_assets_experimental_dynamic_json=false
 ok_website_assets_pack_json=false
@@ -2307,6 +2308,8 @@ assert payload['status'] == 'ok', payload
 assert payload['dry_run'] is True, payload
 assert payload['apply_mode'] == 'text_snapshot_replay_preview', payload
 assert payload['applied_paths'] == [str(output_path.resolve())], payload
+assert payload['preview_manifest']['changed_paths'], payload
+assert payload['preview_manifest']['write_targets'] == [str(output_path.resolve())], payload
 assert not output_path.exists(), output_path
 assert any('--dry-run' in step for step in payload['next_steps']), payload
 PY
@@ -2355,6 +2358,9 @@ assert payload['dry_run'] is True, payload
 assert payload['apply_mode'] == 'directory_restore_plus_overlay_preview', payload
 assert payload['applied_paths'] == [str(target_root.resolve())], payload
 assert payload['removed_paths_applied'], payload
+assert payload['preview_manifest']['added_paths'], payload
+assert payload['preview_manifest']['removed_paths'], payload
+assert payload['preview_manifest']['remove_targets'], payload
 assert not target_root.exists(), target_root
 assert any('--dry-run' in step for step in payload['next_steps']), payload
 PY
@@ -2393,7 +2399,25 @@ grep -q "^status: ok$" "$context_patch_apply_dry_run_summary_txt"
 grep -q "^apply_mode: directory_restore_plus_overlay_preview$" "$context_patch_apply_dry_run_summary_txt"
 grep -q "^dry_run: True$" "$context_patch_apply_dry_run_summary_txt"
 grep -q "^applied_path_count: 1$" "$context_patch_apply_dry_run_summary_txt"
+grep -q "^changed_path_count: " "$context_patch_apply_dry_run_summary_txt"
+grep -q "^preview_write_count: " "$context_patch_apply_dry_run_summary_txt"
 ok_context_patch_apply_dry_run_summary_txt=true
+
+context_patch_apply_dry_run_report_json="$TMP_ROOT/context_patch_apply_dry_run_report.json"
+PYTHONPATH="$ROOT" python3 -m cli context patch-apply --patch-file "$context_patch_directory_removed_dir/patch_manifest.json" --source-package-file "$context_directory_pkg/context_manifest.json" --dry-run --output-dir "$TMP_ROOT/context_patch_apply_dry_run_report_root" --write-dry-run-report "$context_patch_apply_dry_run_report_json" --json > /dev/null
+python3 - "$context_patch_apply_dry_run_report_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'context-patch-apply-dry-run-report', payload
+assert payload['dry_run'] is True, payload
+manifest = payload['preview_manifest']
+assert manifest['changed_paths'], manifest
+assert manifest['added_paths'], manifest
+assert manifest['removed_paths'], manifest
+assert manifest['write_targets'], manifest
+assert manifest['remove_targets'], manifest
+PY
+ok_context_patch_apply_dry_run_report_json=true
 
 context_patch_apply_safe_summary_txt="$TMP_ROOT/context_patch_apply_safe_summary.txt"
 set +e
@@ -6604,6 +6628,10 @@ export CLI_SMOKE_OK_CONTEXT_PATCH_EMIT_SUMMARY_TXT="$ok_context_patch_emit_summa
 export CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_TEXT_JSON="$ok_context_patch_apply_text_json"
 export CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_DIRECTORY_JSON="$ok_context_patch_apply_directory_json"
 export CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_EMIT_SUMMARY_TXT="$ok_context_patch_apply_emit_summary_txt"
+export CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_DRY_RUN_TEXT_JSON="$ok_context_patch_apply_dry_run_text_json"
+export CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_DRY_RUN_DIRECTORY_JSON="$ok_context_patch_apply_dry_run_directory_json"
+export CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_DRY_RUN_SUMMARY_TXT="$ok_context_patch_apply_dry_run_summary_txt"
+export CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_DRY_RUN_REPORT_JSON="$ok_context_patch_apply_dry_run_report_json"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_REPO_JSON="$ok_project_hook_guide_repo_json"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_EMIT_SHELL_REPO="$ok_project_hook_guide_emit_shell_repo"
 export CLI_SMOKE_OK_PROJECT_HOOK_GUIDE_COPY_COMMAND_REPO="$ok_project_hook_guide_copy_command_repo"
@@ -6846,6 +6874,10 @@ payload = {
         'context_patch_apply_text_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_TEXT_JSON'] == 'true',
         'context_patch_apply_directory_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_DIRECTORY_JSON'] == 'true',
         'context_patch_apply_emit_summary_txt_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_EMIT_SUMMARY_TXT'] == 'true',
+        'context_patch_apply_dry_run_text_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_DRY_RUN_TEXT_JSON'] == 'true',
+        'context_patch_apply_dry_run_directory_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_DRY_RUN_DIRECTORY_JSON'] == 'true',
+        'context_patch_apply_dry_run_summary_txt_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_DRY_RUN_SUMMARY_TXT'] == 'true',
+        'context_patch_apply_dry_run_report_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_DRY_RUN_REPORT_JSON'] == 'true',
         'website_check_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_JSON'] == 'true',
         'website_check_out_of_scope_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_OUT_OF_SCOPE_JSON'] == 'true',
         'website_check_experimental_dynamic_json_ok': os.environ['CLI_SMOKE_OK_WEBSITE_CHECK_EXPERIMENTAL_DYNAMIC_JSON'] == 'true',

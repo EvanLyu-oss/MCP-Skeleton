@@ -13,11 +13,13 @@ This changelog is intentionally lightweight for now. The repository already has 
 - added `project serve` for launching or dry-running a generated project's local frontend dev server, including an `--install-if-needed` path
 - added `/Users/carwynmac/ai-cl/COMMERCIAL_LICENSE.md` to clarify commercial and enterprise use
 - added `context patch-apply --dry-run` so replay targets can be previewed without writing files
+- added `context patch-apply --write-dry-run-report` so replay previews can be exported as one structured manifest JSON
 
 ### Changed
 
 - clarified public positioning around static presentation-site generation
 - updated context compression docs and smoke coverage to include dry-run patch replay previews
+- expanded dry-run replay coverage with one explicit preview manifest export for changed, added, removed, and predicted target paths
 - documented ecommerce, CMS, blog-publishing, routing, localization, managed-drift, and local-preview limitations more explicitly
 - improved managed-file drift messaging so CLI output explains it as a sync safety guard, not necessarily a website generation failure
 - changed the repository licensing posture from MIT to PolyForm Noncommercial 1.0.0 and updated public docs to describe the repo as source-available rather than OSI open source

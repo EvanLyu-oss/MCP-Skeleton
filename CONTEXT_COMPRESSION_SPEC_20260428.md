@@ -64,6 +64,7 @@ PYTHONPATH="$PWD" python3 -m cli context patch --package-file /absolute/path/to/
 ```bash
 PYTHONPATH="$PWD" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --output-dir /absolute/path/to/replayed-project --json
 PYTHONPATH="$PWD" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --dry-run --output-dir /absolute/path/to/replayed-project --emit-summary
+PYTHONPATH="$PWD" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --dry-run --output-dir /absolute/path/to/replayed-project --write-dry-run-report /absolute/path/to/dry-run-report.json --json
 PYTHONPATH="$PWD" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --merge-mode reject-conflicts --output-dir /absolute/path/to/replayed-project --emit-summary
 PYTHONPATH="$PWD" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --merge-mode reject-conflicts --write-merge-report /absolute/path/to/merge-report.json --json
 PYTHONPATH="$PWD" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --output-file /absolute/path/to/replayed.txt --emit-summary
@@ -117,6 +118,7 @@ When `context patch` is run, it writes:
 `context patch-apply` replays the patch package into a safe output target.
 
 Use `--dry-run` when you want a preview of the replay target and affected paths without writing any files.
+Use `--write-dry-run-report` when you want the preview manifest exported as one structured JSON artifact.
 
 For now it is intentionally conservative:
 

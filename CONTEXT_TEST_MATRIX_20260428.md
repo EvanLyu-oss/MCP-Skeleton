@@ -333,6 +333,21 @@ Expected:
 - output tree is not materialized yet
 - `applied_paths` still reports the predicted replay root
 
+### D8c. Directory patch replay dry-run report
+
+```bash
+python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --dry-run --output-dir /absolute/path/to/replayed-project --write-dry-run-report /absolute/path/to/dry-run-report.json --json
+```
+
+Expected:
+
+- `dry-run-report.json` is written
+- `entrypoint = context-patch-apply-dry-run-report`
+- `preview_manifest.changed_paths` is populated
+- `preview_manifest.added_paths` is populated when the patch adds files
+- `preview_manifest.removed_paths` is populated when the patch removes files
+- `preview_manifest.write_targets` and `preview_manifest.remove_targets` point at predicted replay paths
+
 ### D9. Policy-aware directory patch replay
 
 ```bash
@@ -373,6 +388,7 @@ Expected:
 - `dry_run = true`
 - target file is not written yet
 - `applied_paths` still reports the predicted replay file
+- `preview_manifest.write_targets` reports the predicted replay file
 
 ### T7. Policy-aware text patch replay
 

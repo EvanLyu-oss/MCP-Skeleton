@@ -21,6 +21,7 @@ from .context_compression import (
     build_context_apply_check_payload,
     build_context_bundle_payload,
     build_context_compress_payload,
+    build_context_patch_dry_run_report_payload,
     build_context_patch_merge_report_payload,
     build_context_patch_payload,
     build_context_patch_policy_template_payload,
@@ -379,6 +380,7 @@ def cmd_context(args: argparse.Namespace) -> int:
         policy_file = Path(args.policy_file).expanduser() if getattr(args, "policy_file", None) else None
         write_policy_template_path = Path(args.write_policy_template).expanduser() if getattr(args, "write_policy_template", None) else None
         write_merge_report_path = Path(args.write_merge_report).expanduser() if getattr(args, "write_merge_report", None) else None
+        write_dry_run_report_path = Path(args.write_dry_run_report).expanduser() if getattr(args, "write_dry_run_report", None) else None
         report_path = None
         if getattr(args, "output_report_file", None):
             report_path = Path(args.output_report_file).expanduser()
@@ -441,6 +443,8 @@ def cmd_context(args: argparse.Namespace) -> int:
             return _emit_command_error(args, EXIT_USAGE, "invalid_usage", str(exc))
         if write_merge_report_path is not None:
             _write_cli_output_file(write_merge_report_path, build_context_patch_merge_report_payload(payload), as_json=True)
+        if write_dry_run_report_path is not None:
+            _write_cli_output_file(write_dry_run_report_path, build_context_patch_dry_run_report_payload(payload), as_json=True)
         exit_code = EXIT_OK if bool(payload.get("policy_passed", True)) and bool(payload.get("merge_check_passed", True)) else EXIT_VALIDATION
         if getattr(args, "emit_summary", False):
             if report_path is not None:
@@ -4844,6 +4848,7 @@ def _build_parser() -> argparse.ArgumentParser:
     context_patch_apply_parser.add_argument("--emit-policy-template", action="store_true", help="Print the resolved patch replay policy as reusable JSON and exit")
     context_patch_apply_parser.add_argument("--write-policy-template", dest="write_policy_template", help="Write the resolved patch replay policy JSON to a file and exit")
     context_patch_apply_parser.add_argument("--write-merge-report", dest="write_merge_report", help="Write one structured merge report JSON file after replay or merge-conflict detection")
+    context_patch_apply_parser.add_argument("--write-dry-run-report", dest="write_dry_run_report", help="Write one structured dry-run preview manifest JSON file after replay preview")
     context_patch_apply_parser.add_argument("--emit-summary", action="store_true", help="Print only a compact context patch-apply summary")
     context_patch_apply_parser.add_argument("--output-report-file", dest="output_report_file", help="Write the patch-apply report to a file")
     context_patch_apply_parser.add_argument("--json", action="store_true", help="Print context patch-apply as JSON")

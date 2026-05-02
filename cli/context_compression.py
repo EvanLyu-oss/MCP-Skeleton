@@ -601,6 +601,12 @@ def apply_context_patch_payload(
         if not dry_run:
             text = snapshot_path.read_text(encoding="utf-8")
             _write_text(target_path, text)
+        preview_manifest = _build_context_patch_apply_preview_manifest(
+            patch_payload=patch_payload,
+            patch_mode=patch_mode,
+            applied_root_or_file=target_path,
+            directory_root=None,
+        )
         payload = {
             "status": status,
             "entrypoint": "context-patch-apply",
@@ -610,6 +616,7 @@ def apply_context_patch_payload(
             "dry_run": dry_run,
             "applied_paths": [str(target_path.resolve())],
             "removed_paths_applied": [],
+            "preview_manifest": preview_manifest,
             "merge_mode": merge_mode,
             "merge_check_passed": True,
             "merge_conflicts": [],
@@ -641,6 +648,12 @@ def apply_context_patch_payload(
             raise ValueError("context patch-apply requires --output-file or --output-dir")
         if not dry_run:
             _write_bytes_file(target_path, snapshot_path.read_bytes())
+        preview_manifest = _build_context_patch_apply_preview_manifest(
+            patch_payload=patch_payload,
+            patch_mode=patch_mode,
+            applied_root_or_file=target_path,
+            directory_root=None,
+        )
         payload = {
             "status": status,
             "entrypoint": "context-patch-apply",
@@ -650,6 +663,7 @@ def apply_context_patch_payload(
             "dry_run": dry_run,
             "applied_paths": [str(target_path.resolve())],
             "removed_paths_applied": [],
+            "preview_manifest": preview_manifest,
             "merge_mode": merge_mode,
             "merge_check_passed": True,
             "merge_conflicts": [],
@@ -702,6 +716,12 @@ def apply_context_patch_payload(
                 else:
                     target.unlink()
                 removed_applied.append(str(target))
+        preview_manifest = _build_context_patch_apply_preview_manifest(
+            patch_payload=patch_payload,
+            patch_mode=patch_mode,
+            applied_root_or_file=applied_root,
+            directory_root=applied_root,
+        )
         payload = {
             "status": status,
             "entrypoint": "context-patch-apply",
@@ -711,6 +731,7 @@ def apply_context_patch_payload(
             "dry_run": dry_run,
             "applied_paths": [str(applied_root)],
             "removed_paths_applied": removed_applied,
+            "preview_manifest": preview_manifest,
             "merge_mode": merge_mode,
             "merge_check_passed": True,
             "merge_conflicts": [],
@@ -1241,6 +1262,12 @@ def _build_context_patch_apply_summary_text(payload: dict[str, Any]) -> str:
     removed_paths = payload.get("removed_paths_applied") or []
     if removed_paths:
         lines.append(f"first_removed_path: {removed_paths[0]}")
+    preview_manifest = payload.get("preview_manifest") or {}
+    if preview_manifest:
+        lines.append(f"changed_path_count: {len(preview_manifest.get('changed_paths') or [])}")
+        lines.append(f"added_path_count: {len(preview_manifest.get('added_paths') or [])}")
+        lines.append(f"preview_remove_count: {len(preview_manifest.get('remove_targets') or [])}")
+        lines.append(f"preview_write_count: {len(preview_manifest.get('write_targets') or [])}")
     policy_findings = payload.get("policy_findings") or []
     if policy_findings:
         lines.append(f"policy_finding_count: {len(policy_findings)}")
@@ -2113,6 +2140,49 @@ def build_context_patch_merge_report_payload(payload: dict[str, Any]) -> dict[st
         "merge_conflict_count": len(payload.get("merge_conflicts") or []),
         "merge_conflicts": list(payload.get("merge_conflicts") or []),
         "merge_conflict_records": list(payload.get("merge_conflict_records") or []),
+    }
+
+
+def build_context_patch_dry_run_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "status": payload.get("status", ""),
+        "entrypoint": "context-patch-apply-dry-run-report",
+        "apply_mode": payload.get("apply_mode", ""),
+        "patch_mode": payload.get("patch_mode", ""),
+        "source_label": payload.get("source_label", ""),
+        "dry_run": bool(payload.get("dry_run", False)),
+        "merge_mode": payload.get("merge_mode", "overwrite"),
+        "merge_check_passed": bool(payload.get("merge_check_passed", True)),
+        "policy_mode": payload.get("policy_mode", ""),
+        "policy_passed": bool(payload.get("policy_passed", True)),
+        "preview_manifest": dict(payload.get("preview_manifest") or {}),
+    }
+
+
+def _build_context_patch_apply_preview_manifest(
+    *,
+    patch_payload: dict[str, Any],
+    patch_mode: str,
+    applied_root_or_file: Path,
+    directory_root: Path | None,
+) -> dict[str, Any]:
+    changed_paths = [str(item) for item in (patch_payload.get("changed_paths") or []) if str(item).strip()]
+    added_paths = [str(item) for item in (patch_payload.get("added_paths") or []) if str(item).strip()]
+    removed_paths = [str(item) for item in (patch_payload.get("removed_paths") or []) if str(item).strip()]
+    write_targets: list[str] = []
+    remove_targets: list[str] = []
+    if patch_mode in {"text_unified_diff", "file_unified_diff", "file_binary_replace"}:
+        write_targets = [str(applied_root_or_file.resolve())] if (changed_paths or added_paths or not removed_paths) else []
+    elif patch_mode == "directory_structural_patch" and directory_root is not None:
+        directory_root = directory_root.resolve()
+        write_targets = [str((directory_root / rel_path).resolve()) for rel_path in sorted(set(changed_paths + added_paths))]
+        remove_targets = [str((directory_root / rel_path).resolve()) for rel_path in removed_paths]
+    return {
+        "changed_paths": changed_paths,
+        "added_paths": added_paths,
+        "removed_paths": removed_paths,
+        "write_targets": write_targets,
+        "remove_targets": remove_targets,
     }
 
 
