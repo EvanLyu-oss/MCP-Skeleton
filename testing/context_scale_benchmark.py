@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -16,6 +17,11 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from cli.context_compression import _decode_restore_blob
+
 DEFAULT_JSON = REPO_ROOT / "testing" / "results" / "context_scale_benchmark.json"
 DEFAULT_MD = REPO_ROOT / "testing" / "results" / "context_scale_benchmark.md"
 DEFAULT_TEXT_TARGETS = [20_000, 100_000, 400_000]
@@ -89,6 +95,114 @@ def _sha256_directory(root: Path) -> str:
     return digest.hexdigest()
 
 
+def _directory_snapshot_from_fs(root: Path) -> dict[str, Any]:
+    files: dict[str, str] = {}
+    symlinks: dict[str, str] = {}
+    empty_dirs: set[str] = set()
+    root = root.resolve()
+    for current_root, dirnames, filenames in os.walk(root, topdown=True, followlinks=False):
+        dirnames.sort()
+        filenames.sort()
+        current_path = Path(current_root)
+        rel_dir = "." if current_path == root else current_path.relative_to(root).as_posix()
+        if not dirnames and not filenames and rel_dir != ".":
+            empty_dirs.add(rel_dir)
+        for filename in filenames:
+            item_path = current_path / filename
+            rel_path = item_path.relative_to(root).as_posix()
+            if item_path.is_symlink():
+                symlinks[rel_path] = os.readlink(item_path)
+            else:
+                files[rel_path] = hashlib.sha256(item_path.read_bytes()).hexdigest()
+    return {
+        "files": files,
+        "symlinks": symlinks,
+        "empty_dirs": sorted(empty_dirs),
+    }
+
+
+def _directory_snapshot_from_restore_package(restore_package: dict[str, Any]) -> dict[str, Any]:
+    decoded = _decode_restore_blob(restore_package or {})
+    if str(decoded.get("mode") or "") != "directory":
+        raise ValueError("restore package is not a directory bundle")
+    files: dict[str, str] = {}
+    for item in decoded.get("files") or []:
+        rel_path = str(item.get("relative_path") or "")
+        files[rel_path] = str(item.get("sha256") or hashlib.sha256(base64.b64decode(str(item.get("content_b64") or "").encode("ascii"))).hexdigest())
+    symlinks = {
+        str(item.get("relative_path") or ""): str(item.get("link_target") or "")
+        for item in decoded.get("symlinks") or []
+    }
+    empty_dirs = sorted(str(item) for item in (decoded.get("empty_dirs") or []))
+    return {
+        "files": files,
+        "symlinks": symlinks,
+        "empty_dirs": empty_dirs,
+    }
+
+
+def _compare_directory_snapshots(expected: dict[str, Any], actual: dict[str, Any]) -> dict[str, Any]:
+    expected_files = expected["files"]
+    actual_files = actual["files"]
+    expected_symlinks = expected["symlinks"]
+    actual_symlinks = actual["symlinks"]
+    expected_empty_dirs = set(expected["empty_dirs"])
+    actual_empty_dirs = set(actual["empty_dirs"])
+
+    missing_files = sorted(path for path in expected_files if path not in actual_files)
+    extra_files = sorted(path for path in actual_files if path not in expected_files)
+    content_mismatches = sorted(
+        path for path in expected_files if path in actual_files and expected_files[path] != actual_files[path]
+    )
+    missing_symlinks = sorted(path for path in expected_symlinks if path not in actual_symlinks)
+    extra_symlinks = sorted(path for path in actual_symlinks if path not in expected_symlinks)
+    symlink_target_mismatches = sorted(
+        path for path in expected_symlinks if path in actual_symlinks and expected_symlinks[path] != actual_symlinks[path]
+    )
+    missing_empty_dirs = sorted(path for path in expected_empty_dirs if path not in actual_empty_dirs)
+    extra_empty_dirs = sorted(path for path in actual_empty_dirs if path not in expected_empty_dirs)
+
+    ok = not any(
+        [
+            missing_files,
+            extra_files,
+            content_mismatches,
+            missing_symlinks,
+            extra_symlinks,
+            symlink_target_mismatches,
+            missing_empty_dirs,
+            extra_empty_dirs,
+        ]
+    )
+    return {
+        "ok": ok,
+        "expected_file_count": len(expected_files),
+        "actual_file_count": len(actual_files),
+        "expected_symlink_count": len(expected_symlinks),
+        "actual_symlink_count": len(actual_symlinks),
+        "expected_empty_dir_count": len(expected_empty_dirs),
+        "actual_empty_dir_count": len(actual_empty_dirs),
+        "missing_files": missing_files,
+        "extra_files": extra_files,
+        "content_mismatches": content_mismatches,
+        "missing_symlinks": missing_symlinks,
+        "extra_symlinks": extra_symlinks,
+        "symlink_target_mismatches": symlink_target_mismatches,
+        "missing_empty_dirs": missing_empty_dirs,
+        "extra_empty_dirs": extra_empty_dirs,
+        "mismatch_preview": (
+            missing_files
+            or extra_files
+            or content_mismatches
+            or missing_symlinks
+            or extra_symlinks
+            or symlink_target_mismatches
+            or missing_empty_dirs
+            or extra_empty_dirs
+        )[:10],
+    }
+
+
 def _build_long_text(target_chars: int) -> str:
     chapter = textwrap.dedent(
         """
@@ -142,6 +256,7 @@ def _build_backends(explicit_backends: list[str] | None, *, include_tiktoken: bo
 
 def _summarize_case(case: dict[str, Any]) -> dict[str, Any]:
     metrics = case["compress"]["metrics"]
+    restore_details = case.get("restore_details") or {}
     return {
         "label": case["label"],
         "backend": case["backend"],
@@ -156,6 +271,7 @@ def _summarize_case(case: dict[str, Any]) -> dict[str, Any]:
         "inspect_ms_avg": round(statistics.mean(case["timings_ms"]["inspect"]), 2),
         "restore_ms_avg": round(statistics.mean(case["timings_ms"]["restore"]), 2),
         "restore_verified": case["restore_verified"],
+        "restore_mismatch_preview": restore_details.get("mismatch_preview") or [],
     }
 
 
@@ -348,6 +464,10 @@ def _benchmark_directory_case(
         restore_times.append(restore_result.elapsed_ms)
     assert compress_payload is not None and inspect_payload is not None
     restored_root = workspace / f"{label}_{backend}_restore_{iterations - 1}" / source_dir.name
+    restore_details = _compare_directory_snapshots(
+        _directory_snapshot_from_restore_package(compress_payload.get("restore_package") or {}),
+        _directory_snapshot_from_fs(restored_root),
+    )
     return {
         "label": label,
         "backend": backend,
@@ -360,7 +480,8 @@ def _benchmark_directory_case(
             "inspect": inspect_times,
             "restore": restore_times,
         },
-        "restore_verified": _sha256_directory(source_dir) == _sha256_directory(restored_root),
+        "restore_verified": restore_details["ok"],
+        "restore_details": restore_details,
     }
 
 
