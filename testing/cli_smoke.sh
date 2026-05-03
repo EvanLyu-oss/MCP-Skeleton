@@ -71,6 +71,7 @@ ok_context_bundle_apply_check_json=false
 ok_context_bundle_emit_summary_txt=false
 ok_context_patch_text_json=false
 ok_context_patch_directory_json=false
+ok_context_patch_directory_mixed_json=false
 ok_context_patch_emit_summary_txt=false
 ok_context_patch_apply_text_json=false
 ok_context_patch_apply_directory_json=false
@@ -79,6 +80,7 @@ ok_context_patch_apply_dry_run_text_json=false
 ok_context_patch_apply_dry_run_directory_json=false
 ok_context_patch_apply_dry_run_summary_txt=false
 ok_context_patch_apply_dry_run_report_json=false
+ok_context_restore_invalid_relpath_json=false
 ok_website_assets_json=false
 ok_website_assets_experimental_dynamic_json=false
 ok_website_assets_pack_json=false
@@ -2062,6 +2064,36 @@ cmp -s "$context_directory_src/app.py" "$context_directory_restore/context_direc
 cmp -s "$context_directory_src/notes.md" "$context_directory_restore/context_directory_src/notes.md"
 ok_context_compress_directory_json=true
 
+context_restore_invalid_manifest="$TMP_ROOT/context_restore_invalid_manifest.json"
+python3 - "$context_directory_pkg/context_manifest.json" "$context_restore_invalid_manifest" <<'PY'
+import base64, hashlib, json, sys, zlib
+src = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+blob = src['restore_package']
+payload = json.loads(zlib.decompress(base64.b64decode(blob['payload'])).decode('utf-8'))
+payload['files'][0]['relative_path'] = '../escape.py'
+raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+compressed = zlib.compress(raw, level=9)
+blob['payload'] = base64.b64encode(compressed).decode('ascii')
+blob['sha256'] = hashlib.sha256(raw).hexdigest()
+blob['raw_byte_count'] = len(raw)
+blob['compressed_byte_count'] = len(compressed)
+json.dump(src, open(sys.argv[2], 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+PY
+context_restore_invalid_json="$TMP_ROOT/context_restore_invalid.json"
+set +e
+PYTHONPATH="$ROOT" python3 -m cli context restore --package-file "$context_restore_invalid_manifest" --output-dir "$TMP_ROOT/context_restore_invalid_root" --json > "$context_restore_invalid_json"
+context_restore_invalid_exit=$?
+set -e
+[ "$context_restore_invalid_exit" -eq 2 ]
+python3 - "$context_restore_invalid_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['status'] == 'error', payload
+assert payload['error']['code'] == 'invalid_usage', payload
+assert 'traverse upward' in payload['error']['message'], payload
+PY
+ok_context_restore_invalid_relpath_json=true
+
 context_inspect_summary_txt="$TMP_ROOT/context_inspect_summary.txt"
 PYTHONPATH="$ROOT" python3 -m cli context inspect --package-file "$context_directory_pkg/context_manifest.json" --tokenizer-backend heuristic --emit-summary > "$context_inspect_summary_txt"
 grep -q "^status: ok$" "$context_inspect_summary_txt"
@@ -2325,6 +2357,21 @@ PYTHONPATH="$ROOT" python3 -m cli context patch --package-file "$context_directo
 context_patch_removed_exit=$?
 set -e
 [ "$context_patch_removed_exit" -eq 3 ]
+python3 - "$context_patch_directory_removed_json" <<'PY'
+import json, os, sys
+payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+assert payload['entrypoint'] == 'context-patch', payload
+assert payload['patch_mode'] == 'directory_structural_patch', payload
+assert payload['change_counts']['changed_paths'] >= 1, payload
+assert payload['change_counts']['added_paths'] >= 1, payload
+assert payload['change_counts']['removed_paths'] >= 1, payload
+assert payload['removed_paths'], payload
+assert payload['changed_paths'], payload
+assert payload['added_paths'], payload
+assert os.path.exists(payload['files']['patch_preview_diff']), payload
+assert os.path.exists(payload['files']['candidate_snapshot_root']), payload
+PY
+ok_context_patch_directory_mixed_json=true
 
 context_patch_apply_directory_json="$TMP_ROOT/context_patch_apply_directory.json"
 context_patch_apply_directory_root="$TMP_ROOT/context_patch_apply_directory_root"
@@ -6626,6 +6673,7 @@ export CLI_SMOKE_OK_CONTEXT_COMPRESS_TEXT_JSON="$ok_context_compress_text_json"
 export CLI_SMOKE_OK_CONTEXT_RESTORE_TEXT_JSON="$ok_context_restore_text_json"
 export CLI_SMOKE_OK_CONTEXT_COMPRESS_CODE_SKELETON_TXT="$ok_context_compress_code_skeleton_txt"
 export CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_JSON="$ok_context_compress_directory_json"
+export CLI_SMOKE_OK_CONTEXT_RESTORE_INVALID_RELPATH_JSON="$ok_context_restore_invalid_relpath_json"
 export CLI_SMOKE_OK_CONTEXT_PRESET_JSON="$ok_context_preset_json"
 export CLI_SMOKE_OK_CONTEXT_PRESET_SELECTED_JSON="$ok_context_preset_selected_json"
 export CLI_SMOKE_OK_CONTEXT_INSPECT_SUMMARY_TXT="$ok_context_inspect_summary_txt"
@@ -6639,6 +6687,7 @@ export CLI_SMOKE_OK_CONTEXT_BUNDLE_APPLY_CHECK_JSON="$ok_context_bundle_apply_ch
 export CLI_SMOKE_OK_CONTEXT_BUNDLE_EMIT_SUMMARY_TXT="$ok_context_bundle_emit_summary_txt"
 export CLI_SMOKE_OK_CONTEXT_PATCH_TEXT_JSON="$ok_context_patch_text_json"
 export CLI_SMOKE_OK_CONTEXT_PATCH_DIRECTORY_JSON="$ok_context_patch_directory_json"
+export CLI_SMOKE_OK_CONTEXT_PATCH_DIRECTORY_MIXED_JSON="$ok_context_patch_directory_mixed_json"
 export CLI_SMOKE_OK_CONTEXT_PATCH_EMIT_SUMMARY_TXT="$ok_context_patch_emit_summary_txt"
 export CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_TEXT_JSON="$ok_context_patch_apply_text_json"
 export CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_DIRECTORY_JSON="$ok_context_patch_apply_directory_json"
@@ -6872,6 +6921,7 @@ payload = {
         'context_restore_text_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_RESTORE_TEXT_JSON'] == 'true',
         'context_compress_code_skeleton_txt_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_CODE_SKELETON_TXT'] == 'true',
         'context_compress_directory_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_JSON'] == 'true',
+        'context_restore_invalid_relpath_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_RESTORE_INVALID_RELPATH_JSON'] == 'true',
         'context_preset_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PRESET_JSON'] == 'true',
         'context_preset_selected_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PRESET_SELECTED_JSON'] == 'true',
         'context_inspect_summary_txt_ok': os.environ['CLI_SMOKE_OK_CONTEXT_INSPECT_SUMMARY_TXT'] == 'true',
@@ -6885,6 +6935,7 @@ payload = {
         'context_bundle_emit_summary_txt_ok': os.environ['CLI_SMOKE_OK_CONTEXT_BUNDLE_EMIT_SUMMARY_TXT'] == 'true',
         'context_patch_text_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_TEXT_JSON'] == 'true',
         'context_patch_directory_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_DIRECTORY_JSON'] == 'true',
+        'context_patch_directory_mixed_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_DIRECTORY_MIXED_JSON'] == 'true',
         'context_patch_emit_summary_txt_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_EMIT_SUMMARY_TXT'] == 'true',
         'context_patch_apply_text_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_TEXT_JSON'] == 'true',
         'context_patch_apply_directory_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_DIRECTORY_JSON'] == 'true',

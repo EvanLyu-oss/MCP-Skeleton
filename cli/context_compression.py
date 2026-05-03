@@ -11,7 +11,7 @@ import zlib
 from collections import Counter
 from datetime import datetime, timezone
 from functools import lru_cache
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 MANIFEST_VERSION = "mcp_context_bundle.v1"
@@ -158,6 +158,8 @@ def build_context_compress_payload(
         input_file=input_file,
         input_dir=input_dir,
         command_label="context compress",
+        tokenizer_backend=tokenizer_backend,
+        tokenizer_model=tokenizer_model,
     )
 
     skeleton_text = _render_skeleton_text(source, preset=preset)
@@ -165,7 +167,8 @@ def build_context_compress_payload(
     metrics = _build_context_metrics(
         source["source_summary"],
         skeleton_text=skeleton_text,
-        source_token_text=_build_token_source_text_from_source(source),
+        source_token_text=None if source.get("source_token_hints") else _build_token_source_text_from_source(source),
+        source_token_hints=source.get("source_token_hints"),
         tokenizer_backend=tokenizer_backend,
         tokenizer_model=tokenizer_model,
     )
@@ -184,6 +187,7 @@ def build_context_compress_payload(
         "source_label": source["source_label"],
         "source_path": source.get("source_path", ""),
         "source_summary": source["source_summary"],
+        "source_token_hints": source.get("source_token_hints") or {},
         "skeleton_text": skeleton_text,
         "skeleton_char_count": len(skeleton_text),
         "restore_package": restore_blob,
@@ -702,11 +706,14 @@ def apply_context_patch_payload(
                 if item.is_dir():
                     continue
                 rel_path = item.relative_to(snapshot_root)
-                _write_bytes_file(applied_root / rel_path, item.read_bytes())
+                _write_bytes_file(
+                    _safe_context_target_path(applied_root, rel_path.as_posix(), field_name="candidate_snapshot_file"),
+                    item.read_bytes(),
+                )
         removed_paths = [str(item) for item in (patch_payload.get("removed_paths") or []) if str(item).strip()]
         removed_applied: list[str] = []
         for rel_path in removed_paths:
-            target = applied_root / rel_path
+            target = _safe_context_target_path(applied_root, rel_path, field_name="removed_paths")
             if dry_run:
                 removed_applied.append(str(target))
                 continue
@@ -870,7 +877,16 @@ def inspect_context_package(
         else _build_context_metrics(
             source_summary,
             skeleton_text=str(package_payload.get("skeleton_text") or ""),
-            source_token_text=_build_token_source_text_from_restore_blob(decoded),
+            source_token_text=(
+                None
+                if _can_reuse_source_token_hints(
+                    package_payload.get("source_token_hints") or {},
+                    tokenizer_backend=tokenizer_backend,
+                    tokenizer_model=tokenizer_model,
+                )
+                else _build_token_source_text_from_restore_blob(decoded)
+            ),
+            source_token_hints=package_payload.get("source_token_hints") or {},
             tokenizer_backend=tokenizer_backend,
             tokenizer_model=tokenizer_model,
         )
@@ -978,7 +994,12 @@ def _build_file_source(path: Path) -> dict[str, Any]:
     }
 
 
-def _build_directory_source(path: Path) -> dict[str, Any]:
+def _build_directory_source(
+    path: Path,
+    *,
+    tokenizer_backend: str | None = None,
+    tokenizer_model: str | None = None,
+) -> dict[str, Any]:
     path = path.expanduser().resolve()
     files: list[dict[str, Any]] = []
     symlinks: list[dict[str, Any]] = []
@@ -989,6 +1010,17 @@ def _build_directory_source(path: Path) -> dict[str, Any]:
     total_bytes = 0
     total_chars = 0
     skeleton_entries: list[dict[str, Any]] = []
+    requested_backend = _normalize_tokenizer_backend(tokenizer_backend)
+    requested_model = str(tokenizer_model or "").strip() or "cl100k_base"
+    tokenizer_encoder = None
+    tokenizer_encoding_name = ""
+    tokenizer_error = ""
+    tokenizer_source_count = 0
+    if requested_backend != "heuristic":
+        try:
+            tokenizer_encoder, tokenizer_encoding_name = _resolve_tiktoken_encoder(requested_model)
+        except Exception as exc:
+            tokenizer_error = f"{type(exc).__name__}: {exc}"
 
     for current_root, dirnames, filenames in os.walk(path):
         dirnames[:] = [name for name in dirnames if name not in SKIP_DIR_NAMES]
@@ -1015,6 +1047,8 @@ def _build_directory_source(path: Path) -> dict[str, Any]:
             if is_text:
                 text = data.decode("utf-8")
                 total_chars += len(text)
+                if tokenizer_encoder is not None:
+                    tokenizer_source_count += len(tokenizer_encoder.encode(text))
                 if _is_code_path(item_path):
                     code_files += 1
                     summary = _code_summary(text, rel_path)
@@ -1051,12 +1085,22 @@ def _build_directory_source(path: Path) -> dict[str, Any]:
         "tree": [entry["relative_path"] for entry in sorted(skeleton_entries, key=lambda item: item["relative_path"])],
         "entries": sorted(skeleton_entries, key=lambda item: item["relative_path"]),
     }
+    source_token_hints = {
+        "heuristic_token_count_source": _estimate_token_count(total_chars),
+        "tokenizer_requested_backend": requested_backend,
+        "tokenizer_available": tokenizer_encoder is not None,
+        "tokenizer_model": requested_model if requested_backend != "heuristic" else "",
+        "tokenizer_token_basis": f"tiktoken:{tokenizer_encoding_name}" if tokenizer_encoder is not None else "",
+        "tokenizer_token_count_source": tokenizer_source_count if tokenizer_encoder is not None else None,
+        "tokenizer_error": tokenizer_error,
+    }
     return {
         "compression_mode": "directory",
         "source_kind": "mixed_project",
         "source_label": path.name,
         "source_path": str(path),
         "source_summary": source_summary,
+        "source_token_hints": source_token_hints,
         "restore_blob": {
             "mode": "directory",
             "source_label": path.name,
@@ -1334,6 +1378,8 @@ def _resolve_context_input_source(
     input_file: Path | None,
     input_dir: Path | None,
     command_label: str,
+    tokenizer_backend: str | None = None,
+    tokenizer_model: str | None = None,
 ) -> dict[str, Any]:
     source_count = sum(1 for item in [inline_text.strip() if inline_text else "", text_file, input_file, input_dir] if item)
     if source_count != 1:
@@ -1345,7 +1391,11 @@ def _resolve_context_input_source(
     if input_file is not None:
         return _build_file_source(input_file)
     if input_dir is not None:
-        return _build_directory_source(input_dir)
+        return _build_directory_source(
+            input_dir,
+            tokenizer_backend=tokenizer_backend,
+            tokenizer_model=tokenizer_model,
+        )
     raise ValueError(f"{command_label} did not receive a usable input source")
 
 
@@ -1659,7 +1709,8 @@ def _build_context_metrics(
     source_summary: dict[str, Any],
     *,
     skeleton_text: str,
-    source_token_text: str,
+    source_token_text: str | None,
+    source_token_hints: dict[str, Any] | None = None,
     tokenizer_backend: str | None = None,
     tokenizer_model: str | None = None,
 ) -> dict[str, Any]:
@@ -1668,11 +1719,15 @@ def _build_context_metrics(
         fallback=source_summary.get("bytes") or source_summary.get("total_bytes") or 0,
     )
     skeleton_char_count = len(skeleton_text)
-    heuristic_token_count_source = _estimate_token_count(source_char_count)
+    heuristic_token_count_source = _int_metric(
+        (source_token_hints or {}).get("heuristic_token_count_source"),
+        fallback=_estimate_token_count(source_char_count),
+    )
     heuristic_token_count_skeleton = _estimate_token_count(skeleton_char_count)
     heuristic_metrics = _build_token_delta_metrics(heuristic_token_count_source, heuristic_token_count_skeleton)
     primary_metrics = _resolve_primary_token_metrics(
         source_text=source_token_text,
+        source_token_hints=source_token_hints or {},
         skeleton_text=skeleton_text,
         heuristic_source_tokens=heuristic_token_count_source,
         heuristic_skeleton_tokens=heuristic_token_count_skeleton,
@@ -1746,7 +1801,8 @@ def _build_token_delta_metrics(source_tokens: int, skeleton_tokens: int) -> dict
 
 def _resolve_primary_token_metrics(
     *,
-    source_text: str,
+    source_text: str | None,
+    source_token_hints: dict[str, Any],
     skeleton_text: str,
     heuristic_source_tokens: int,
     heuristic_skeleton_tokens: int,
@@ -1754,32 +1810,60 @@ def _resolve_primary_token_metrics(
     tokenizer_model: str | None,
 ) -> dict[str, Any]:
     requested_backend = _normalize_tokenizer_backend(tokenizer_backend)
-    tokenizer_metrics = _compute_tiktoken_metrics(
-        source_text=source_text,
-        skeleton_text=skeleton_text,
+    requested_model = str(tokenizer_model or "").strip() or "cl100k_base"
+    skeleton_token_metrics = _compute_tiktoken_count(
+        text=skeleton_text,
         tokenizer_model=tokenizer_model,
     )
-    if requested_backend != "heuristic" and tokenizer_metrics.get("available") and tokenizer_metrics.get("token_count_source") is not None:
+    tokenizer_source_hint = _resolve_source_tokenizer_hint(
+        source_token_hints,
+        tokenizer_model=requested_model,
+    )
+    tokenizer_source_count = tokenizer_source_hint.get("token_count_source")
+    tokenizer_basis = str(tokenizer_source_hint.get("token_basis") or "")
+    tokenizer_error = str(skeleton_token_metrics.get("error") or "")
+    tokenizer_available = bool(skeleton_token_metrics.get("available"))
+    skeleton_token_count = skeleton_token_metrics.get("token_count")
+    if not tokenizer_basis and skeleton_token_metrics.get("token_basis"):
+        tokenizer_basis = str(skeleton_token_metrics.get("token_basis") or "")
+    if tokenizer_source_count is None and source_text is not None:
+        tokenizer_metrics = _compute_tiktoken_metrics(
+            source_text=source_text,
+            skeleton_text=skeleton_text,
+            tokenizer_model=tokenizer_model,
+        )
+        tokenizer_available = bool(tokenizer_metrics.get("available"))
+        tokenizer_error = str(tokenizer_metrics.get("error") or tokenizer_error)
+        tokenizer_source_count = tokenizer_metrics.get("token_count_source")
+        skeleton_token_count = tokenizer_metrics.get("token_count_skeleton")
+        if tokenizer_metrics.get("token_basis"):
+            tokenizer_basis = str(tokenizer_metrics.get("token_basis") or "")
+    tokenizer_delta = (
+        _build_token_delta_metrics(int(tokenizer_source_count), int(skeleton_token_count))
+        if tokenizer_source_count is not None and skeleton_token_count is not None
+        else None
+    )
+    if requested_backend != "heuristic" and tokenizer_available and tokenizer_delta is not None:
         primary = _build_token_delta_metrics(
-            int(tokenizer_metrics["token_count_source"]),
-            int(tokenizer_metrics["token_count_skeleton"]),
+            int(tokenizer_source_count),
+            int(skeleton_token_count),
         )
         return {
             **primary,
             "token_backend": "tiktoken",
-            "token_basis": str(tokenizer_metrics.get("token_basis") or ""),
-            "token_model": str(tokenizer_metrics.get("token_model") or ""),
+            "token_basis": tokenizer_basis,
+            "token_model": requested_model,
             "requested_backend": requested_backend,
             "fallback_used": False,
             "tokenizer_available": True,
-            "tokenizer_error": "",
+            "tokenizer_error": tokenizer_error,
             "tokenizer_token_count_source": primary["token_count_source"],
             "tokenizer_token_count_skeleton": primary["token_count_skeleton"],
             "tokenizer_tokens_saved": primary["tokens_saved"],
             "tokenizer_token_delta_from_source": primary["token_delta_from_source"],
             "tokenizer_token_reduction_ratio": primary["token_ratio"],
             "tokenizer_token_direction": primary["token_direction"],
-            "tokenizer_token_basis": str(tokenizer_metrics.get("token_basis") or ""),
+            "tokenizer_token_basis": tokenizer_basis,
         }
     heuristic = _build_token_delta_metrics(heuristic_source_tokens, heuristic_skeleton_tokens)
     return {
@@ -1789,15 +1873,15 @@ def _resolve_primary_token_metrics(
         "token_model": "",
         "requested_backend": requested_backend,
         "fallback_used": requested_backend != "heuristic",
-        "tokenizer_available": bool(tokenizer_metrics.get("available")),
-        "tokenizer_error": str(tokenizer_metrics.get("error") or ""),
-        "tokenizer_token_count_source": tokenizer_metrics.get("token_count_source"),
-        "tokenizer_token_count_skeleton": tokenizer_metrics.get("token_count_skeleton"),
-        "tokenizer_tokens_saved": tokenizer_metrics.get("tokens_saved"),
-        "tokenizer_token_delta_from_source": tokenizer_metrics.get("token_delta_from_source"),
-        "tokenizer_token_reduction_ratio": tokenizer_metrics.get("token_ratio"),
-        "tokenizer_token_direction": tokenizer_metrics.get("token_direction"),
-        "tokenizer_token_basis": str(tokenizer_metrics.get("token_basis") or ""),
+        "tokenizer_available": tokenizer_available,
+        "tokenizer_error": tokenizer_error,
+        "tokenizer_token_count_source": tokenizer_source_count,
+        "tokenizer_token_count_skeleton": skeleton_token_count,
+        "tokenizer_tokens_saved": tokenizer_delta["tokens_saved"] if tokenizer_delta is not None else None,
+        "tokenizer_token_delta_from_source": tokenizer_delta["token_delta_from_source"] if tokenizer_delta is not None else None,
+        "tokenizer_token_reduction_ratio": tokenizer_delta["token_ratio"] if tokenizer_delta is not None else None,
+        "tokenizer_token_direction": tokenizer_delta["token_direction"] if tokenizer_delta is not None else None,
+        "tokenizer_token_basis": tokenizer_basis,
     }
 
 
@@ -1859,6 +1943,66 @@ def _compute_tiktoken_metrics(
         "token_basis": f"tiktoken:{encoding_name}",
         **_build_token_delta_metrics(source_tokens, skeleton_tokens),
     }
+
+
+def _compute_tiktoken_count(
+    *,
+    text: str,
+    tokenizer_model: str | None,
+) -> dict[str, Any]:
+    tiktoken, error = _load_tiktoken_module()
+    if tiktoken is None:
+        return {"available": False, "error": error}
+    requested_model = str(tokenizer_model or "").strip() or "cl100k_base"
+    try:
+        encoder, encoding_name = _resolve_tiktoken_encoder(requested_model)
+        token_count = len(encoder.encode(text or ""))
+    except Exception as exc:
+        return {
+            "available": False,
+            "error": f"{type(exc).__name__}: {exc}",
+            "token_model": requested_model,
+        }
+    return {
+        "available": True,
+        "token_model": requested_model,
+        "token_basis": f"tiktoken:{encoding_name}",
+        "token_count": token_count,
+    }
+
+
+def _resolve_source_tokenizer_hint(
+    source_token_hints: dict[str, Any],
+    *,
+    tokenizer_model: str,
+) -> dict[str, Any]:
+    tokenizer_count_source = source_token_hints.get("tokenizer_token_count_source")
+    hint_model = str(source_token_hints.get("tokenizer_model") or "").strip() or "cl100k_base"
+    if tokenizer_count_source is None or hint_model != tokenizer_model:
+        return {}
+    return {
+        "token_count_source": int(tokenizer_count_source),
+        "token_basis": str(source_token_hints.get("tokenizer_token_basis") or ""),
+        "token_model": hint_model,
+    }
+
+
+def _can_reuse_source_token_hints(
+    source_token_hints: dict[str, Any],
+    *,
+    tokenizer_backend: str | None,
+    tokenizer_model: str | None,
+) -> bool:
+    if not source_token_hints:
+        return False
+    requested_backend = _normalize_tokenizer_backend(tokenizer_backend)
+    if requested_backend == "heuristic":
+        return source_token_hints.get("heuristic_token_count_source") is not None
+    requested_model = str(tokenizer_model or "").strip() or "cl100k_base"
+    return (
+        source_token_hints.get("tokenizer_token_count_source") is not None
+        and str(source_token_hints.get("tokenizer_model") or "").strip() == requested_model
+    )
 
 
 def _build_token_source_text_from_source(source: dict[str, Any]) -> str:
@@ -2214,8 +2358,14 @@ def _build_context_patch_apply_preview_manifest(
         write_targets = [str(applied_root_or_file.resolve())] if (changed_paths or added_paths or not removed_paths) else []
     elif patch_mode == "directory_structural_patch" and directory_root is not None:
         directory_root = directory_root.resolve()
-        write_targets = [str((directory_root / rel_path).resolve()) for rel_path in sorted(set(changed_paths + added_paths))]
-        remove_targets = [str((directory_root / rel_path).resolve()) for rel_path in removed_paths]
+        write_targets = [
+            str(_safe_context_target_path(directory_root, rel_path, field_name="preview_write_targets"))
+            for rel_path in sorted(set(changed_paths + added_paths))
+        ]
+        remove_targets = [
+            str(_safe_context_target_path(directory_root, rel_path, field_name="preview_remove_targets"))
+            for rel_path in removed_paths
+        ]
     return {
         "changed_paths": changed_paths,
         "added_paths": added_paths,
@@ -2314,6 +2464,36 @@ def _resolve_output_target_file(path: Path) -> Path:
     return target
 
 
+def _normalize_context_relpath(rel_path: str, *, field_name: str = "relative_path") -> str:
+    normalized = str(rel_path or "").replace("\\", "/").strip()
+    if not normalized:
+        raise ValueError(f"context path field `{field_name}` must not be empty")
+    if re.match(r"^[A-Za-z]:($|/)", normalized):
+        raise ValueError(f"context path field `{field_name}` must stay relative, got drive-qualified path `{rel_path}`")
+    pure = PurePosixPath(normalized)
+    if pure.is_absolute():
+        raise ValueError(f"context path field `{field_name}` must stay relative, got absolute path `{rel_path}`")
+    cleaned_parts: list[str] = []
+    for part in pure.parts:
+        if part in {"", "."}:
+            continue
+        if part == "..":
+            raise ValueError(f"context path field `{field_name}` must not traverse upward: `{rel_path}`")
+        cleaned_parts.append(part)
+    if not cleaned_parts:
+        raise ValueError(f"context path field `{field_name}` must resolve to a non-empty relative path")
+    return "/".join(cleaned_parts)
+
+
+def _safe_context_target_path(root: Path, rel_path: str, *, field_name: str = "relative_path") -> Path:
+    normalized_rel_path = _normalize_context_relpath(rel_path, field_name=field_name)
+    root_resolved = root.expanduser().resolve()
+    candidate = (root_resolved / Path(*normalized_rel_path.split("/"))).resolve()
+    if candidate != root_resolved and root_resolved not in candidate.parents:
+        raise ValueError(f"context path field `{field_name}` escapes the target root: `{rel_path}`")
+    return candidate
+
+
 def _restore_file_blob(target_path: Path, decoded: dict[str, Any]) -> None:
     target_path.parent.mkdir(parents=True, exist_ok=True)
     data = base64.b64decode(str(decoded.get("content_b64") or "").encode("ascii"))
@@ -2323,13 +2503,13 @@ def _restore_file_blob(target_path: Path, decoded: dict[str, Any]) -> None:
 def _restore_directory_blob(restore_root: Path, decoded: dict[str, Any]) -> None:
     restore_root.mkdir(parents=True, exist_ok=True)
     for rel_dir in decoded.get("empty_dirs") or []:
-        (restore_root / rel_dir).mkdir(parents=True, exist_ok=True)
+        _safe_context_target_path(restore_root, str(rel_dir), field_name="empty_dirs").mkdir(parents=True, exist_ok=True)
     for item in decoded.get("files") or []:
-        target_path = restore_root / str(item.get("relative_path") or "")
+        target_path = _safe_context_target_path(restore_root, str(item.get("relative_path") or ""), field_name="relative_path")
         target_path.parent.mkdir(parents=True, exist_ok=True)
         target_path.write_bytes(base64.b64decode(str(item.get("content_b64") or "").encode("ascii")))
     for item in decoded.get("symlinks") or []:
-        target_path = restore_root / str(item.get("relative_path") or "")
+        target_path = _safe_context_target_path(restore_root, str(item.get("relative_path") or ""), field_name="relative_path")
         target_path.parent.mkdir(parents=True, exist_ok=True)
         target_path.symlink_to(str(item.get("link_target") or ""))
 
@@ -2494,8 +2674,16 @@ def _build_directory_patch_artifacts(
     candidate_restore: dict[str, Any],
     patch_root: Path,
 ) -> dict[str, Any]:
-    original_files = {str(item.get("relative_path") or ""): base64.b64decode(str(item.get("content_b64") or "").encode("ascii")) for item in (original_decoded.get("files") or [])}
-    candidate_files = {str(item.get("relative_path") or ""): base64.b64decode(str(item.get("content_b64") or "").encode("ascii")) for item in (candidate_restore.get("files") or [])}
+    original_files = {
+        _normalize_context_relpath(str(item.get("relative_path") or ""), field_name="relative_path"): base64.b64decode(str(item.get("content_b64") or "").encode("ascii"))
+        for item in (original_decoded.get("files") or [])
+        if str(item.get("relative_path") or "").strip()
+    }
+    candidate_files = {
+        _normalize_context_relpath(str(item.get("relative_path") or ""), field_name="relative_path"): base64.b64decode(str(item.get("content_b64") or "").encode("ascii"))
+        for item in (candidate_restore.get("files") or [])
+        if str(item.get("relative_path") or "").strip()
+    }
     original_paths = set(path for path in original_files.keys() if path)
     candidate_paths = set(path for path in candidate_files.keys() if path)
     added_paths = sorted(candidate_paths - original_paths)
@@ -2515,7 +2703,7 @@ def _build_directory_patch_artifacts(
     removed_lines_total = 0
 
     def _write_candidate_snapshot(rel_path: str, data: bytes) -> None:
-        _write_bytes_file(candidate_snapshot_root / rel_path, data)
+        _write_bytes_file(_safe_context_target_path(candidate_snapshot_root, rel_path, field_name="candidate_snapshot"), data)
 
     for rel_path in sorted(set(added_paths + changed_paths)):
         _write_candidate_snapshot(rel_path, candidate_files[rel_path])
@@ -2540,7 +2728,7 @@ def _build_directory_patch_artifacts(
             diff_text = "\n".join(diff_lines).rstrip() + ("\n" if diff_lines else "")
             if not diff_text:
                 diff_text = "# No textual changes detected.\n"
-            patch_file = patches_root / f"{rel_path}.diff"
+            patch_file = _safe_context_target_path(patches_root, f"{rel_path}.diff", field_name="patch_diff")
             _write_text_file(patch_file, diff_text)
             text_patch_files += 1
             added_lines, removed_lines = _diff_line_counts(diff_lines)
@@ -2549,7 +2737,7 @@ def _build_directory_patch_artifacts(
             if len(preview_chunks) < 5:
                 preview_chunks.append(diff_text.rstrip())
         else:
-            note_file = binary_notes_root / f"{rel_path}.txt"
+            note_file = _safe_context_target_path(binary_notes_root, f"{rel_path}.txt", field_name="binary_note")
             _write_text_file(
                 note_file,
                 "\n".join(

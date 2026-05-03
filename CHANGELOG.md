@@ -14,6 +14,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 - added `/Users/carwynmac/ai-cl/COMMERCIAL_LICENSE.md` to clarify commercial and enterprise use
 - added `context patch-apply --dry-run` so replay targets can be previewed without writing files
 - added `context patch-apply --write-dry-run-report` so replay previews can be exported as one structured manifest JSON
+- added one mixed directory patch regression and one invalid-relative-path restore regression to the local `context` smoke coverage
 
 ### Changed
 
@@ -22,6 +23,8 @@ This changelog is intentionally lightweight for now. The repository already has 
 - expanded dry-run replay coverage with one explicit preview manifest export for changed, added, removed, and predicted target paths
 - enriched dry-run preview reports with `change_counts` and `first_*` helper fields for faster operator-side inspection
 - added `surface_size` and `risk_band` to dry-run preview outputs so replay scope is easier to judge from summaries and reports
+- hardened directory restore and replay by rejecting absolute paths, drive-qualified paths, and `..` traversal before any files are written
+- reduced large-directory metric amplification by reusing internal source-token hints during the initial `context compress` metrics pass instead of rebuilding one giant source-text surface
 - documented ecommerce, CMS, blog-publishing, routing, localization, managed-drift, and local-preview limitations more explicitly
 - improved managed-file drift messaging so CLI output explains it as a sync safety guard, not necessarily a website generation failure
 - changed the repository licensing posture from MIT to PolyForm Noncommercial 1.0.0 and updated public docs to describe the repo as source-available rather than OSI open source

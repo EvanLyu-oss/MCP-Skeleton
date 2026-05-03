@@ -353,6 +353,37 @@ Expected:
 - `preview_manifest.removed_paths` is populated when the patch removes files
 - `preview_manifest.write_targets` and `preview_manifest.remove_targets` point at predicted replay paths
 
+### D8d. Invalid relative path restore guard
+
+Prepare one malformed manifest by changing one stored directory `relative_path` to `../escape.py`, then run:
+
+```bash
+python3 -m cli context restore --package-file /absolute/path/to/invalid-context-manifest.json --output-dir /absolute/path/to/restore-root --json
+```
+
+Expected:
+
+- process exits with usage status
+- `status = error`
+- `error.code = invalid_usage`
+- `error.message` explains that upward traversal is not allowed
+
+### D8e. Mixed directory patch regression
+
+Use one directory candidate that changes one file, adds one file, and removes one file before running:
+
+```bash
+python3 -m cli context patch --package-file /absolute/path/to/context-bundle/context_manifest.json --input-dir /absolute/path/to/mixed-candidate --output-dir /absolute/path/to/context-patch --json
+```
+
+Expected:
+
+- `patch_mode = directory_structural_patch`
+- `change_counts.changed_paths >= 1`
+- `change_counts.added_paths >= 1`
+- `change_counts.removed_paths >= 1`
+- `changed_paths`, `added_paths`, and `removed_paths` are all populated
+
 ### D9. Policy-aware directory patch replay
 
 ```bash
