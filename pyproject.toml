@@ -3,14 +3,32 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ail-cli"
+name = "mcp-skeleton"
 version = "0.1.0"
-description = "Minimal AIL CLI v1 skeleton"
+description = "Lossless context compression, exact restore, patch, and replay workflows for long code and text inputs."
+readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "PolyForm Noncommercial 1.0.0" }
+license = { text = "MIT" }
+authors = [
+  { name = "Carwyn Mac" }
+]
+keywords = ["mcp", "context", "compression", "llm", "token-optimization", "patch-replay"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
 
 [project.optional-dependencies]
 context-metrics = ["tiktoken>=0.7"]
 
 [project.scripts]
-ail = "cli.ail_cli:main"
+mcp-skeleton = "cli.ail_cli:main"
+
+[tool.setuptools.packages.find]
+include = ["cli*"]

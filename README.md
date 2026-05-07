@@ -1,382 +1,162 @@
-# AIL Builder
+# MCP-Skeleton
 
-![Status](https://img.shields.io/badge/status-alpha%20builder%20preview-cf6f2e)
-![CLI Checks](https://img.shields.io/badge/cli%20checks-207%2F207%20passing-2f855a)
-![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-9c27b0)
+MCP-Skeleton is a dedicated open-source project for lossless context compression.
 
-**CLI-first static website generation, durable customization, and structured handoff workflows for AIL.**
+It turns long text, source files, and directory trees into two coordinated layers:
 
-## Use Notice
+1. An AI-facing structural skeleton (`MCP-SKL.v1`)
+2. A machine-facing exact restore package
 
-This repository is published as a **source-available community release**.
+That gives us a practical workflow for large repositories and long documents:
 
-- free for learning, research, evaluation, and personal noncommercial use
-- not an OSI-approved open-source release
-- enterprise, team, client, hosted-service, and other commercial use require separate authorization from the author
-- provided as-is, without warranty
+- lower token pressure
+- exact reconstruction
+- structural drift checks
+- patch export and controlled replay
+- incremental compression for git-scoped change surfaces
 
-See [`LICENSE`](LICENSE) and [`COMMERCIAL_LICENSE.md`](COMMERCIAL_LICENSE.md).
+## What it does
 
-AIL Builder is the current AIL platform mainline. It is best understood today as an **alpha / builder preview** for:
+- `context compress`: build one skeleton + restore package from text, file, or directory input
+- `context inspect`: read one bundle without restoring the original source
+- `context restore`: reconstruct the original text, file, or directory exactly
+- `context apply-check`: check whether an edited candidate still matches the original skeleton boundary
+- `context bundle`: export a reusable bundle with compression + inspect + optional apply-check artifacts
+- `context patch`: export a patch bundle against the original context package
+- `context patch-apply`: replay a patch bundle with dry-run, policy, and merge gates
+- `context compress --incremental`: compress only the git change surface for a directory
+- `context bundle --incremental`: export one incremental bundle instead of rebundling the full project
 
-- structured website generation workflows
-- CLI-first website evaluation and handoff
-- durable managed / unmanaged customization
-- skill-ready agent / IDE workflow packaging
-- sample-level brand distinction experiments
-- low-token structured writing pack experiments for copy, fiction planning, and book blueprints
+## Why this is different from summarization
 
-This repository is already strong enough for external testers to run, inspect, and give feedback on.
-It is **not** yet packaged as a stable end-user product.
+This project does not rely on lossy summarization alone.
 
-**Start here:** [`OPEN_SOURCE_STATUS.md`](OPEN_SOURCE_STATUS.md) · [`QUICKSTART_OPEN_SOURCE.md`](QUICKSTART_OPEN_SOURCE.md) · [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) · [`SKILL_PACKAGING_PLAN_20260418.md`](SKILL_PACKAGING_PLAN_20260418.md) · [`SKILL.md`](SKILL.md) · [`MCP_TOOL_SURFACE_SPEC_20260418.md`](MCP_TOOL_SURFACE_SPEC_20260418.md)
+Instead it separates context into:
 
-Architecture-first styling direction:
+- `skeleton_text`: the small, structured surface for AI tools
+- `restore_package`: the exact machine-readable source required for lossless restore
 
-- [`DESIGN_HANDOFF_SPEC_20260426.md`](DESIGN_HANDOFF_SPEC_20260426.md)
-- [`WRITING_TEST_MATRIX_20260428.md`](WRITING_TEST_MATRIX_20260428.md)
-- [`CROSS_WORKFLOW_MAP_20260429.md`](CROSS_WORKFLOW_MAP_20260429.md)
-- [`WRITING_CONTEXT_WORKFLOW_20260429.md`](WRITING_CONTEXT_WORKFLOW_20260429.md)
-- [`WEBSITE_CONTEXT_WORKFLOW_20260429.md`](WEBSITE_CONTEXT_WORKFLOW_20260429.md)
-- [`CONTEXT_COMPRESSION_SPEC_20260428.md`](CONTEXT_COMPRESSION_SPEC_20260428.md)
-- [`CONTEXT_TEST_MATRIX_20260428.md`](CONTEXT_TEST_MATRIX_20260428.md)
-- [`CONTEXT_TEST_REPORT_20260428.md`](CONTEXT_TEST_REPORT_20260428.md)
-- [`CONTEXT_METRICS_REPORT_20260428.md`](CONTEXT_METRICS_REPORT_20260428.md)
-- [`CONTEXT_REPO_SCALE_PERFORMANCE_REPORT_20260429.md`](CONTEXT_REPO_SCALE_PERFORMANCE_REPORT_20260429.md)
-- [`CONTEXT_TOKENIZER_REPO_SCALE_REPORT_20260429.md`](CONTEXT_TOKENIZER_REPO_SCALE_REPORT_20260429.md)
-- [`PATCH_APPLY_REGRESSION_REPORT_20260429.md`](PATCH_APPLY_REGRESSION_REPORT_20260429.md)
+That means we can reduce prompt weight without pretending the original source no longer exists.
 
-Windows testers are supported too: see [`QUICKSTART_OPEN_SOURCE.md`](QUICKSTART_OPEN_SOURCE.md) for PowerShell equivalents and current cross-platform notes.
-
-Git transport note:
-
-- if `git pull` or `git push` appears to hang against GitHub on one machine, try:
-  - `git -c http.version=HTTP/1.1 pull origin main`
-  - `git -c http.version=HTTP/1.1 push origin main`
-- browser login alone is not enough to rule Git transport out:
-  - browsers, Python HTTPS clients, and `git` can succeed or fail on different network paths
-  - one tested macOS environment could sign in to GitHub normally, while `curl` and `git` intermittently timed out unless Git was forced onto `HTTP/1.1`
-- one tested macOS environment needed this Git-only workaround even though browser and Python HTTPS access to GitHub were healthy
-
-Recent outward-facing changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
-
-## Current Status
-
-Current high-level state:
-
-- website-first: complete for the current scope
-- customization UX: closed for the current scope
-- brand distinction: active, roughly `52%` to `62%` complete
-
-Current validation anchor:
-
-- `testing/results/cli_smoke_results.json`
-  - `status = ok`
-  - `207 / 207` checks passing
-- Windows validation:
-  - `workspace summary` confirmed working on Windows
-  - `website check` confirmed working on Windows
-  - successful output confirmed under `output_projects/`
-
-Current strongest proof baselines:
-
-- `output_projects/CompanyProductSiteBrandPostureReview`
-- `output_projects/PersonalIndependentSiteSignatureReview`
-
-Current tested generation scope:
-
-- supported: static presentation-style sites such as personal portfolios, company product pages, and simple landing pages
-- partial: blog-style presentation pages, without CMS or publishing-system behavior
-- experimental: `ecom_min` storefront generation and preview behind `trial-run --scenario ecom_min`
-- experimental: low-token `writing` pack detection and intent capture for copy, story, and book-planning requests
-- out of scope for the stable public website promise: full ecommerce operations, production login systems, dashboards, CMS, back-office workflows, and database-backed applications
-
-Current public website boundary:
-
-- optimized for static presentation-style websites
-- intentionally not positioned as ecommerce, account, order, after-sales workflow, or other dynamic product behavior
-
-Architecture-first styling direction:
-
-- use `python3 -m cli project style-brief --base-url embedded://local --json` from a generated project when you want one operator-safe brief for an external design model
-- use `python3 -m cli project style-brief --base-url embedded://local --emit-prompt` when you want one prompt-ready text block you can paste directly into `opencode`, `minimax`, or another design model
-- use `python3 -m cli project style-apply-check --base-url embedded://local --json` after a styling pass when you want one local boundary and runtime continuity check
-- use `python3 -m cli project style-apply-check --base-url embedded://local --emit-summary` when you want one compact accept/reject summary instead of the full JSON payload
-- use `python3 -m cli project style-intent --json` to read or save the current audience, brand, tone, localization, and visual constraints for later handoff
-- this brief consolidates:
-  - current preview and generated surface context
-  - saved design intent from `.ail/style_intent.json`
-  - allowed override-safe write roots
-  - forbidden managed roots
-  - recommended validation and preview commands
-- the apply-check validates:
-  - managed mirror integrity for router and view runtime copies
-  - route wiring continuity
-  - local preview dry-run readiness
-- pair it with:
-  - `python3 -m cli project export-handoff --base-url embedded://local --json`
-  - `python3 -m cli project hook-guide --json`
-
-Experimental dynamic lane:
-
-- `website check --experimental-dynamic` can opt into the current experimental ecommerce / after-sales lane
-- this lane is not part of the stable public website promise yet
-- treat generated output there as exploratory, not productized
-- current ecommerce experimental lane is best positioned as:
-  - catalog / shop entry
-  - product detail
-  - cart
-  - checkout skeleton / handoff
-  - search, category, and shop continuity pages
-  - account-center shell
-  - supporting pages such as `about`, `contact`, and `policy`
-- current verified ecom scenario entrypoint is:
-  - `python3 -m cli trial-run --scenario ecom_min --base-url embedded://local --json`
-- current verified local preview path is:
-  - generate with `trial-run --scenario ecom_min`
-  - then run `python3 -m cli project serve --install-if-needed` from the generated project directory
-- do not position the ecommerce lane as:
-  - production login / account system
-  - payment capture stack
-  - merchant backend
-  - order-management platform
-  - database-backed production commerce system
-
-Current observed ecommerce preview shape:
-
-- multi-page storefront skeleton rather than a single landing page
-- product browse/search/cart/checkout continuity is present
-- account-center shell is present and now includes:
-  - order skeleton
-  - address skeleton
-  - wishlist skeleton
-  - security skeleton
-- login may appear as a shell page when auth APIs are present, but should not be marketed as a finished auth product
-
-Current realization expectation for most landing-style website requests:
-
-- asks for `about`, `features`, `pricing`, `FAQ`, or `blog` are often implemented as sections on one main page
-- generated routes may remain minimal, often centered on `/` plus fallback routes such as `/403`
-- do not promise independent multi-page routing unless the generated router actually shows it
-
-## Who This Is For
-
-AIL Builder is a good fit today for:
-
-- builders who are comfortable using a CLI
-- contributors who want to inspect and extend generation workflows
-- testers evaluating website generation, customization, and handoff surfaces
-- agent / IDE users who want to load a structured workflow surface as a skill
-- collaborators interested in structured product-building workflows rather than one-shot site scaffolds
-
-It is not yet optimized for:
-
-- casual users expecting a 5-minute no-context setup
-- production ecommerce, CMS, authentication, dashboard, or database-backed app generation
-- automatic one-command generate-and-serve from a raw prompt
-- production deployment with stability guarantees
-- a frozen public API or stable plugin surface
-
-## Fastest Start
-
-Read these first:
-
-1. [`OPEN_SOURCE_STATUS.md`](OPEN_SOURCE_STATUS.md)
-2. [`QUICKSTART_OPEN_SOURCE.md`](QUICKSTART_OPEN_SOURCE.md)
-3. [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md)
-
-Then use the shortest verified entry:
+## Install
 
 ```bash
-REPO_ROOT="$PWD"
-PYTHONPATH="$REPO_ROOT" python3 -m cli website check 'Create a company product website with a home page, features, FAQ, and contact page.' --base-url embedded://local --json
+python3 -m pip install .
 ```
 
-If you want a higher-level repository view first:
-
-```bash
-REPO_ROOT="$PWD"
-PYTHONPATH="$REPO_ROOT" python3 -m cli workspace summary --base-url embedded://local
-```
-
-If you want to inspect the current durable customization surface from a sample project:
-
-```bash
-REPO_ROOT="$PWD"
-cd "$REPO_ROOT/output_projects/CompanyProductSiteBrandPostureReview"
-PYTHONPATH="$REPO_ROOT" python3 -m cli project hook-guide --json
-```
-
-If you want to preview a generated project locally:
-
-```bash
-REPO_ROOT="$PWD"
-cd "$REPO_ROOT/output_projects/CompanyProductSiteBrandPostureReview"
-PYTHONPATH="$REPO_ROOT" python3 -m cli project serve --dry-run --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli project serve --install-if-needed
-```
-
-If you want to validate the current experimental ecommerce storefront lane:
-
-```bash
-REPO_ROOT="$PWD"
-ecom_project_dir="$(mktemp -d /tmp/ail_ecom_preview.XXXXXX)"
-PYTHONPATH="$REPO_ROOT" python3 -m cli trial-run --scenario ecom_min --base-url embedded://local --project-dir "$ecom_project_dir" --json
-cd "$ecom_project_dir"
-PYTHONPATH="$REPO_ROOT" python3 -m cli project serve --install-if-needed
-```
-
-If you want to test the new low-token writing branch:
-
-```bash
-REPO_ROOT="$PWD"
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing packs --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing check '写一个企业产品宣传文案，包含首页主标题、卖点和 CTA。' --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing scaffold '写一本非虚构商业书目录和章节目标，帮助创业者搭建销售系统。' --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing brief '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --emit-prompt
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing brief '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --emit-prompt --output-file /absolute/path/to/brief-prompt.txt
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing expand '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --emit-text
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing expand '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --deep --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing expand '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --emit-text --output-file /absolute/path/to/expand-draft.txt
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing bundle '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --deep --output-dir /absolute/path/to/writing-bundle --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing bundle '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --deep --zip --output-dir /absolute/path/to/writing-bundle --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing bundle '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --deep --zip --copy-archive-path --output-dir /absolute/path/to/writing-bundle --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing bundle '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --deep --zip --copy-summary --output-dir /absolute/path/to/writing-bundle --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing bundle '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --deep --zip --output-dir /absolute/path/to/writing-bundle --emit-summary
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing bundle '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --deep --zip --output-dir /absolute/path/to/writing-bundle --emit-summary --output-file /absolute/path/to/writing-bundle-summary.txt
-# bundle output now also includes README.txt inside the bundle directory
-# bundle manifest now includes manifest_version and bundle_created_at
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing review '写一个企业产品宣传文案，包含首页主标题、卖点和 CTA。' --text 'Help operators cut reporting time in half. Request pricing today.' --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing review '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --text-file /absolute/path/to/draft.txt --emit-summary
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing review '写一个长篇奇幻小说提纲和角色设定，包含主要冲突和章节结构。' --text-file /absolute/path/to/draft.txt --emit-summary --output-file /absolute/path/to/review-summary.txt
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing apply-check '写一个企业产品宣传文案，包含首页主标题、卖点和 CTA。' --text-file /absolute/path/to/draft.txt --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing apply-check '写一个企业产品宣传文案，包含首页主标题、卖点和 CTA。' --text-file /absolute/path/to/draft.txt --emit-summary
-PYTHONPATH="$REPO_ROOT" python3 -m cli writing intent --audience 'indie founders' --format-mode copy --style-direction 'clear persuasive' --json
-```
-
-If you want to compress oversized repo or writing context into an AI-facing MCP skeleton and restore it later:
-
-```bash
-REPO_ROOT="$PWD"
-PYTHONPATH="$REPO_ROOT" python3 -m cli context compress --text-file /absolute/path/to/long-text.md --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli context compress --tokenizer-backend tiktoken --tokenizer-model cl100k_base --text-file /absolute/path/to/long-text.md --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli context preset --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli context preset website --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli context compress --input-file "$REPO_ROOT/cli/context.py" --emit-skeleton
-PYTHONPATH="$REPO_ROOT" python3 -m cli context compress --preset website --input-dir "$REPO_ROOT" --output-dir /absolute/path/to/context-bundle --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli context compress --input-dir "$REPO_ROOT/cli" --incremental --base-commit HEAD~1 --output-dir /absolute/path/to/context-incremental-bundle --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli context bundle --input-dir "$REPO_ROOT/cli" --incremental --base-commit HEAD~1 --output-dir /absolute/path/to/context-incremental-bundle --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli context patch --package-file /absolute/path/to/context-incremental-bundle/context_manifest.json --input-dir /absolute/path/to/edited-incremental-surface --output-dir /absolute/path/to/context-incremental-patch --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli context bundle --preset website --input-dir "$REPO_ROOT" --zip --output-dir /absolute/path/to/context-bundle --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli context inspect --package-file /absolute/path/to/context-bundle/context_manifest.json --emit-summary
-PYTHONPATH="$REPO_ROOT" python3 -m cli context apply-check --package-file /absolute/path/to/context-bundle/context_manifest.json --input-dir /absolute/path/to/edited-project --emit-summary
-PYTHONPATH="$REPO_ROOT" python3 -m cli context patch --package-file /absolute/path/to/context-bundle/context_manifest.json --input-dir /absolute/path/to/edited-project --zip --output-dir /absolute/path/to/context-patch --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --dry-run --output-dir /absolute/path/to/replayed-project --emit-summary
-PYTHONPATH="$REPO_ROOT" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --dry-run --output-dir /absolute/path/to/replayed-project --write-dry-run-report /absolute/path/to/dry-run-report.json --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --output-dir /absolute/path/to/replayed-project --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --merge-mode reject-conflicts --output-dir /absolute/path/to/replayed-project --emit-summary
-PYTHONPATH="$REPO_ROOT" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --merge-mode reject-conflicts --write-merge-report /absolute/path/to/merge-report.json --json
-PYTHONPATH="$REPO_ROOT" python3 -m cli context patch-apply --patch-file /absolute/path/to/context-patch/patch_manifest.json --source-package-file /absolute/path/to/context-bundle/context_manifest.json --policy-mode safe --output-dir /absolute/path/to/replayed-project --emit-summary
-PYTHONPATH="$REPO_ROOT" python3 -m cli context patch-apply --sample-policy strict --emit-policy-template
-PYTHONPATH="$REPO_ROOT" python3 -m cli context patch-apply --policy-mode strict --allow-root src --forbid-root src/generated --emit-policy-template
-PYTHONPATH="$REPO_ROOT" python3 -m cli context patch-apply --policy-mode safe --allow-root docs --write-policy-template /absolute/path/to/context-policy.json
-PYTHONPATH="$REPO_ROOT" python3 -m cli context restore --package-file /absolute/path/to/context-bundle/context_manifest.json --output-dir /absolute/path/to/restore-root --json
-```
-
-Policy-aware replay template:
-
-- `/Users/carwynmac/ai-cl/CONTEXT_PATCH_POLICY_TEMPLATE_20260429.md`
-- `/Users/carwynmac/ai-cl/examples/context_patch_policy.safe.json`
-
-Compression principles:
-
-- `/Users/carwynmac/ai-cl/CONTEXT_COMPRESSION_PRINCIPLES_20260507.md`
-
-`context compress` and `context inspect` now emit formal `metrics`, including source characters, skeleton characters, token direction, and estimated size ratios. By default the CLI uses heuristic token estimates and reports that basis explicitly. If `tiktoken` is installed, you can request tokenizer-backed metrics with `--tokenizer-backend tiktoken` and an optional `--tokenizer-model` such as `cl100k_base`. On very small inputs the skeleton can be larger than the source, and the metrics surface reports that honestly instead of pretending every input always compresses. For larger directory inputs, the initial metrics pass now reuses internal source-token hints instead of rebuilding one giant concatenated text surface before it estimates token usage.
-
-For git-backed repos, `context compress --incremental` now builds one MCP skeleton from the current change surface instead of the whole directory tree. You can point it at the working tree directly or compare against `--base-commit <sha>`. The restore package for this mode is exact for the incremental surface itself, including changed files, added files, and one explicit removed-path manifest.
-
-`context patch` now also accepts those incremental bundles as the original package, so one edited incremental surface can be exported as a reviewable patch bundle without re-sending the whole repo. `context patch-apply` is still intentionally blocked for incremental patch bundles until the replay manifest contract is finished.
-
-Repo-scale / long-text benchmark harness:
-
-```bash
-python3 /Users/carwynmac/ai-cl/testing/context_scale_benchmark.py --directory /Users/carwynmac/ai-cl/cli --output-json /absolute/path/to/context_scale_benchmark.json --output-md /absolute/path/to/context_scale_benchmark.md
-```
-
-That harness now emits three benchmark summary groups:
-
-- `directory_cases` for full-directory compression
-- `directory_incremental_cases` for git-scoped incremental compression
-- `incremental_comparison` for full-vs-incremental token and timing ratios per backend
-
-Optional install for tokenizer-backed metrics:
+Optional tokenizer-backed metrics:
 
 ```bash
 python3 -m pip install '.[context-metrics]'
 ```
 
-On Windows PowerShell, prefer:
+On Windows, prefer:
 
 ```powershell
-py -3 -m pip install tiktoken
+py -3 -m pip install '.[context-metrics]'
 ```
 
-That keeps `tiktoken` in the same Python environment used by `py -3 -m cli`, which avoids the common "installed, but not importable from this interpreter" mismatch.
+## Quick start
 
-## What Already Works Well
+Compress a directory:
 
-The repository already has real product truth in these areas:
+```bash
+PYTHONPATH="$PWD" python3 -m cli context compress \
+  --preset codebase \
+  --input-dir ./cli \
+  --output-dir /absolute/path/to/context-bundle \
+  --json
+```
 
-- website-oriented CLI checks, previews, summaries, and handoff flows
-- static presentation-site generation for portfolio, company/product, and landing-style pages
-- experimental ecommerce storefront generation and local preview through `trial-run --scenario ecom_min` plus `project serve`
-- project-level local frontend serving via `project serve`
-- managed / unmanaged customization via `hook-guide`, `hook-init`, and `hook-continue`
-- durable override workflows without editing managed files directly
-- repo-level low-token writing classification, scaffolding, prompt handoff, and first-draft expansion via `writing check`, `writing packs`, `writing scaffold`, `writing brief`, `writing expand`, and `writing intent`
-- repo-level context compression and exact restore for long text, single files, and project trees via `context compress` and `context restore`
-- dual-line brand-distinction sample work on company and personal baselines
+Inspect it:
 
-## Main Documents
+```bash
+PYTHONPATH="$PWD" python3 -m cli context inspect \
+  --package-file /absolute/path/to/context-bundle/context_manifest.json \
+  --emit-summary
+```
 
-Current public / packaging docs:
+Restore it:
 
-- [`OPEN_SOURCE_STATUS.md`](OPEN_SOURCE_STATUS.md)
-- [`QUICKSTART_OPEN_SOURCE.md`](QUICKSTART_OPEN_SOURCE.md)
-- [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md)
-- [`CHANGELOG.md`](CHANGELOG.md)
-- [`DESIGN_HANDOFF_SPEC_20260426.md`](DESIGN_HANDOFF_SPEC_20260426.md)
-- [`WRITING_TEST_MATRIX_20260428.md`](WRITING_TEST_MATRIX_20260428.md)
-- [`SKILL_PACKAGING_PLAN_20260418.md`](SKILL_PACKAGING_PLAN_20260418.md)
-- [`SKILL.md`](SKILL.md)
-- [`MCP_TOOL_SURFACE_SPEC_20260418.md`](MCP_TOOL_SURFACE_SPEC_20260418.md)
+```bash
+PYTHONPATH="$PWD" python3 -m cli context restore \
+  --package-file /absolute/path/to/context-bundle/context_manifest.json \
+  --output-dir /absolute/path/to/restore-root \
+  --json
+```
 
-Current phase and review docs:
+Create a patch bundle:
 
-- [`BRAND_DISTINCTION_PHASE_REVIEW_20260417.md`](BRAND_DISTINCTION_PHASE_REVIEW_20260417.md)
-- [`OPENCODE_TEST_REPORT_20260423.md`](OPENCODE_TEST_REPORT_20260423.md)
-- [`CUSTOMIZATION_UX_PHASE_CLOSEOUT_20260409.md`](CUSTOMIZATION_UX_PHASE_CLOSEOUT_20260409.md)
-- [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md)
-- [`REPO_MAP.md`](REPO_MAP.md)
+```bash
+PYTHONPATH="$PWD" python3 -m cli context patch \
+  --package-file /absolute/path/to/context-bundle/context_manifest.json \
+  --input-dir /absolute/path/to/edited-project \
+  --output-dir /absolute/path/to/context-patch \
+  --json
+```
 
-More detailed implementation docs remain in:
+Preview replay without writing files:
 
-- `docs/`
-- `testing/`
-- `archive/`
+```bash
+PYTHONPATH="$PWD" python3 -m cli context patch-apply \
+  --patch-file /absolute/path/to/context-patch/patch_manifest.json \
+  --source-package-file /absolute/path/to/context-bundle/context_manifest.json \
+  --dry-run \
+  --write-dry-run-report /absolute/path/to/dry-run-report.json \
+  --output-dir /absolute/path/to/replayed-project \
+  --json
+```
 
-## License
+Compress only the git change surface:
 
-AIL Builder is released under **PolyForm Noncommercial 1.0.0**.
+```bash
+PYTHONPATH="$PWD" python3 -m cli context compress \
+  --input-dir ./cli \
+  --incremental \
+  --base-commit HEAD~1 \
+  --output-dir /absolute/path/to/context-incremental-bundle \
+  --json
+```
 
-That means:
+## Benchmarking
 
-- personal and noncommercial use are allowed
-- enterprise and commercial use require separate authorization
-- this repository should be described as source-available, not OSI open source
+Quick benchmark:
 
-See:
+```bash
+python3 testing/context_scale_benchmark.py --quick
+```
 
-- `LICENSE`
-- `COMMERCIAL_LICENSE.md`
+Repo-scale benchmark:
+
+```bash
+python3 testing/context_scale_benchmark.py --directory ./cli --iterations 2
+```
+
+The benchmark compares:
+
+- heuristic metrics
+- auto metrics
+- tokenizer-backed metrics when available
+- full directory bundles vs incremental bundles
+- restore verification for both text and directory cases
+
+## Documentation
+
+- `/Users/carwynmac/MCP-Skeleton/CONTEXT_COMPRESSION_PRINCIPLES_20260507.md`
+- `/Users/carwynmac/MCP-Skeleton/CONTEXT_COMPRESSION_SPEC_20260428.md`
+- `/Users/carwynmac/MCP-Skeleton/CONTEXT_PATCH_POLICY_TEMPLATE_20260429.md`
+- `/Users/carwynmac/MCP-Skeleton/CONTEXT_TEST_MATRIX_20260428.md`
+- `/Users/carwynmac/MCP-Skeleton/CONTEXT_REPO_SCALE_PERFORMANCE_REPORT_20260429.md`
+- `/Users/carwynmac/MCP-Skeleton/CONTEXT_TOKENIZER_REPO_SCALE_REPORT_20260429.md`
+
+## Scope
+
+This repository is intentionally focused on one line of work:
+
+- lossless context compression
+- exact restore
+- structural review
+- patch and replay workflows
+- incremental context transport for large repositories
+
+It does not include the broader website, ecommerce, personal-site, or writing-generation surfaces from the original private parent repository.
