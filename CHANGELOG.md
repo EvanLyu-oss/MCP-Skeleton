@@ -9,6 +9,7 @@
 - promoted incremental `context apply-check` into the public surface, including top-level incremental metadata, summary fields, and dedicated smoke coverage
 - enabled incremental `context patch-apply`, including incremental replay manifest updates and standalone smoke coverage
 - enriched incremental patch dry-run reports with scope, per-lane counts, and first-path summary fields
+- added a formal full-vs-incremental benchmark report for the standalone `MCP-Skeleton` repository
 
 ## Selected history carried into this repo
 
