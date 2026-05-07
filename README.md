@@ -287,6 +287,10 @@ Policy-aware replay template:
 - `/Users/carwynmac/ai-cl/CONTEXT_PATCH_POLICY_TEMPLATE_20260429.md`
 - `/Users/carwynmac/ai-cl/examples/context_patch_policy.safe.json`
 
+Compression principles:
+
+- `/Users/carwynmac/ai-cl/CONTEXT_COMPRESSION_PRINCIPLES_20260507.md`
+
 `context compress` and `context inspect` now emit formal `metrics`, including source characters, skeleton characters, token direction, and estimated size ratios. By default the CLI uses heuristic token estimates and reports that basis explicitly. If `tiktoken` is installed, you can request tokenizer-backed metrics with `--tokenizer-backend tiktoken` and an optional `--tokenizer-model` such as `cl100k_base`. On very small inputs the skeleton can be larger than the source, and the metrics surface reports that honestly instead of pretending every input always compresses. For larger directory inputs, the initial metrics pass now reuses internal source-token hints instead of rebuilding one giant concatenated text surface before it estimates token usage.
 
 For git-backed repos, `context compress --incremental` now builds one MCP skeleton from the current change surface instead of the whole directory tree. You can point it at the working tree directly or compare against `--base-commit <sha>`. The restore package for this mode is exact for the incremental surface itself, including changed files, added files, and one explicit removed-path manifest.

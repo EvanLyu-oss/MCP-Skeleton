@@ -19,6 +19,7 @@ This changelog is intentionally lightweight for now. The repository already has 
 - added `context compress --incremental` with optional `--base-commit`, so git-backed directory inputs can now emit one MCP skeleton from the current change surface instead of re-sending the whole tree every time
 - added `context bundle --incremental`, so that same git-scoped change surface can now be exported with inspect artifacts and an exact incremental restore package in one bundle directory
 - added incremental benchmark summaries so `/Users/carwynmac/ai-cl/testing/context_scale_benchmark.py` now reports full-directory cases, incremental directory cases, and one full-vs-incremental comparison block per tokenizer backend
+- added `/Users/carwynmac/ai-cl/CONTEXT_COMPRESSION_PRINCIPLES_20260507.md` to explain the two-layer skeleton-plus-restore design, token-scaling logic, incremental compression model, and replay safety principles behind the `context` surface
 
 ### Changed
 
