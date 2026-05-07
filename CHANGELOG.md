@@ -11,6 +11,7 @@
 - enriched incremental patch dry-run reports with scope, per-lane counts, and first-path summary fields
 - added a formal full-vs-incremental benchmark report for the standalone `MCP-Skeleton` repository
 - added `context` skeleton focus modes for full, tree, imports, symbols, and writing-outline views
+- extended the benchmark harness to compare focus-mode skeleton variants against the full baseline
 
 ## Selected history carried into this repo
 

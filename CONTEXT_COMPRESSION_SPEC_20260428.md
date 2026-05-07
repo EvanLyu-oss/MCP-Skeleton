@@ -306,13 +306,14 @@ For larger directory inputs, `context compress` now keeps one internal source-to
 
 For repeatable scaling checks across repo-sized directories and long-book synthetic inputs, use:
 
-- `python3 /Users/carwynmac/ai-cl/testing/context_scale_benchmark.py --directory /Users/carwynmac/ai-cl/cli --output-json /absolute/path/to/context_scale_benchmark.json --output-md /absolute/path/to/context_scale_benchmark.md`
+- `python3 /Users/carwynmac/MCP-Skeleton/testing/context_scale_benchmark.py --directory /Users/carwynmac/MCP-Skeleton/cli --output-json /absolute/path/to/context_scale_benchmark.json --output-md /absolute/path/to/context_scale_benchmark.md`
 
 The benchmark report now separates:
 
 - full-directory cases
 - incremental directory cases
 - per-backend full-vs-incremental comparison ratios
+- per-backend focus-mode comparisons for directory and long-text skeleton views
 
 If `tiktoken` is installed, operators can request tokenizer-backed metrics with:
 

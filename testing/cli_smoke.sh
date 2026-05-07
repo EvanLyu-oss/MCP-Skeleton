@@ -498,6 +498,10 @@ assert p['status'] == 'ok'
 assert p['directory_cases']
 assert p['directory_incremental_cases']
 assert p['summaries']['incremental_comparison']
+assert p['summaries']['directory_focus_comparison']
+assert p['summaries']['text_focus_comparison']
+assert any(item['focus_mode'] == 'symbols' for item in p['summaries']['directory_focus_cases'])
+assert any(item['focus_mode'] == 'writing-outline' for item in p['summaries']['text_focus_cases'])
 assert all(case['restore_verified'] is True for case in p['directory_cases'])
 assert all(case['restore_verified'] is True for case in p['directory_incremental_cases'])
 PY

@@ -191,6 +191,7 @@ The benchmark compares:
 - auto metrics
 - tokenizer-backed metrics when available
 - full directory bundles vs incremental bundles
+- focus-mode skeleton variants vs the default full skeleton
 - restore verification for both text and directory cases
 
 ## Documentation

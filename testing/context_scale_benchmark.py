@@ -28,6 +28,8 @@ DEFAULT_MD = REPO_ROOT / "testing" / "results" / "context_scale_benchmark.md"
 DEFAULT_TEXT_TARGETS = [20_000, 100_000, 400_000]
 QUICK_TEXT_TARGETS = [12_000, 40_000]
 DEFAULT_TOKENIZER_MODEL = "cl100k_base"
+DEFAULT_DIRECTORY_FOCUS_MODES = ["full", "tree", "imports", "symbols"]
+DEFAULT_TEXT_FOCUS_MODES = ["full", "writing-outline"]
 
 
 @dataclass
@@ -269,6 +271,7 @@ def _summarize_case(case: dict[str, Any]) -> dict[str, Any]:
         "label": case["label"],
         "backend": case["backend"],
         "kind": case.get("kind", ""),
+        "focus_mode": case.get("compress", {}).get("focus_mode", "full"),
         "source_chars": metrics["source_char_count"],
         "skeleton_chars": metrics["skeleton_char_count"],
         "estimated_source_tokens": metrics["estimated_token_count_source"],
@@ -283,6 +286,53 @@ def _summarize_case(case: dict[str, Any]) -> dict[str, Any]:
         "restore_mismatch_preview": restore_details.get("mismatch_preview") or [],
         "change_surface_count": case.get("compress", {}).get("incremental_path_count", 0),
     }
+
+
+def _build_focus_comparison(
+    cases: list[dict[str, Any]],
+    *,
+    expected_kind: str,
+) -> list[dict[str, Any]]:
+    summaries = [_summarize_case(case) for case in cases if case.get("kind") == expected_kind]
+    baseline_by_backend = {
+        item["backend"]: item for item in summaries if item.get("focus_mode") == "full"
+    }
+    comparisons: list[dict[str, Any]] = []
+    for item in summaries:
+        focus_mode = item.get("focus_mode", "full")
+        if focus_mode == "full":
+            continue
+        baseline = baseline_by_backend.get(item["backend"])
+        if baseline is None:
+            continue
+        full_skeleton_tokens = int(baseline["estimated_skeleton_tokens"])
+        focused_skeleton_tokens = int(item["estimated_skeleton_tokens"])
+        full_skeleton_chars = int(baseline["skeleton_chars"])
+        focused_skeleton_chars = int(item["skeleton_chars"])
+        comparisons.append(
+            {
+                "label": item["label"],
+                "backend": item["backend"],
+                "kind": expected_kind,
+                "focus_mode": focus_mode,
+                "full_skeleton_chars": full_skeleton_chars,
+                "focused_skeleton_chars": focused_skeleton_chars,
+                "skeleton_char_size_ratio": round(
+                    focused_skeleton_chars / full_skeleton_chars, 4
+                ) if full_skeleton_chars else 0.0,
+                "full_skeleton_tokens": full_skeleton_tokens,
+                "focused_skeleton_tokens": focused_skeleton_tokens,
+                "skeleton_token_size_ratio": round(
+                    focused_skeleton_tokens / full_skeleton_tokens, 4
+                ) if full_skeleton_tokens else 0.0,
+                "full_compress_ms_avg": baseline["compress_ms_avg"],
+                "focused_compress_ms_avg": item["compress_ms_avg"],
+                "compress_time_ratio": round(
+                    item["compress_ms_avg"] / baseline["compress_ms_avg"], 4
+                ) if baseline["compress_ms_avg"] else 0.0,
+            }
+        )
+    return comparisons
 
 
 def _build_incremental_comparison(
@@ -364,7 +414,7 @@ def _render_markdown(report: dict[str, Any]) -> str:
             item["restore_ms_avg"],
             item["restore_verified"],
         ]
-        for item in report["summaries"]["directory_cases"]
+        for item in report["summaries"]["directory_full_cases"]
     ]
     lines.append(
         _markdown_table(
@@ -464,6 +514,72 @@ def _render_markdown(report: dict[str, Any]) -> str:
                 comparison_rows,
             )
         )
+    if report["summaries"].get("directory_focus_cases"):
+        lines.extend(["", "## Directory Focus Cases", ""])
+        focus_rows = [
+            [
+                item["label"],
+                item["backend"],
+                item["focus_mode"],
+                item["skeleton_chars"],
+                item["estimated_skeleton_tokens"],
+                item["compress_ms_avg"],
+                item["restore_verified"],
+            ]
+            for item in report["summaries"]["directory_focus_cases"]
+        ]
+        lines.append(
+            _markdown_table(
+                [
+                    "Case",
+                    "Backend",
+                    "Focus mode",
+                    "Skeleton chars",
+                    "Skeleton tokens",
+                    "Compress ms",
+                    "Restore ok",
+                ],
+                focus_rows,
+            )
+        )
+    if report["summaries"].get("directory_focus_comparison"):
+        lines.extend(["", "## Directory Focus Comparison", ""])
+        directory_focus_comparison_rows = [
+            [
+                item["label"],
+                item["backend"],
+                item["focus_mode"],
+                item["full_skeleton_chars"],
+                item["focused_skeleton_chars"],
+                item["skeleton_char_size_ratio"],
+                item["full_skeleton_tokens"],
+                item["focused_skeleton_tokens"],
+                item["skeleton_token_size_ratio"],
+                item["full_compress_ms_avg"],
+                item["focused_compress_ms_avg"],
+                item["compress_time_ratio"],
+            ]
+            for item in report["summaries"]["directory_focus_comparison"]
+        ]
+        lines.append(
+            _markdown_table(
+                [
+                    "Case",
+                    "Backend",
+                    "Focus mode",
+                    "Full skeleton chars",
+                    "Focused skeleton chars",
+                    "Skeleton char ratio",
+                    "Full skeleton tokens",
+                    "Focused skeleton tokens",
+                    "Skeleton token ratio",
+                    "Full compress ms",
+                    "Focused compress ms",
+                    "Compress ratio",
+                ],
+                directory_focus_comparison_rows,
+            )
+        )
     lines.extend(["", "## Long Text Cases", ""])
     text_rows = [
         [
@@ -481,7 +597,7 @@ def _render_markdown(report: dict[str, Any]) -> str:
             item["restore_ms_avg"],
             item["restore_verified"],
         ]
-        for item in report["summaries"]["text_cases"]
+        for item in report["summaries"]["text_full_cases"]
     ]
     lines.append(
         _markdown_table(
@@ -503,6 +619,72 @@ def _render_markdown(report: dict[str, Any]) -> str:
             text_rows,
         )
     )
+    if report["summaries"].get("text_focus_cases"):
+        lines.extend(["", "## Text Focus Cases", ""])
+        text_focus_rows = [
+            [
+                item["label"],
+                item["backend"],
+                item["focus_mode"],
+                item["skeleton_chars"],
+                item["estimated_skeleton_tokens"],
+                item["compress_ms_avg"],
+                item["restore_verified"],
+            ]
+            for item in report["summaries"]["text_focus_cases"]
+        ]
+        lines.append(
+            _markdown_table(
+                [
+                    "Case",
+                    "Backend",
+                    "Focus mode",
+                    "Skeleton chars",
+                    "Skeleton tokens",
+                    "Compress ms",
+                    "Restore ok",
+                ],
+                text_focus_rows,
+            )
+        )
+    if report["summaries"].get("text_focus_comparison"):
+        lines.extend(["", "## Text Focus Comparison", ""])
+        text_focus_comparison_rows = [
+            [
+                item["label"],
+                item["backend"],
+                item["focus_mode"],
+                item["full_skeleton_chars"],
+                item["focused_skeleton_chars"],
+                item["skeleton_char_size_ratio"],
+                item["full_skeleton_tokens"],
+                item["focused_skeleton_tokens"],
+                item["skeleton_token_size_ratio"],
+                item["full_compress_ms_avg"],
+                item["focused_compress_ms_avg"],
+                item["compress_time_ratio"],
+            ]
+            for item in report["summaries"]["text_focus_comparison"]
+        ]
+        lines.append(
+            _markdown_table(
+                [
+                    "Case",
+                    "Backend",
+                    "Focus mode",
+                    "Full skeleton chars",
+                    "Focused skeleton chars",
+                    "Skeleton char ratio",
+                    "Full skeleton tokens",
+                    "Focused skeleton tokens",
+                    "Skeleton token ratio",
+                    "Full compress ms",
+                    "Focused compress ms",
+                    "Compress ratio",
+                ],
+                text_focus_comparison_rows,
+            )
+        )
     lines.extend(["", "## Notes", ""])
     lines.append(
         "- `token_ratio` is the skeleton token footprint divided by the source token footprint; smaller is better."
@@ -591,6 +773,7 @@ def _benchmark_directory_case(
     tokenizer_model: str,
     iterations: int,
     workspace: Path,
+    focus_mode: str = "full",
 ) -> dict[str, Any]:
     compress_times: list[float] = []
     inspect_times: list[float] = []
@@ -605,6 +788,8 @@ def _benchmark_directory_case(
                 "compress",
                 "--preset",
                 "codebase",
+                "--focus-mode",
+                focus_mode,
                 "--input-dir",
                 str(source_dir),
                 "--output-dir",
@@ -785,6 +970,7 @@ def _benchmark_text_case(
     tokenizer_model: str,
     iterations: int,
     workspace: Path,
+    focus_mode: str = "full",
 ) -> dict[str, Any]:
     compress_times: list[float] = []
     inspect_times: list[float] = []
@@ -799,6 +985,8 @@ def _benchmark_text_case(
                 "compress",
                 "--preset",
                 "writing",
+                "--focus-mode",
+                focus_mode,
                 "--text-file",
                 str(text_path),
                 "--output-dir",
@@ -871,6 +1059,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iterations", type=int, default=2, help="Iterations per case/backend.")
     parser.add_argument("--tokenizer-model", default=DEFAULT_TOKENIZER_MODEL, help="Tokenizer model/encoding to request.")
     parser.add_argument("--backends", nargs="*", help="Explicit tokenizer backends to benchmark.")
+    parser.add_argument("--directory-focus-modes", nargs="*", default=DEFAULT_DIRECTORY_FOCUS_MODES, help="Focus modes to benchmark for directory cases.")
+    parser.add_argument("--text-focus-modes", nargs="*", default=DEFAULT_TEXT_FOCUS_MODES, help="Focus modes to benchmark for text cases.")
     parser.add_argument("--text-target-chars", nargs="*", type=int, default=DEFAULT_TEXT_TARGETS, help="Synthetic long-text sizes.")
     parser.add_argument("--output-json", default=str(DEFAULT_JSON), help="Where to write the benchmark JSON report.")
     parser.add_argument("--output-md", default=str(DEFAULT_MD), help="Where to write the Markdown benchmark report.")
@@ -896,33 +1086,39 @@ def main() -> int:
             iterations = 1
 
         backends = _build_backends(args.backends, include_tiktoken=True)
+        directory_focus_modes = list(dict.fromkeys(args.directory_focus_modes or DEFAULT_DIRECTORY_FOCUS_MODES))
+        text_focus_modes = list(dict.fromkeys(args.text_focus_modes or DEFAULT_TEXT_FOCUS_MODES))
         incremental_repo_dir, incremental_fixture_metadata = _build_incremental_repo_fixture(directory_path, workspace)
         text_cases: list[dict[str, Any]] = []
         for target_chars in text_targets:
             text_path = workspace / f"synthetic_book_{target_chars}.md"
             text_path.write_text(_build_long_text(target_chars), encoding="utf-8")
             for backend in backends:
-                text_cases.append(
-                    _benchmark_text_case(
-                        label=f"book_{target_chars}",
-                        text_path=text_path,
-                        backend=backend,
-                        tokenizer_model=args.tokenizer_model,
-                        iterations=iterations,
-                        workspace=workspace,
+                for focus_mode in text_focus_modes:
+                    text_cases.append(
+                        _benchmark_text_case(
+                            label=f"book_{target_chars}_{focus_mode}",
+                            text_path=text_path,
+                            backend=backend,
+                            tokenizer_model=args.tokenizer_model,
+                            iterations=iterations,
+                            workspace=workspace,
+                            focus_mode=focus_mode,
+                        )
                     )
-                )
 
         directory_cases = [
             _benchmark_directory_case(
-                label=directory_path.name,
+                label=f"{directory_path.name}_{focus_mode}",
                 source_dir=directory_path,
                 backend=backend,
                 tokenizer_model=args.tokenizer_model,
                 iterations=iterations,
                 workspace=workspace,
+                focus_mode=focus_mode,
             )
             for backend in backends
+            for focus_mode in directory_focus_modes
         ]
         directory_incremental_cases = [
             _benchmark_incremental_directory_case(
@@ -936,7 +1132,11 @@ def main() -> int:
             )
             for backend in backends
         ]
-        incremental_comparison = _build_incremental_comparison(directory_cases, directory_incremental_cases)
+        full_directory_cases = [case for case in directory_cases if case.get("compress", {}).get("focus_mode") == "full"]
+        full_text_cases = [case for case in text_cases if case.get("compress", {}).get("focus_mode") == "full"]
+        incremental_comparison = _build_incremental_comparison(full_directory_cases, directory_incremental_cases)
+        directory_focus_comparison = _build_focus_comparison(directory_cases, expected_kind="directory")
+        text_focus_comparison = _build_focus_comparison(text_cases, expected_kind="text")
 
         report = {
             "status": "ok",
@@ -952,9 +1152,15 @@ def main() -> int:
             "text_cases": text_cases,
             "summaries": {
                 "directory_cases": [_summarize_case(case) for case in directory_cases],
+                "directory_full_cases": [_summarize_case(case) for case in full_directory_cases],
                 "directory_incremental_cases": [_summarize_case(case) for case in directory_incremental_cases],
                 "incremental_comparison": incremental_comparison,
                 "text_cases": [_summarize_case(case) for case in text_cases],
+                "text_full_cases": [_summarize_case(case) for case in full_text_cases],
+                "directory_focus_cases": [_summarize_case(case) for case in directory_cases],
+                "directory_focus_comparison": directory_focus_comparison,
+                "text_focus_cases": [_summarize_case(case) for case in text_cases],
+                "text_focus_comparison": text_focus_comparison,
             },
         }
         output_json.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
