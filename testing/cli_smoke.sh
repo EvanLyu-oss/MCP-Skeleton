@@ -16,8 +16,10 @@ trap cleanup EXIT
 
 ok_context_preset_json=false
 ok_context_compress_text_json=false
+ok_context_compress_text_writing_outline_json=false
 ok_context_restore_text_json=false
 ok_context_compress_directory_json=false
+ok_context_compress_directory_symbols_json=false
 ok_context_compress_incremental_json=false
 ok_context_inspect_incremental_json=false
 ok_context_restore_incremental_json=false
@@ -80,6 +82,19 @@ assert p['source_kind'] in {'markdown', 'text'}
 PY
 ok_context_compress_text_json=true
 
+context_text_outline_json="$TMP_ROOT/context_text_outline.json"
+python3 -m cli context compress --text-file "$text_file" --focus-mode writing-outline --json > "$context_text_outline_json"
+python3 - "$context_text_outline_json" <<'PY'
+import json, sys
+p = json.loads(open(sys.argv[1], encoding='utf-8').read())
+assert p['status'] == 'ok'
+assert p['focus_mode'] == 'writing-outline'
+assert 'FOCUS_MODE: writing-outline' in p['skeleton_text']
+assert 'HEADINGS:' in p['skeleton_text']
+assert 'SECTIONS:' in p['skeleton_text']
+PY
+ok_context_compress_text_writing_outline_json=true
+
 text_bundle_dir="$TMP_ROOT/text_bundle"
 python3 -m cli context compress --text-file "$text_file" --output-dir "$text_bundle_dir" --json > /dev/null
 text_restore_json="$TMP_ROOT/text_restore.json"
@@ -130,6 +145,20 @@ assert p['compression_mode'] == 'directory'
 assert p['source_summary']['total_files'] == 3
 PY
 ok_context_compress_directory_json=true
+
+context_dir_symbols_json="$TMP_ROOT/context_dir_symbols.json"
+python3 -m cli context compress --preset codebase --focus-mode symbols --input-dir "$project_dir" --json > "$context_dir_symbols_json"
+python3 - "$context_dir_symbols_json" <<'PY'
+import json, sys
+p = json.loads(open(sys.argv[1], encoding='utf-8').read())
+assert p['status'] == 'ok'
+assert p['focus_mode'] == 'symbols'
+assert 'FOCUS_MODE: symbols' in p['skeleton_text']
+assert 'SYMBOLS:' in p['skeleton_text']
+assert 'IMPORTS:' not in p['skeleton_text']
+assert 'TREE:' not in p['skeleton_text']
+PY
+ok_context_compress_directory_symbols_json=true
 
 # incremental compress / inspect / restore
 cat > "$project_dir/src/app.py" <<'TXT'
@@ -476,8 +505,10 @@ ok_context_scale_benchmark_json=true
 
 export CLI_SMOKE_OK_CONTEXT_PRESET_JSON="$ok_context_preset_json"
 export CLI_SMOKE_OK_CONTEXT_COMPRESS_TEXT_JSON="$ok_context_compress_text_json"
+export CLI_SMOKE_OK_CONTEXT_COMPRESS_TEXT_WRITING_OUTLINE_JSON="$ok_context_compress_text_writing_outline_json"
 export CLI_SMOKE_OK_CONTEXT_RESTORE_TEXT_JSON="$ok_context_restore_text_json"
 export CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_JSON="$ok_context_compress_directory_json"
+export CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_SYMBOLS_JSON="$ok_context_compress_directory_symbols_json"
 export CLI_SMOKE_OK_CONTEXT_COMPRESS_INCREMENTAL_JSON="$ok_context_compress_incremental_json"
 export CLI_SMOKE_OK_CONTEXT_INSPECT_INCREMENTAL_JSON="$ok_context_inspect_incremental_json"
 export CLI_SMOKE_OK_CONTEXT_RESTORE_INCREMENTAL_JSON="$ok_context_restore_incremental_json"
@@ -502,8 +533,10 @@ import json, os, sys
 checks = {
     'context_preset_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PRESET_JSON'] == 'true',
     'context_compress_text_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_TEXT_JSON'] == 'true',
+    'context_compress_text_writing_outline_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_TEXT_WRITING_OUTLINE_JSON'] == 'true',
     'context_restore_text_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_RESTORE_TEXT_JSON'] == 'true',
     'context_compress_directory_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_JSON'] == 'true',
+    'context_compress_directory_symbols_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_SYMBOLS_JSON'] == 'true',
     'context_compress_incremental_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_INCREMENTAL_JSON'] == 'true',
     'context_inspect_incremental_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_INSPECT_INCREMENTAL_JSON'] == 'true',
     'context_restore_incremental_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_RESTORE_INCREMENTAL_JSON'] == 'true',

@@ -107,6 +107,7 @@ def cmd_context(args: argparse.Namespace) -> int:
             tokenizer_model=getattr(args, "tokenizer_model", None),
             incremental=bool(getattr(args, "incremental", False)),
             base_commit=getattr(args, "base_commit", None),
+            focus_mode=getattr(args, "focus_mode", None),
         )
         output_file = getattr(args, "output_file", None)
         if getattr(args, "emit_skeleton", False):
@@ -115,7 +116,7 @@ def cmd_context(args: argparse.Namespace) -> int:
             sys.stdout.write(str(payload.get("skeleton_text", "")))
             return EXIT_OK
         return _emit_simple_result(args, payload, text=_render_simple_summary(payload, [
-            "preset_id", "compression_mode", "source_kind", "source_label", "skeleton_char_count", "compression_ratio"
+            "preset_id", "focus_mode", "compression_mode", "source_kind", "source_label", "skeleton_char_count", "compression_ratio"
         ]))
 
     if command == "bundle":
@@ -135,12 +136,13 @@ def cmd_context(args: argparse.Namespace) -> int:
             tokenizer_model=getattr(args, "tokenizer_model", None),
             incremental=bool(getattr(args, "incremental", False)),
             base_commit=getattr(args, "base_commit", None),
+            focus_mode=getattr(args, "focus_mode", None),
         )
         exit_code = EXIT_OK if (payload.get("apply_check") is None or bool((payload.get("apply_check") or {}).get("apply_check_passed"))) else EXIT_VALIDATION
         if getattr(args, "emit_summary", False):
             return _emit_summary_text(args, payload, exit_code=exit_code)
         return _emit_simple_result(args, payload, exit_code=exit_code, text=_render_simple_summary(payload, [
-            "compression_mode", "source_kind", "source_label", "bundle_root", "zip_enabled", "file_count"
+            "focus_mode", "compression_mode", "source_kind", "source_label", "bundle_root", "zip_enabled", "file_count"
         ]))
 
     if command == "patch-apply":
@@ -372,6 +374,7 @@ def _build_parser() -> argparse.ArgumentParser:
     compress.add_argument("--input-file", dest="input_file")
     compress.add_argument("--input-dir", dest="input_dir")
     compress.add_argument("--preset", dest="preset_id", default="generic")
+    compress.add_argument("--focus-mode", dest="focus_mode", default="full", choices=["full", "tree", "imports", "symbols", "writing-outline"])
     compress.add_argument("--incremental", action="store_true")
     compress.add_argument("--base-commit", dest="base_commit")
     compress.add_argument("--tokenizer-backend", dest="tokenizer_backend", default="auto", choices=["auto", "heuristic", "tiktoken"])
@@ -416,6 +419,7 @@ def _build_parser() -> argparse.ArgumentParser:
     bundle.add_argument("--input-file", dest="input_file")
     bundle.add_argument("--input-dir", dest="input_dir")
     bundle.add_argument("--preset", dest="preset_id", default="generic")
+    bundle.add_argument("--focus-mode", dest="focus_mode", default="full", choices=["full", "tree", "imports", "symbols", "writing-outline"])
     bundle.add_argument("--incremental", action="store_true")
     bundle.add_argument("--base-commit", dest="base_commit")
     bundle.add_argument("--candidate-text", dest="candidate_text")

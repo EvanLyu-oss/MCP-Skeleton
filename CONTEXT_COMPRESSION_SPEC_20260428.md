@@ -23,6 +23,8 @@ PYTHONPATH="$PWD" python3 -m cli context compress --preset website --input-dir /
 PYTHONPATH="$PWD" python3 -m cli context compress --input-dir /absolute/path/to/project --incremental --base-commit HEAD~1 --output-dir /absolute/path/to/context-incremental-bundle --json
 PYTHONPATH="$PWD" python3 -m cli context bundle --input-dir /absolute/path/to/project --incremental --base-commit HEAD~1 --output-dir /absolute/path/to/context-incremental-bundle --json
 PYTHONPATH="$PWD" python3 -m cli context patch --package-file /absolute/path/to/context-incremental-bundle/context_manifest.json --input-dir /absolute/path/to/edited-incremental-surface --output-dir /absolute/path/to/context-incremental-patch --json
+PYTHONPATH="$PWD" python3 -m cli context compress --preset codebase --focus-mode symbols --input-dir /absolute/path/to/project --json
+PYTHONPATH="$PWD" python3 -m cli context compress --preset writing --focus-mode writing-outline --text-file /absolute/path/to/book.md --emit-skeleton
 ```
 
 ### Restore
@@ -138,6 +140,29 @@ Replay semantics for incremental bundles:
 - rewrite `.ail_incremental_manifest.json` so the replayed surface carries the current removed-path contract forward
 
 It still does not pretend to reconstruct the full repository tree unless that full tree was part of the incremental surface.
+
+## Focus Modes
+
+`context compress` and `context bundle` now support `--focus-mode` so the skeleton view can be narrowed without changing the restore package.
+
+Supported modes:
+
+- `full`
+- `tree`
+- `imports`
+- `symbols`
+- `writing-outline`
+
+Current intent:
+
+- `full`: the default structural surface
+- `tree`: directory-first view with no per-file symbol blocks
+- `imports`: code-oriented dependency view
+- `symbols`: code-oriented exported/function/class view
+- `writing-outline`: headings-and-sections view for long-form text and text-heavy directories
+
+This changes the AI-facing skeleton only.
+It does **not** change restore fidelity, patch semantics, or replay semantics.
 
 ## Bundle Shape
 

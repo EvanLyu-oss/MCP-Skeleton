@@ -93,6 +93,19 @@ Check:
 - `metrics.token_estimate_backend in {heuristic, tiktoken}`
 - `metrics.token_estimate_basis is non-empty`
 
+### T1b. Compress long-form text with writing-outline focus
+
+```bash
+python3 -m cli context compress --preset writing --focus-mode writing-outline --text-file /absolute/path/to/long-text.md --json
+```
+
+Check:
+
+- `focus_mode = writing-outline`
+- `skeleton_text` contains `FOCUS_MODE: writing-outline`
+- `skeleton_text` contains `HEADINGS:`
+- `skeleton_text` contains `SECTIONS:`
+
 ### T2. Restore long-form text
 
 ```bash
@@ -171,6 +184,19 @@ Expected skeleton markers:
 - `IMPORTS:`
 - `SYMBOLS:`
 
+### F1b. Compress one code file with symbols focus
+
+```bash
+python3 -m cli context compress --preset codebase --focus-mode symbols --input-file /absolute/path/to/app.py --json
+```
+
+Expected:
+
+- `focus_mode = symbols`
+- `skeleton_text` contains `FOCUS_MODE: symbols`
+- `skeleton_text` contains `SYMBOLS:`
+- `skeleton_text` does not contain `IMPORTS:`
+
 ### F2. Inspect one code-file package
 
 ```bash
@@ -215,6 +241,19 @@ Expected:
   - `context_skeleton.mcp`
   - `context_restore.json`
   - `README.txt`
+
+### D1b. Compress one project tree with symbols focus
+
+```bash
+python3 -m cli context compress --preset codebase --focus-mode symbols --input-dir /absolute/path/to/project --json
+```
+
+Expected:
+
+- `focus_mode = symbols`
+- `skeleton_text` contains `SYMBOLS:`
+- `skeleton_text` does not contain `IMPORTS:`
+- `skeleton_text` does not contain `TREE:`
 
 ### D2. Restore one project tree
 

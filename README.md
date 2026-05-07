@@ -27,6 +27,7 @@ That gives us a practical workflow for large repositories and long documents:
 - `context compress --incremental`: compress only the git change surface for a directory
 - `context bundle --incremental`: export one incremental bundle instead of rebundling the full project
 - `context patch` and `context patch-apply` on incremental bundles: keep replay scoped to the git change surface
+- `context compress --focus-mode ...`: reshape the skeleton for symbols, imports, tree, or writing-outline views
 
 ## Why this is different from summarization
 
@@ -66,6 +67,16 @@ PYTHONPATH="$PWD" python3 -m cli context compress \
   --preset codebase \
   --input-dir ./cli \
   --output-dir /absolute/path/to/context-bundle \
+  --json
+```
+
+Compress the same directory with one symbols-focused skeleton:
+
+```bash
+PYTHONPATH="$PWD" python3 -m cli context compress \
+  --preset codebase \
+  --focus-mode symbols \
+  --input-dir ./cli \
   --json
 ```
 
@@ -138,6 +149,16 @@ PYTHONPATH="$PWD" python3 -m cli context apply-check \
   --package-file /absolute/path/to/context-incremental-bundle/context_manifest.json \
   --input-dir /absolute/path/to/edited-incremental-surface \
   --json
+```
+
+Extract one writing-outline skeleton from long-form text:
+
+```bash
+PYTHONPATH="$PWD" python3 -m cli context compress \
+  --preset writing \
+  --focus-mode writing-outline \
+  --text-file /absolute/path/to/book-draft.md \
+  --emit-skeleton
 ```
 
 Replay one edited incremental surface:

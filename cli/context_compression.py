@@ -34,6 +34,7 @@ STOPWORDS = {
     "以及", "可以", "这个", "那个", "需要", "进行", "通过", "作为", "用于", "项目", "内容",
 }
 TOKENIZER_BACKENDS = {"auto", "heuristic", "tiktoken"}
+CONTEXT_FOCUS_MODES = {"full", "tree", "imports", "symbols", "writing-outline"}
 PATCH_APPLY_MERGE_MODES = {"overwrite", "reject-conflicts"}
 PATCH_POLICY_MODES: dict[str, dict[str, Any]] = {
     "open": {
@@ -153,8 +154,10 @@ def build_context_compress_payload(
     tokenizer_model: str | None = None,
     incremental: bool = False,
     base_commit: str | None = None,
+    focus_mode: str | None = None,
 ) -> dict[str, Any]:
     preset = resolve_context_preset(preset_id)
+    resolved_focus_mode = _normalize_context_focus_mode(focus_mode)
     if incremental:
         if any(item for item in [inline_text.strip() if inline_text else "", text_file, input_file]) or input_dir is None:
             raise ValueError("context compress --incremental currently requires exactly one directory input via --input-dir")
@@ -175,7 +178,7 @@ def build_context_compress_payload(
             tokenizer_model=tokenizer_model,
         )
 
-    skeleton_text = _render_skeleton_text(source, preset=preset)
+    skeleton_text = _render_skeleton_text(source, preset=preset, focus_mode=resolved_focus_mode)
     restore_blob = _encode_restore_blob(source["restore_blob"])
     metrics = _build_context_metrics(
         source["source_summary"],
@@ -195,6 +198,7 @@ def build_context_compress_payload(
         "preset_label": preset["label"],
         "preset_focus": list(preset["focus"]),
         "preset_best_for": list(preset["best_for"]),
+        "focus_mode": resolved_focus_mode,
         "compression_mode": source["compression_mode"],
         "source_kind": source["source_kind"],
         "source_label": source["source_label"],
@@ -344,6 +348,7 @@ def build_context_bundle_payload(
     tokenizer_model: str | None = None,
     incremental: bool = False,
     base_commit: str | None = None,
+    focus_mode: str | None = None,
 ) -> dict[str, Any]:
     compression_payload = build_context_compress_payload(
         inline_text=inline_text,
@@ -356,6 +361,7 @@ def build_context_bundle_payload(
         tokenizer_model=tokenizer_model,
         incremental=incremental,
         base_commit=base_commit,
+        focus_mode=focus_mode,
     )
     inspect_payload = inspect_context_package(
         compression_payload,
@@ -411,6 +417,7 @@ def build_context_bundle_payload(
         "bundle_created_at": _utc_now(),
         "preset_id": compression_payload.get("preset_id", "generic"),
         "preset_label": compression_payload.get("preset_label", CONTEXT_PRESETS["generic"]["label"]),
+        "focus_mode": compression_payload.get("focus_mode", "full"),
         "skeleton_language": compression_payload.get("skeleton_language", SKELETON_LANGUAGE),
         "compression_mode": compression_payload.get("compression_mode", ""),
         "source_kind": compression_payload.get("source_kind", ""),
@@ -1051,6 +1058,7 @@ def inspect_context_package(
         "preset_id": package_payload.get("preset_id", "generic"),
         "preset_label": package_payload.get("preset_label", CONTEXT_PRESETS["generic"]["label"]),
         "preset_focus": list(package_payload.get("preset_focus") or CONTEXT_PRESETS["generic"]["focus"]),
+        "focus_mode": package_payload.get("focus_mode", "full"),
         "compression_mode": package_payload.get("compression_mode", restore_mode),
         "source_kind": package_payload.get("source_kind", decoded.get("source_kind", "")),
         "source_label": package_payload.get("source_label", decoded.get("source_label", "")),
@@ -1769,6 +1777,7 @@ def _build_context_readme_text(payload: dict[str, Any], files: dict[str, Path]) 
             f"bundle_created_at: {payload.get('bundle_created_at', '')}",
             f"preset_id: {payload.get('preset_id', 'generic')}",
             f"preset_label: {payload.get('preset_label', CONTEXT_PRESETS['generic']['label'])}",
+            f"focus_mode: {payload.get('focus_mode', 'full')}",
             f"compression_mode: {payload.get('compression_mode', '')}",
             f"source_kind: {payload.get('source_kind', '')}",
             f"source_label: {payload.get('source_label', '')}",
@@ -1795,6 +1804,7 @@ def _build_context_inspect_summary_text(payload: dict[str, Any]) -> str:
     lines = [
         f"status: {payload.get('status', '')}",
         f"preset_id: {payload.get('preset_id', '')}",
+        f"focus_mode: {payload.get('focus_mode', 'full')}",
         f"compression_mode: {payload.get('compression_mode', '')}",
         f"source_kind: {payload.get('source_kind', '')}",
         f"source_label: {payload.get('source_label', '')}",
@@ -1878,6 +1888,7 @@ def _build_context_bundle_summary_text(payload: dict[str, Any]) -> str:
     lines = [
         f"status: {payload.get('status', '')}",
         f"preset_id: {payload.get('preset_id', '')}",
+        f"focus_mode: {payload.get('focus_mode', 'full')}",
         f"compression_mode: {payload.get('compression_mode', '')}",
         f"source_kind: {payload.get('source_kind', '')}",
         f"source_label: {payload.get('source_label', '')}",
@@ -2029,11 +2040,12 @@ def _decode_restore_blob(payload: dict[str, Any]) -> dict[str, Any]:
     return decoded
 
 
-def _render_skeleton_text(source: dict[str, Any], *, preset: dict[str, Any]) -> str:
+def _render_skeleton_text(source: dict[str, Any], *, preset: dict[str, Any], focus_mode: str) -> str:
     lines = [
         SKELETON_LANGUAGE,
         f"PRESET: {preset['preset_id']}",
         f"PRESET_LABEL: {preset['label']}",
+        f"FOCUS_MODE: {focus_mode}",
         f"MODE: {source['compression_mode']}",
         f"SOURCE_KIND: {source['source_kind']}",
         f"SOURCE_LABEL: {source['source_label']}",
@@ -2056,7 +2068,7 @@ def _render_skeleton_text(source: dict[str, Any], *, preset: dict[str, Any]) -> 
             lines.append("  REMOVED_PATHS:")
             lines.extend([f"    - {item}" for item in source.get("incremental_removed_paths", [])])
     lines.append("SKELETON:")
-    lines.extend(_render_structural_lines(source["source_summary"], indent="  "))
+    lines.extend(_render_structural_lines(source["source_summary"], indent="  ", focus_mode=focus_mode))
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -2129,6 +2141,14 @@ def resolve_context_preset(preset_id: str | None) -> dict[str, Any]:
     }
 
 
+def _normalize_context_focus_mode(focus_mode: str | None) -> str:
+    normalized = str(focus_mode or "full").strip().lower() or "full"
+    if normalized not in CONTEXT_FOCUS_MODES:
+        supported = ", ".join(sorted(CONTEXT_FOCUS_MODES))
+        raise ValueError(f"Unsupported context focus mode `{normalized}`. Supported focus modes: {supported}")
+    return normalized
+
+
 def _render_core_summary_lines(summary: dict[str, Any], *, indent: str) -> list[str]:
     lines = []
     for key in [
@@ -2143,39 +2163,71 @@ def _render_core_summary_lines(summary: dict[str, Any], *, indent: str) -> list[
     return lines
 
 
-def _render_structural_lines(summary: dict[str, Any], *, indent: str) -> list[str]:
+def _render_structural_lines(summary: dict[str, Any], *, indent: str, focus_mode: str = "full") -> list[str]:
     source_kind = str(summary.get("source_kind") or "")
     if source_kind == "code":
         lines = []
-        if summary.get("imports"):
+        if focus_mode in {"full", "imports"} and summary.get("imports"):
             lines.append(f"{indent}IMPORTS:")
             lines.extend([f"{indent}  - {item}" for item in summary["imports"]])
-        if summary.get("symbols"):
+        if focus_mode in {"full", "symbols"} and summary.get("symbols"):
             lines.append(f"{indent}SYMBOLS:")
             lines.extend([f"{indent}  - {item}" for item in summary["symbols"]])
-        if summary.get("relationships"):
+        if focus_mode == "full" and summary.get("relationships"):
             lines.append(f"{indent}RELATIONSHIPS:")
             lines.extend([f"{indent}  - {item}" for item in summary["relationships"]])
-        return lines or [f"{indent}- no structural code markers were extracted"]
+        if lines:
+            return lines
+        if focus_mode in {"imports", "symbols"}:
+            return [f"{indent}- no {focus_mode} markers were extracted"]
+        return [f"{indent}- no structural code markers were extracted"]
     if source_kind in {"text", "markdown"}:
         lines = []
-        if summary.get("headings"):
+        if focus_mode in {"full", "writing-outline"} and summary.get("headings"):
             lines.append(f"{indent}HEADINGS:")
             lines.extend([f"{indent}  - {item}" for item in summary["headings"]])
-        if summary.get("sections"):
+        if focus_mode in {"full", "writing-outline"} and summary.get("sections"):
             lines.append(f"{indent}SECTIONS:")
             lines.extend([f"{indent}  - {item}" for item in summary["sections"]])
-        return lines or [f"{indent}- no section markers were extracted"]
+        if lines:
+            return lines
+        if focus_mode == "writing-outline":
+            return [f"{indent}- no writing outline markers were extracted"]
+        return [f"{indent}- no section markers were extracted"]
     if source_kind == "directory":
-        lines = [f"{indent}TREE:"]
-        lines.extend([f"{indent}  - {item}" for item in summary.get("tree", [])])
+        lines: list[str] = []
+        if focus_mode in {"full", "tree"}:
+            lines.append(f"{indent}TREE:")
+            lines.extend([f"{indent}  - {item}" for item in summary.get("tree", [])])
         entry_blocks = []
         for entry in summary.get("entries", []):
-            entry_blocks.append(f"{indent}FILE[{entry['kind']}]: {entry['relative_path']}")
-            entry_blocks.extend(_render_core_summary_lines(entry.get("summary") or {}, indent=f"{indent}  "))
-            if entry.get("kind") in {"code", "text"}:
-                entry_blocks.extend(_render_structural_lines(entry.get("summary") or {}, indent=f"{indent}  "))
-        return lines + entry_blocks
+            entry_kind = entry.get("kind")
+            if focus_mode == "tree":
+                continue
+            if focus_mode == "imports" and entry_kind != "code":
+                continue
+            if focus_mode == "symbols" and entry_kind != "code":
+                continue
+            if focus_mode == "writing-outline" and entry_kind not in {"text", "markdown"}:
+                continue
+            structural = []
+            if entry_kind in {"code", "text", "markdown"}:
+                structural = _render_structural_lines(entry.get("summary") or {}, indent=f"{indent}  ", focus_mode=focus_mode)
+            if focus_mode == "full":
+                entry_blocks.append(f"{indent}FILE[{entry_kind}]: {entry['relative_path']}")
+                entry_blocks.extend(_render_core_summary_lines(entry.get("summary") or {}, indent=f"{indent}  "))
+                entry_blocks.extend(structural)
+                continue
+            if structural and not (len(structural) == 1 and structural[0].strip().startswith("- no ")):
+                entry_blocks.append(f"{indent}FILE[{entry_kind}]: {entry['relative_path']}")
+                entry_blocks.extend(structural)
+        if lines or entry_blocks:
+            return lines + entry_blocks
+        if focus_mode == "tree":
+            return [f"{indent}- no tree markers were extracted"]
+        if focus_mode in {"imports", "symbols", "writing-outline"}:
+            return [f"{indent}- no {focus_mode} markers were extracted at directory scope"]
+        return [f"{indent}- no structural directory markers were extracted"]
     if source_kind == "binary":
         return [f"{indent}- binary payload preserved for exact restore; skeleton intentionally exposes metadata only"]
     return [f"{indent}- no structural renderer available for source_kind={source_kind}"]
