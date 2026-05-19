@@ -31,9 +31,11 @@ TEXT_EXTENSIONS = {
 TEXT_DECODE_CANDIDATES = (
     "utf-8",
     "utf-8-sig",
+    "shift_jis",
+    "euc_jp",
+    "gb2312",
     "gb18030",
     "big5",
-    "shift_jis",
     "euc_kr",
     "cp1252",
     "latin-1",
@@ -3439,9 +3441,15 @@ def _build_text_chapter_groups(
 
 
 def _decode_text_bytes(path: Path, data: bytes, *, allow_extension_hint: bool = False) -> dict[str, Any] | None:
+    extension_hint = allow_extension_hint and path.suffix.lower() in TEXT_EXTENSIONS
+    bom_decoded = _decode_text_bytes_from_bom(data)
+    if bom_decoded is not None:
+        return bom_decoded
+    utf16_decoded = _decode_utf16_without_bom(data, extension_hint=extension_hint)
+    if utf16_decoded is not None:
+        return utf16_decoded
     if b"\x00" in data[:4096]:
         return None
-    extension_hint = allow_extension_hint and path.suffix.lower() in TEXT_EXTENSIONS
     for encoding in TEXT_DECODE_CANDIDATES:
         try:
             text = data.decode(encoding)
@@ -3453,6 +3461,59 @@ def _decode_text_bytes(path: Path, data: bytes, *, allow_extension_hint: bool = 
                 "text": text,
                 "encoding": encoding,
                 "confidence": "high" if encoding.startswith("utf") or score >= 0.98 else "medium",
+                "printable_score": round(score, 4),
+            }
+    return None
+
+
+def _decode_text_bytes_from_bom(data: bytes) -> dict[str, Any] | None:
+    bom_candidates = [
+        (b"\xff\xfe", "utf-16-le-bom", "utf-16"),
+        (b"\xfe\xff", "utf-16-be-bom", "utf-16"),
+        (b"\xef\xbb\xbf", "utf-8-sig", "utf-8-sig"),
+    ]
+    for bom, label, codec in bom_candidates:
+        if data.startswith(bom):
+            try:
+                text = data.decode(codec)
+            except UnicodeDecodeError:
+                return None
+            score = _decoded_text_printable_score(text)
+            if score >= 0.9:
+                return {
+                    "text": text,
+                    "encoding": label,
+                    "confidence": "high",
+                    "printable_score": round(score, 4),
+                }
+    return None
+
+
+def _decode_utf16_without_bom(data: bytes, *, extension_hint: bool) -> dict[str, Any] | None:
+    if len(data) < 4:
+        return None
+    sample = data[:4096]
+    even_nuls = sample[0::2].count(0)
+    odd_nuls = sample[1::2].count(0)
+    pair_count = max(1, len(sample) // 2)
+    candidates: list[tuple[str, str]] = []
+    if odd_nuls / pair_count >= 0.35 and even_nuls / pair_count <= 0.1:
+        candidates.append(("utf-16-le", "utf-16-le"))
+    if even_nuls / pair_count >= 0.35 and odd_nuls / pair_count <= 0.1:
+        candidates.append(("utf-16-be", "utf-16-be"))
+    if not candidates:
+        return None
+    for label, codec in candidates:
+        try:
+            text = data.decode(codec)
+        except UnicodeDecodeError:
+            continue
+        score = _decoded_text_printable_score(text)
+        if score >= 0.9 or (extension_hint and score >= 0.82):
+            return {
+                "text": text,
+                "encoding": label,
+                "confidence": "high" if score >= 0.96 else "medium",
                 "printable_score": round(score, 4),
             }
     return None

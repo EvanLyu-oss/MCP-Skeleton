@@ -161,12 +161,16 @@ ok_context_restore_text_json=true
 # non-UTF-8 text decode fallback with exact byte restore
 non_utf8_root="$TMP_ROOT/non_utf8"
 mkdir -p "$non_utf8_root/project/docs"
-python3 - "$non_utf8_root/gbk_notes.md" "$non_utf8_root/project/docs/japanese.txt" "$non_utf8_root/project/docs/latin1.txt" <<'PY'
+python3 - "$non_utf8_root/gbk_notes.md" "$non_utf8_root/project/docs/japanese.txt" "$non_utf8_root/project/docs/latin1.txt" "$non_utf8_root/project/docs/utf16le.txt" "$non_utf8_root/project/docs/utf16be.txt" "$non_utf8_root/project/docs/utf8_bom.md" "$non_utf8_root/project/docs/euc_jp.txt" <<'PY'
 from pathlib import Path
 import sys
 Path(sys.argv[1]).write_bytes("# 标题\n\n这是 GBK 编码文本，用于测试无损恢复。\n".encode("gb18030"))
 Path(sys.argv[2]).write_bytes("第一章\n\nこれは Shift-JIS の文章です。\n".encode("shift_jis"))
 Path(sys.argv[3]).write_bytes("Résumé\n\nCafé naïve façade.\n".encode("latin-1"))
+Path(sys.argv[4]).write_bytes("UTF16LE\n\nThis file uses UTF-16 little endian.\n".encode("utf-16-le"))
+Path(sys.argv[5]).write_bytes("UTF16BE\n\nThis file uses UTF-16 big endian.\n".encode("utf-16-be"))
+Path(sys.argv[6]).write_bytes("# BOM Heading\n\nUTF-8 with BOM should stay readable.\n".encode("utf-8-sig"))
+Path(sys.argv[7]).write_bytes("第二章\n\nこれは EUC-JP の文章です。\n".encode("euc_jp"))
 PY
 non_utf8_text_json="$TMP_ROOT/non_utf8_text.json"
 non_utf8_text_bundle="$TMP_ROOT/non_utf8_text_bundle"
@@ -188,18 +192,24 @@ dir_payload = json.loads(Path(sys.argv[4]).read_text(encoding="utf-8"))
 
 assert text_payload["status"] == "ok"
 assert text_payload["compression_mode"] == "text"
-assert text_payload["source_summary"]["source_encoding"] == "gb18030"
+assert text_payload["source_summary"]["source_encoding"] in {"gb2312", "gb18030"}
 assert text_payload["source_summary"]["heading_count"] == 1
 assert "标题" in text_payload["skeleton_text"]
 assert hashlib.sha256(original.read_bytes()).hexdigest() == hashlib.sha256(restored.read_bytes()).hexdigest()
 
 entries = {item["relative_path"]: item for item in dir_payload["source_summary"]["entries"]}
 assert dir_payload["source_summary"]["binary_files"] == 0
-assert dir_payload["source_summary"]["text_files"] == 2
+assert dir_payload["source_summary"]["text_files"] == 6
 assert entries["docs/japanese.txt"]["kind"] == "text"
 assert entries["docs/latin1.txt"]["kind"] == "text"
-assert entries["docs/japanese.txt"]["summary"]["source_encoding"] in {"shift_jis", "gb18030"}
+assert entries["docs/japanese.txt"]["summary"]["source_encoding"] == "shift_jis"
 assert entries["docs/latin1.txt"]["summary"]["source_encoding"] in {"cp1252", "latin-1"}
+assert entries["docs/utf16le.txt"]["summary"]["source_encoding"] == "utf-16-le"
+assert entries["docs/utf16be.txt"]["summary"]["source_encoding"] == "utf-16-be"
+assert entries["docs/utf8_bom.md"]["summary"]["source_encoding"] == "utf-8-sig"
+assert entries["docs/euc_jp.txt"]["summary"]["source_encoding"] == "euc_jp"
+assert "BOM Heading" in dir_payload["skeleton_text"]
+assert "UTF16LE" in dir_payload["skeleton_text"]
 PY
 ok_context_non_utf8_text_fallback_json=true
 

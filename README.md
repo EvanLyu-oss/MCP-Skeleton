@@ -43,7 +43,7 @@ Stable in `0.1.x`:
 - compressing text, one file, or one directory into `MCP-SKL.v1` plus an exact restore package
 - inspecting and restoring text, file, directory, and incremental directory bundles
 - full directory restore reconstructs every file, symlink, and empty directory included in the restore package; by default directory compression skips `.git`, `__pycache__`, and `.pytest_cache`
-- non-UTF-8 text inputs keep original bytes for restore while using best-effort decode fallback for skeleton structure
+- non-UTF-8 and UTF-16/BOM text inputs keep original bytes for restore while using best-effort decode fallback for skeleton structure
 - `apply-check` structural drift gates for text, files, directories, and incremental directory surfaces
 - patch export and patch replay for text, files, directories, and incremental bundles
 - dry-run replay reports, policy-aware replay, and merge-aware replay checks
