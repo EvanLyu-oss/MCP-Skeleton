@@ -27,6 +27,7 @@ ok_context_preset_strategy_differentiation_json=false
 ok_context_compress_directory_symbols_json=false
 ok_context_compress_directory_aggregation_json=false
 ok_context_compress_incremental_json=false
+ok_context_compress_incremental_clean_diagnostics_json=false
 ok_context_inspect_incremental_json=false
 ok_context_restore_incremental_json=false
 ok_context_bundle_json=false
@@ -46,6 +47,7 @@ ok_context_patch_apply_policy_template_json=false
 ok_context_patch_apply_policy_block_json=false
 ok_context_patch_apply_incremental_json=false
 ok_context_patch_apply_incremental_dry_run_report_json=false
+ok_context_invalid_input_dir_json=false
 ok_context_restore_invalid_relpath_json=false
 ok_context_scale_benchmark_json=false
 
@@ -594,8 +596,42 @@ assert p['incremental_mode'] is True
 assert p['incremental_changed_paths'] == ['src/app.py']
 assert p['incremental_added_paths'] == ['src/new.py']
 assert p['incremental_removed_paths'] == ['docs/notes.md']
+assert p['incremental_diagnostics']['effective_changed_count'] == 1
+assert p['incremental_diagnostics']['effective_added_count'] == 1
+assert p['incremental_diagnostics']['effective_removed_count'] == 1
+assert p['incremental_diagnostics']['no_changes_detected'] is False
 PY
 ok_context_compress_incremental_json=true
+
+clean_incremental_dir="$TMP_ROOT/clean_incremental_project"
+mkdir -p "$clean_incremental_dir/src"
+cat > "$clean_incremental_dir/src/app.py" <<'TXT'
+def clean() -> str:
+    return "clean"
+TXT
+cd "$clean_incremental_dir"
+git init -q
+git config user.email smoke@example.com
+git config user.name smoke
+git add .
+git commit -qm "clean baseline"
+cd "$ROOT"
+clean_incremental_json="$TMP_ROOT/clean_incremental.json"
+python3 -m cli context compress --input-dir "$clean_incremental_dir" --incremental --json > "$clean_incremental_json"
+python3 - "$clean_incremental_json" <<'PY'
+import json, sys
+p = json.loads(open(sys.argv[1], encoding='utf-8').read())
+assert p['status'] == 'ok'
+assert p['incremental_mode'] is True
+assert p['incremental_path_count'] == 0
+assert p['incremental_changed_paths'] == []
+assert p['incremental_added_paths'] == []
+assert p['incremental_removed_paths'] == []
+assert p['incremental_diagnostics']['no_changes_detected'] is True
+assert p['incremental_diagnostics']['notes']
+assert 'No git changes were detected' in p['incremental_diagnostics']['notes'][0]
+PY
+ok_context_compress_incremental_clean_diagnostics_json=true
 
 context_incremental_inspect_json="$TMP_ROOT/context_incremental_inspect.json"
 python3 -m cli context inspect --package-file "$incremental_bundle/context_manifest.json" --json > "$context_incremental_inspect_json"
@@ -959,6 +995,22 @@ assert not outdir.exists()
 PY
 ok_context_patch_apply_incremental_dry_run_report_json=true
 
+# invalid input directory blocked
+invalid_input_dir_json="$TMP_ROOT/invalid_input_dir.json"
+set +e
+python3 -m cli context compress --input-dir "$TMP_ROOT/does-not-exist" --json > "$invalid_input_dir_json"
+rc=$?
+set -e
+python3 - "$invalid_input_dir_json" "$rc" <<'PY'
+import json, sys
+p = json.loads(open(sys.argv[1], encoding='utf-8').read())
+assert int(sys.argv[2]) == 2
+assert p['status'] == 'error'
+assert p['error']['code'] == 'invalid_usage'
+assert 'does not exist' in p['error']['message']
+PY
+ok_context_invalid_input_dir_json=true
+
 # invalid relpath restore blocked
 invalid_manifest="$TMP_ROOT/invalid_manifest.json"
 python3 - "$dir_bundle/context_manifest.json" "$invalid_manifest" <<'PY'
@@ -1027,6 +1079,7 @@ export CLI_SMOKE_OK_CONTEXT_PRESET_STRATEGY_DIFFERENTIATION_JSON="$ok_context_pr
 export CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_SYMBOLS_JSON="$ok_context_compress_directory_symbols_json"
 export CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_AGGREGATION_JSON="$ok_context_compress_directory_aggregation_json"
 export CLI_SMOKE_OK_CONTEXT_COMPRESS_INCREMENTAL_JSON="$ok_context_compress_incremental_json"
+export CLI_SMOKE_OK_CONTEXT_COMPRESS_INCREMENTAL_CLEAN_DIAGNOSTICS_JSON="$ok_context_compress_incremental_clean_diagnostics_json"
 export CLI_SMOKE_OK_CONTEXT_INSPECT_INCREMENTAL_JSON="$ok_context_inspect_incremental_json"
 export CLI_SMOKE_OK_CONTEXT_RESTORE_INCREMENTAL_JSON="$ok_context_restore_incremental_json"
 export CLI_SMOKE_OK_CONTEXT_BUNDLE_JSON="$ok_context_bundle_json"
@@ -1046,6 +1099,7 @@ export CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_POLICY_TEMPLATE_JSON="$ok_context_patch_
 export CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_POLICY_BLOCK_JSON="$ok_context_patch_apply_policy_block_json"
 export CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_INCREMENTAL_JSON="$ok_context_patch_apply_incremental_json"
 export CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_INCREMENTAL_DRY_RUN_REPORT_JSON="$ok_context_patch_apply_incremental_dry_run_report_json"
+export CLI_SMOKE_OK_CONTEXT_INVALID_INPUT_DIR_JSON="$ok_context_invalid_input_dir_json"
 export CLI_SMOKE_OK_CONTEXT_RESTORE_INVALID_RELPATH_JSON="$ok_context_restore_invalid_relpath_json"
 export CLI_SMOKE_OK_CONTEXT_SCALE_BENCHMARK_JSON="$ok_context_scale_benchmark_json"
 
@@ -1065,6 +1119,7 @@ checks = {
     'context_compress_directory_symbols_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_SYMBOLS_JSON'] == 'true',
     'context_compress_directory_aggregation_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_DIRECTORY_AGGREGATION_JSON'] == 'true',
     'context_compress_incremental_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_INCREMENTAL_JSON'] == 'true',
+    'context_compress_incremental_clean_diagnostics_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_COMPRESS_INCREMENTAL_CLEAN_DIAGNOSTICS_JSON'] == 'true',
     'context_inspect_incremental_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_INSPECT_INCREMENTAL_JSON'] == 'true',
     'context_restore_incremental_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_RESTORE_INCREMENTAL_JSON'] == 'true',
     'context_bundle_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_BUNDLE_JSON'] == 'true',
@@ -1084,6 +1139,7 @@ checks = {
     'context_patch_apply_policy_block_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_POLICY_BLOCK_JSON'] == 'true',
     'context_patch_apply_incremental_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_INCREMENTAL_JSON'] == 'true',
     'context_patch_apply_incremental_dry_run_report_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_PATCH_APPLY_INCREMENTAL_DRY_RUN_REPORT_JSON'] == 'true',
+    'context_invalid_input_dir_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_INVALID_INPUT_DIR_JSON'] == 'true',
     'context_restore_invalid_relpath_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_RESTORE_INVALID_RELPATH_JSON'] == 'true',
     'context_scale_benchmark_json_ok': os.environ['CLI_SMOKE_OK_CONTEXT_SCALE_BENCHMARK_JSON'] == 'true',
 }

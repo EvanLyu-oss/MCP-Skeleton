@@ -263,6 +263,7 @@ def build_context_compress_payload(
         "incremental_added_paths": list(source.get("incremental_added_paths") or []),
         "incremental_removed_paths": list(source.get("incremental_removed_paths") or []),
         "incremental_path_count": int(source.get("incremental_path_count", 0) or 0),
+        "incremental_diagnostics": source.get("incremental_diagnostics") or {},
         "skeleton_text": skeleton_text,
         "skeleton_char_count": len(skeleton_text),
         "restore_package": restore_blob,
@@ -488,6 +489,7 @@ def build_context_bundle_payload(
         "incremental_added_paths": list(compression_payload.get("incremental_added_paths") or []),
         "incremental_removed_paths": list(compression_payload.get("incremental_removed_paths") or []),
         "incremental_path_count": int(compression_payload.get("incremental_path_count", 0) or 0),
+        "incremental_diagnostics": compression_payload.get("incremental_diagnostics") or {},
         "bundle_root": str(bundle_root),
         "zip_enabled": make_zip,
         "apply_check_included": bool(apply_check_payload),
@@ -1131,6 +1133,7 @@ def inspect_context_package(
         "incremental_added_paths": list(package_payload.get("incremental_added_paths") or []),
         "incremental_removed_paths": list(package_payload.get("incremental_removed_paths") or []),
         "incremental_path_count": int(package_payload.get("incremental_path_count", 0) or 0),
+        "incremental_diagnostics": package_payload.get("incremental_diagnostics") or {},
         "restore_mode": restore_mode,
         "skeleton_char_count": int(package_payload.get("skeleton_char_count", 0) or 0),
         "restore_encoding": restore_package.get("encoding", ""),
@@ -1169,7 +1172,7 @@ def _build_inline_text_source(text: str) -> dict[str, Any]:
 
 
 def _build_text_file_source(path: Path) -> dict[str, Any]:
-    path = path.expanduser().resolve()
+    path = _resolve_existing_context_file(path, field_name="--text-file")
     data = path.read_bytes()
     decoded_text = _decode_text_bytes(path, data, allow_extension_hint=True)
     if decoded_text is None:
@@ -1197,7 +1200,7 @@ def _build_text_file_source(path: Path) -> dict[str, Any]:
 
 
 def _build_file_source(path: Path) -> dict[str, Any]:
-    path = path.expanduser().resolve()
+    path = _resolve_existing_context_file(path, field_name="--input-file")
     data = path.read_bytes()
     decoded_text = _decode_text_bytes(path, data, allow_extension_hint=True)
     if decoded_text is not None:
@@ -1243,6 +1246,24 @@ def _build_context_path_filter(root: Path, *, exclude_patterns: list[str] | None
         "patterns": patterns,
         "ignore_file": str(ignore_file) if ignore_file.exists() else "",
     }
+
+
+def _resolve_existing_context_file(path: Path, *, field_name: str) -> Path:
+    resolved = path.expanduser().resolve()
+    if not resolved.exists():
+        raise ValueError(f"context input {field_name} does not exist: {resolved}")
+    if not resolved.is_file():
+        raise ValueError(f"context input {field_name} must be a file: {resolved}")
+    return resolved
+
+
+def _resolve_existing_context_directory(path: Path, *, field_name: str) -> Path:
+    resolved = path.expanduser().resolve()
+    if not resolved.exists():
+        raise ValueError(f"context input {field_name} does not exist: {resolved}")
+    if not resolved.is_dir():
+        raise ValueError(f"context input {field_name} must be a directory: {resolved}")
+    return resolved
 
 
 def _read_context_ignore_patterns(ignore_file: Path) -> list[str]:
@@ -1310,7 +1331,7 @@ def _build_directory_source(
     tokenizer_model: str | None = None,
     exclude_patterns: list[str] | None = None,
 ) -> dict[str, Any]:
-    path = path.expanduser().resolve()
+    path = _resolve_existing_context_directory(path, field_name="--input-dir")
     path_filter = _build_context_path_filter(path, exclude_patterns=exclude_patterns)
     files: list[dict[str, Any]] = []
     symlinks: list[dict[str, Any]] = []
@@ -1618,7 +1639,7 @@ def _build_incremental_directory_source(
     tokenizer_model: str | None = None,
     exclude_patterns: list[str] | None = None,
 ) -> dict[str, Any]:
-    path = path.expanduser().resolve()
+    path = _resolve_existing_context_directory(path, field_name="--input-dir")
     path_filter = _build_context_path_filter(path, exclude_patterns=exclude_patterns)
     change_set = _collect_incremental_repo_paths(path, base_commit=base_commit)
     repo_root = change_set["repo_root"]
@@ -1660,6 +1681,21 @@ def _build_incremental_directory_source(
         )
         if _context_path_is_filtered(_scope_rel_from_repo_rel(repo_rel, scope_rel), path_filter, is_dir=False)
     ]
+    incremental_diagnostics = {
+        "git_root": str(repo_root),
+        "scope": change_set["scope"],
+        "scope_rel": scope_rel.as_posix(),
+        "base_commit": change_set["base_commit"],
+        "raw_changed_count": len(change_set["changed_repo_paths"]),
+        "raw_added_count": len(change_set["added_repo_paths"]),
+        "raw_removed_count": len(change_set["removed_repo_paths"]),
+        "filtered_incremental_path_count": len(filtered_incremental_paths),
+        "effective_changed_count": 0,
+        "effective_added_count": 0,
+        "effective_removed_count": len(removed_paths),
+        "no_changes_detected": False,
+        "notes": [],
+    }
 
     existing_repo_paths = [
         ("added", repo_rel) for repo_rel in change_set["added_repo_paths"]
@@ -1725,6 +1761,19 @@ def _build_incremental_directory_source(
         else:
             changed_paths.append(rel_path)
 
+    incremental_diagnostics["effective_changed_count"] = len(changed_paths)
+    incremental_diagnostics["effective_added_count"] = len(added_paths)
+    incremental_diagnostics["effective_removed_count"] = len(removed_paths)
+    incremental_diagnostics["no_changes_detected"] = len(changed_paths) + len(added_paths) + len(removed_paths) == 0
+    if incremental_diagnostics["no_changes_detected"]:
+        incremental_diagnostics["notes"].append(
+            "No git changes were detected for the requested input directory scope; modify, stage, add, or delete files under this directory, or provide --base-commit for commit-to-working-tree diffs."
+        )
+    if filtered_incremental_paths:
+        incremental_diagnostics["notes"].append(
+            "Some git changes were excluded by .mcp-skeletonignore or --exclude patterns."
+        )
+
     directory_overview = _build_directory_overview(sorted(skeleton_entries, key=lambda item: item["relative_path"]))
     source_summary = {
         "source_kind": "directory",
@@ -1777,6 +1826,7 @@ def _build_incremental_directory_source(
         "incremental_added_paths": added_paths,
         "incremental_removed_paths": removed_paths,
         "incremental_path_count": len(changed_paths) + len(added_paths) + len(removed_paths),
+        "incremental_diagnostics": incremental_diagnostics,
         "restore_blob": {
             "mode": "directory_incremental",
             "source_label": path.name,

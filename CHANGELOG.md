@@ -11,6 +11,9 @@
 - added filter metadata to directory `source_summary` and smoke coverage proving filtered paths stay out of the restore package
 - added preset-specific skeleton strategies and suggested exclude hints so `codebase`, `writing`, `website`, and `ecommerce` produce more differentiated AI-facing context surfaces
 - tuned preset-aware skeleton budgets and directory entry ordering, with smoke coverage proving codebase prefers code entries while writing prefers prose entries on mixed large directories
+- validated input files and directories before compression so missing paths return invalid-usage errors instead of empty successful bundles
+- added incremental diagnostics for clean or filtered git change surfaces and smoke coverage for zero-change incremental runs
+- documented a safe dogfood workflow using ignored result directories and sandbox restores
 
 ## 0.1.0
 

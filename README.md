@@ -197,7 +197,27 @@ PYTHONPATH="$PWD" python3 -m cli context compress \
   --json
 ```
 
+If an incremental bundle reports zero changed, added, and removed paths, inspect `incremental_diagnostics`. A clean git working tree, a path outside the changed scope, ignored files, or filters from `.mcp-skeletonignore` / `--exclude` can all legitimately produce an empty incremental surface.
+
 Incremental restore intentionally reconstructs only that git change surface plus an `.ail_incremental_manifest.json` removed-path manifest. Use a non-incremental directory bundle when you need a complete project-tree restore.
+
+Safe dogfood workflow for active development:
+
+```bash
+PYTHONPATH="$PWD" python3 -m cli context bundle \
+  --preset codebase \
+  --input-dir "$PWD" \
+  --exclude testing/results/ \
+  --output-dir testing/results/dogfood-current \
+  --json
+
+PYTHONPATH="$PWD" python3 -m cli context restore \
+  --package-file testing/results/dogfood-current/context_manifest.json \
+  --output-dir testing/results/dogfood-restore \
+  --json
+```
+
+Keep dogfood restore and replay outputs outside the source tree or under ignored result directories. Prefer `patch-apply --dry-run --write-dry-run-report ...` until the replay surface has been inspected.
 
 Validate one edited incremental surface:
 
