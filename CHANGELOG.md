@@ -15,6 +15,7 @@
 - added incremental diagnostics for clean or filtered git change surfaces and smoke coverage for zero-change incremental runs
 - documented a safe dogfood workflow using ignored result directories and sandbox restores
 - added `testing/dogfood_self_check.sh` to compress, inspect, sandbox-restore, and hash-check this repository during active development
+- added a focused roadmap for encoding robustness, large-repo stability, semantic skeleton quality, CI/dogfood integration, and skeleton-layer secret awareness
 
 ## 0.1.0
 

@@ -238,6 +238,10 @@ PYTHONPATH="$PWD" python3 -m cli context patch-apply \
   --json
 ```
 
+## Roadmap
+
+Current development priorities are tracked in [ROADMAP_20260520.md](ROADMAP_20260520.md). The roadmap keeps future work centered on lossless context compression, exact restore, patch/replay, incremental transport, large-repo benchmarks, and safe dogfood validation.
+
 ## Benchmarking
 
 Quick benchmark:
