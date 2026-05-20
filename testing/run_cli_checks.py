@@ -192,6 +192,159 @@ def _check_directory_restore(workspace: Path) -> None:
     assert (restored_project / "empty" / "leaf").is_dir()
 
 
+def _build_simple_project(workspace: Path, *, name: str = "simple_project", with_git: bool = False) -> Path:
+    project = workspace / name
+    (project / "src").mkdir(parents=True)
+    (project / "docs").mkdir()
+    (project / "src" / "app.py").write_text(
+        "from pathlib import Path\n\n"
+        "def run() -> str:\n"
+        "    return 'alpha'\n",
+        encoding="utf-8",
+    )
+    (project / "src" / "utils.py").write_text("def helper() -> int:\n    return 3\n", encoding="utf-8")
+    (project / "docs" / "notes.md").write_text("Initial note.\n", encoding="utf-8")
+    if with_git:
+        _git(["init", "-q"], cwd=project)
+        _git(["config", "user.email", "smoke@example.com"], cwd=project)
+        _git(["config", "user.name", "Python Smoke"], cwd=project)
+        _git(["add", "."], cwd=project)
+        _git(["commit", "-q", "-m", "initial"], cwd=project)
+    return project
+
+
+def _check_bundle_outputs(workspace: Path) -> None:
+    project = _build_simple_project(workspace, name="bundle_project", with_git=True)
+    (project / "src" / "app.py").write_text(
+        "from pathlib import Path\n\n"
+        "def run() -> str:\n"
+        "    return 'beta'\n",
+        encoding="utf-8",
+    )
+    (project / "src" / "new.py").write_text("def created() -> str:\n    return 'new'\n", encoding="utf-8")
+    (project / "docs" / "notes.md").unlink()
+
+    bundle_dir = workspace / "context_bundle"
+    bundle = _run_cli_json(
+        ["context", "bundle", "--input-dir", str(project), "--output-dir", str(bundle_dir), "--json"]
+    )
+    assert bundle["status"] == "ok"
+    assert bundle["entrypoint"] == "context-bundle"
+    assert bundle["file_count"] >= 7
+    assert (bundle_dir / "context_manifest.json").exists()
+    assert (bundle_dir / "context_skeleton.mcp").exists()
+
+    incremental_dir = workspace / "context_bundle_incremental"
+    incremental = _run_cli_json(
+        [
+            "context",
+            "bundle",
+            "--input-dir",
+            str(project),
+            "--incremental",
+            "--output-dir",
+            str(incremental_dir),
+            "--json",
+        ]
+    )
+    assert incremental["status"] == "ok"
+    assert incremental["incremental_mode"] is True
+    assert incremental["incremental_changed_paths"] == ["src/app.py"]
+    assert incremental["incremental_added_paths"] == ["src/new.py"]
+    assert incremental["incremental_removed_paths"] == ["docs/notes.md"]
+
+
+def _check_clean_incremental_diagnostics(workspace: Path) -> None:
+    project = _build_simple_project(workspace, name="clean_incremental_project", with_git=True)
+    payload = _run_cli_json(["context", "compress", "--input-dir", str(project), "--incremental", "--json"])
+    assert payload["status"] == "ok"
+    assert payload["incremental_mode"] is True
+    assert payload["incremental_path_count"] == 0
+    assert payload["incremental_changed_paths"] == []
+    assert payload["incremental_added_paths"] == []
+    assert payload["incremental_removed_paths"] == []
+    assert payload["incremental_diagnostics"]["no_changes_detected"] is True
+    assert payload["incremental_diagnostics"]["notes"]
+    assert "No git changes were detected" in payload["incremental_diagnostics"]["notes"][0]
+
+
+def _check_apply_check_drift(workspace: Path) -> None:
+    source_text = workspace / "apply_source.md"
+    source_text.write_text(
+        "# MCP Skeleton\n\n"
+        "This is one long test paragraph about preserving restore fidelity while shrinking the AI-facing context surface.\n",
+        encoding="utf-8",
+    )
+    text_bundle = workspace / "apply_text_bundle"
+    _run_cli_json(
+        [
+            "context",
+            "compress",
+            "--text-file",
+            str(source_text),
+            "--output-dir",
+            str(text_bundle),
+            "--json",
+        ]
+    )
+    drift_text = workspace / "drift_text.md"
+    drift_text.write_text("Tiny unrelated note.\n", encoding="utf-8")
+    text_drift = _run_cli_json(
+        [
+            "context",
+            "apply-check",
+            "--package-file",
+            str(text_bundle / "context_manifest.json"),
+            "--text-file",
+            str(drift_text),
+            "--json",
+        ],
+        expect=3,
+    )
+    assert text_drift["status"] == "warning"
+    assert text_drift["apply_check_passed"] is False
+    assert text_drift["alignment_band"] == "drifting"
+    assert text_drift["drift_findings"]
+    assert text_drift["revision_targets"]
+
+    project = _build_simple_project(workspace, name="apply_dir_source")
+    dir_bundle = workspace / "apply_dir_bundle"
+    _run_cli_json(
+        ["context", "compress", "--input-dir", str(project), "--output-dir", str(dir_bundle), "--json"]
+    )
+    drift_dir = workspace / "apply_dir_drift"
+    (drift_dir / "src").mkdir(parents=True)
+    (drift_dir / "docs").mkdir()
+    (drift_dir / "extras").mkdir()
+    (drift_dir / "src" / "app.py").write_text(
+        "from pathlib import Path\n\n"
+        "def run() -> str:\n"
+        "    return 'drifted'\n",
+        encoding="utf-8",
+    )
+    (drift_dir / "docs" / "notes.md").write_text("Symlink fallback content on platforms without symlink support.\n", encoding="utf-8")
+    for idx in range(1, 6):
+        (drift_dir / "extras" / f"extra_{idx}.txt").write_text(f"extra {idx}\n", encoding="utf-8")
+    dir_drift = _run_cli_json(
+        [
+            "context",
+            "apply-check",
+            "--package-file",
+            str(dir_bundle / "context_manifest.json"),
+            "--input-dir",
+            str(drift_dir),
+            "--json",
+        ],
+        expect=3,
+    )
+    assert dir_drift["status"] == "warning"
+    assert dir_drift["apply_check_passed"] is False
+    assert dir_drift["alignment_band"] == "drifting"
+    assert any("file tree dropped" in finding.lower() for finding in dir_drift["drift_findings"])
+    assert any("large number of files" in finding.lower() for finding in dir_drift["drift_findings"])
+    assert dir_drift["revision_targets"]
+
+
 def _check_directory_filtering(workspace: Path) -> None:
     project = workspace / "filter_project"
     (project / "src").mkdir(parents=True)
@@ -874,6 +1027,9 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("context_restore_text_json_ok", _check_text_restore),
     ("context_non_utf8_text_restore_json_ok", _check_non_utf8_text_restore),
     ("context_restore_directory_json_ok", _check_directory_restore),
+    ("context_bundle_json_ok", _check_bundle_outputs),
+    ("context_compress_incremental_clean_diagnostics_json_ok", _check_clean_incremental_diagnostics),
+    ("context_apply_check_drift_json_ok", _check_apply_check_drift),
     ("context_directory_filter_ignore_json_ok", _check_directory_filtering),
     ("context_directory_focus_density_json_ok", _check_directory_focus_density),
     ("context_compress_incremental_json_ok", _check_incremental_compress_restore),

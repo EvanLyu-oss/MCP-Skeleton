@@ -7,6 +7,7 @@
 - documented the Windows Python smoke runner 11/11 validation result in the cross-platform validation report
 - expanded the Python smoke runner with merge-conflict, directory patch-apply, dry-run report, and policy-block replay coverage
 - expanded the Python smoke runner with incremental patch replay, incremental dry-run report, policy-template, and invalid restore path coverage
+- expanded the Python smoke runner with bundle, clean incremental diagnostics, and apply-check drift coverage
 
 ## 0.1.1
 
