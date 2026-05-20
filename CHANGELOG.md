@@ -3,6 +3,7 @@
 ## Unreleased
 
 - added and expanded a Python-native cross-platform smoke runner for Windows and other environments without Bash
+- fixed text patch snapshots and replay to preserve candidate bytes exactly across platforms
 
 ## 0.1.1
 

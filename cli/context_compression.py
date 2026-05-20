@@ -760,8 +760,7 @@ def apply_context_patch_payload(
         else:
             raise ValueError("context patch-apply requires --output-file or --output-dir")
         if not dry_run:
-            text = snapshot_path.read_text(encoding="utf-8")
-            _write_text(target_path, text)
+            _write_bytes_file(target_path, snapshot_path.read_bytes())
         preview_manifest = _build_context_patch_apply_preview_manifest(
             patch_payload=patch_payload,
             patch_mode=patch_mode,
@@ -4457,6 +4456,11 @@ def _build_text_patch_artifacts(
 ) -> dict[str, Any]:
     original_text = str(original_decoded.get("text") or "")
     candidate_text = str(candidate_restore.get("text") or "")
+    candidate_bytes = (
+        base64.b64decode(str(candidate_restore.get("content_b64") or "").encode("ascii"))
+        if str(candidate_restore.get("content_b64") or "").strip()
+        else candidate_text.encode("utf-8")
+    )
     diff_lines = list(
         difflib.unified_diff(
             original_text.splitlines(),
@@ -4475,7 +4479,7 @@ def _build_text_patch_artifacts(
         "candidate_snapshot_file": patch_root / "candidate_snapshot.txt",
     }
     _write_text_file(files["patch_diff"], diff_text)
-    _write_text_file(files["candidate_snapshot_file"], candidate_text)
+    _write_bytes_file(files["candidate_snapshot_file"], candidate_bytes)
     changed = original_text != candidate_text
     return {
         "patch_mode": "text_unified_diff",
