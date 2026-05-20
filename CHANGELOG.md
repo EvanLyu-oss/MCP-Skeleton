@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- enriched benchmark recommendations with per-source grouping, candidate counts, token savings percentages, token-ratio span, and compression-time comparisons for large-directory and long-text tuning
+- preserved text-density budgets under the writing preset so adaptive and compact long-text skeletons can produce meaningful token savings without changing restore fidelity
+
 ## 0.1.2
 
 - validated v0.1.2 with the Python-native smoke runner passing `25/25` checks on both macOS and Windows

@@ -547,17 +547,24 @@ def _build_best_verified_recommendations(
         for case in cases
         if case.get("kind") == expected_kind
     ]
-    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
     for item in summaries:
-        key = (item["backend"], item.get("sample_type", "synthetic"))
+        key = (item["backend"], item.get("sample_type", "synthetic"), item.get("source_path", ""))
         grouped.setdefault(key, []).append(item)
 
     recommendations: list[dict[str, Any]] = []
-    for (backend, sample_type), items in sorted(grouped.items()):
+    for (backend, sample_type, source_path), items in sorted(grouped.items()):
         verified_items = [item for item in items if item["restore_verified"]]
         if not verified_items:
             continue
         baseline = next(
+            (
+                item
+                for item in verified_items
+                if item.get("focus_mode") == "full" and item.get("skeleton_density") == "standard"
+            ),
+            None,
+        ) or next(
             (
                 item
                 for item in verified_items
@@ -573,22 +580,50 @@ def _build_best_verified_recommendations(
                 str(item.get("focus_mode", "")),
             ),
         )
-        baseline_tokens = int((baseline or best)["estimated_skeleton_tokens"])
+        worst_verified = max(
+            verified_items,
+            key=lambda item: (
+                float(item["token_ratio"]),
+                int(item["estimated_skeleton_tokens"]),
+            ),
+        )
+        baseline_item = baseline or best
+        baseline_tokens = int(baseline_item["estimated_skeleton_tokens"])
         best_tokens = int(best["estimated_skeleton_tokens"])
+        baseline_compress_ms = float(baseline_item.get("compress_ms_avg") or 0.0)
+        best_compress_ms = float(best.get("compress_ms_avg") or 0.0)
+        skeleton_token_size_ratio_vs_baseline = round(best_tokens / baseline_tokens, 4) if baseline_tokens else 0.0
         recommendations.append(
             {
                 "backend": backend,
                 "kind": expected_kind,
                 "sample_type": sample_type,
+                "source_path": source_path,
+                "candidate_count": len(items),
+                "verified_candidate_count": len(verified_items),
                 "recommended_focus_mode": best.get("focus_mode", "full"),
                 "recommended_skeleton_density": best.get("skeleton_density", "adaptive"),
                 "recommended_token_ratio": best["token_ratio"],
                 "recommended_skeleton_tokens": best_tokens,
-                "baseline_focus_mode": (baseline or best).get("focus_mode", "full"),
-                "baseline_skeleton_density": (baseline or best).get("skeleton_density", "adaptive"),
+                "recommended_compress_ms_avg": round(best_compress_ms, 2),
+                "baseline_focus_mode": baseline_item.get("focus_mode", "full"),
+                "baseline_skeleton_density": baseline_item.get("skeleton_density", "adaptive"),
                 "baseline_skeleton_tokens": baseline_tokens,
+                "baseline_token_ratio": baseline_item["token_ratio"],
+                "baseline_compress_ms_avg": round(baseline_compress_ms, 2),
                 "skeleton_token_savings_vs_baseline": max(0, baseline_tokens - best_tokens),
-                "skeleton_token_size_ratio_vs_baseline": round(best_tokens / baseline_tokens, 4) if baseline_tokens else 0.0,
+                "skeleton_token_savings_percent_vs_baseline": round(
+                    max(0.0, 1.0 - skeleton_token_size_ratio_vs_baseline) * 100,
+                    2,
+                ),
+                "skeleton_token_size_ratio_vs_baseline": skeleton_token_size_ratio_vs_baseline,
+                "compress_time_ratio_vs_baseline": round(best_compress_ms / baseline_compress_ms, 4)
+                if baseline_compress_ms else 0.0,
+                "worst_verified_token_ratio": worst_verified["token_ratio"],
+                "token_ratio_span_verified": round(
+                    float(worst_verified["token_ratio"]) - float(best["token_ratio"]),
+                    4,
+                ),
                 "source_chars": best["source_chars"],
                 "restore_verified": best["restore_verified"],
             }
@@ -826,10 +861,14 @@ def _recommendation_preview(items: list[dict[str, Any]]) -> list[dict[str, Any]]
             {
                 "backend": item.get("backend", ""),
                 "sample_type": item.get("sample_type", ""),
+                "source_path": item.get("source_path", ""),
                 "focus_mode": item.get("recommended_focus_mode", ""),
                 "skeleton_density": item.get("recommended_skeleton_density", ""),
                 "token_ratio": item.get("recommended_token_ratio", 0),
                 "size_ratio_vs_baseline": item.get("skeleton_token_size_ratio_vs_baseline", 0),
+                "savings_percent_vs_baseline": item.get("skeleton_token_savings_percent_vs_baseline", 0),
+                "candidate_count": item.get("candidate_count", 0),
+                "verified_candidate_count": item.get("verified_candidate_count", 0),
             }
         )
     return preview
@@ -910,7 +949,7 @@ def _render_markdown(report: dict[str, Any]) -> str:
             lines.extend([f"{title}:", ""])
             lines.extend(
                 [
-                    f"- `{item.get('sample_type', '')}`/{item.get('backend', '')}: `{item.get('focus_mode', '')}` + `{item.get('skeleton_density', '')}` ratio `{item.get('token_ratio', 0)}`"
+                    f"- `{item.get('sample_type', '')}`/{item.get('backend', '')}: `{item.get('focus_mode', '')}` + `{item.get('skeleton_density', '')}` ratio `{item.get('token_ratio', 0)}`, saves `{item.get('savings_percent_vs_baseline', 0)}%` vs baseline"
                     for item in items[:4]
                 ]
             )
@@ -1003,13 +1042,20 @@ def _render_markdown(report: dict[str, Any]) -> str:
             [
                 item["backend"],
                 item["sample_type"],
+                item["source_path"],
                 item["recommended_focus_mode"],
                 item["recommended_skeleton_density"],
                 item["recommended_token_ratio"],
                 item["recommended_skeleton_tokens"],
                 item["baseline_skeleton_tokens"],
                 item["skeleton_token_savings_vs_baseline"],
+                item["skeleton_token_savings_percent_vs_baseline"],
                 item["skeleton_token_size_ratio_vs_baseline"],
+                item["recommended_compress_ms_avg"],
+                item["baseline_compress_ms_avg"],
+                item["compress_time_ratio_vs_baseline"],
+                item["verified_candidate_count"],
+                item["candidate_count"],
                 item["restore_verified"],
             ]
             for item in report["summaries"]["large_directory_recommendations"]
@@ -1019,13 +1065,20 @@ def _render_markdown(report: dict[str, Any]) -> str:
                 [
                     "Backend",
                     "Sample type",
+                    "Source",
                     "Recommended focus",
                     "Recommended density",
                     "Token ratio",
                     "Recommended tokens",
                     "Baseline tokens",
                     "Tokens saved vs baseline",
+                    "Savings % vs baseline",
                     "Size ratio vs baseline",
+                    "Recommended ms",
+                    "Baseline ms",
+                    "Time ratio vs baseline",
+                    "Verified candidates",
+                    "Candidates",
                     "Restore ok",
                 ],
                 recommendation_rows,
@@ -1037,13 +1090,20 @@ def _render_markdown(report: dict[str, Any]) -> str:
             [
                 item["backend"],
                 item["sample_type"],
+                item["source_path"],
                 item["recommended_focus_mode"],
                 item["recommended_skeleton_density"],
                 item["recommended_token_ratio"],
                 item["recommended_skeleton_tokens"],
                 item["baseline_skeleton_tokens"],
                 item["skeleton_token_savings_vs_baseline"],
+                item["skeleton_token_savings_percent_vs_baseline"],
                 item["skeleton_token_size_ratio_vs_baseline"],
+                item["recommended_compress_ms_avg"],
+                item["baseline_compress_ms_avg"],
+                item["compress_time_ratio_vs_baseline"],
+                item["verified_candidate_count"],
+                item["candidate_count"],
                 item["restore_verified"],
             ]
             for item in report["summaries"]["long_text_recommendations"]
@@ -1053,13 +1113,20 @@ def _render_markdown(report: dict[str, Any]) -> str:
                 [
                     "Backend",
                     "Sample type",
+                    "Source",
                     "Recommended focus",
                     "Recommended density",
                     "Token ratio",
                     "Recommended tokens",
                     "Baseline tokens",
                     "Tokens saved vs baseline",
+                    "Savings % vs baseline",
                     "Size ratio vs baseline",
+                    "Recommended ms",
+                    "Baseline ms",
+                    "Time ratio vs baseline",
+                    "Verified candidates",
+                    "Candidates",
                     "Restore ok",
                 ],
                 long_text_recommendation_rows,

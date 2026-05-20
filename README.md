@@ -280,6 +280,7 @@ The benchmark compares:
 - synthetic monorepo-style package trees across full, tree, imports, and symbols focus modes
 - large-directory recommendations that identify the lowest-token verified focus/density choice per backend and sample type
 - long-text recommendations that identify the lowest-token verified focus/density choice for manuscript-scale inputs
+- per-source recommendation diagnostics with candidate counts, savings percentage vs baseline, token-ratio span, and compression-time comparison
 - release-readiness summaries that separate blocking restore failures from watch-level scale/token signals
 - optional baseline JSON comparisons for non-blocking restore, token-ratio, and compression-time regression trends
 - executive summaries for quick test-machine handoff of readiness, regression, restore, and recommended modes

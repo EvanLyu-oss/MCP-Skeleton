@@ -1314,6 +1314,17 @@ def _check_scale_benchmark_quick(workspace: Path) -> None:
     assert report["scale_health"]["status"] in {"ok", "warn"}
     assert report["executive_summary"]["large_directory_recommendations"]
     assert report["executive_summary"]["long_text_recommendations"]
+    for key in ["large_directory_recommendations", "long_text_recommendations"]:
+        preview = report["executive_summary"][key][0]
+        assert "savings_percent_vs_baseline" in preview
+        assert preview["candidate_count"] >= preview["verified_candidate_count"] >= 1
+        recommendation = report["summaries"][key][0]
+        assert "recommended_compress_ms_avg" in recommendation
+        assert "baseline_compress_ms_avg" in recommendation
+        assert "compress_time_ratio_vs_baseline" in recommendation
+        assert "token_ratio_span_verified" in recommendation
+    assert max(item["skeleton_token_savings_percent_vs_baseline"] for item in report["summaries"]["large_directory_recommendations"]) >= 30
+    assert max(item["skeleton_token_savings_percent_vs_baseline"] for item in report["summaries"]["long_text_recommendations"]) >= 10
 
 
 CHECKS: list[tuple[str, Callable[[Path], None]]] = [

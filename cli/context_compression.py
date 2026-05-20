@@ -2690,12 +2690,12 @@ def _apply_preset_density_profile(profile: dict[str, Any], *, preset_id: str, so
             tuned["hot_subtree_entry_limit"] = max(int(tuned.get("hot_subtree_entry_limit", 0) or 0), 20)
         return tuned
     if preset == "writing":
-        tuned["headings_limit"] = max(int(tuned.get("headings_limit", 0) or 0), 28)
-        tuned["sections_limit"] = max(int(tuned.get("sections_limit", 0) or 0), 14)
-        tuned["chapter_fold_limit"] = max(int(tuned.get("chapter_fold_limit", 0) or 0), 20)
-        tuned["chapter_fold_heading_limit"] = max(int(tuned.get("chapter_fold_heading_limit", 0) or 0), 4)
         tuned["directory_kind_priority"] = ["text", "markdown", "code", "symlink", "binary"]
         if source_kind == "directory":
+            tuned["headings_limit"] = max(int(tuned.get("headings_limit", 0) or 0), 28)
+            tuned["sections_limit"] = max(int(tuned.get("sections_limit", 0) or 0), 14)
+            tuned["chapter_fold_limit"] = max(int(tuned.get("chapter_fold_limit", 0) or 0), 20)
+            tuned["chapter_fold_heading_limit"] = max(int(tuned.get("chapter_fold_heading_limit", 0) or 0), 4)
             tuned["directory_entry_top_terms_limit"] = max(int(tuned.get("directory_entry_top_terms_limit", 0) or 0), 4)
         return tuned
     if preset in {"website", "ecommerce"}:
