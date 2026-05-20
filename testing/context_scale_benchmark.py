@@ -31,6 +31,11 @@ DEFAULT_TOKENIZER_MODEL = "cl100k_base"
 DEFAULT_DIRECTORY_FOCUS_MODES = ["full", "tree", "imports", "symbols"]
 DEFAULT_TEXT_FOCUS_MODES = ["full", "writing-outline"]
 DEFAULT_SKELETON_DENSITIES = ["adaptive", "standard", "compact"]
+DEFAULT_SCALE_HEALTH_THRESHOLDS = {
+    "monorepo_min_files": 100,
+    "monorepo_max_token_ratio": 0.75,
+    "realistic_directory_max_token_ratio": 0.25,
+}
 DEFAULT_REAL_TEXT_FILES = [
     REPO_ROOT / "README.md",
     REPO_ROOT / "CONTEXT_COMPRESSION_PRINCIPLES_20260507.md",
@@ -476,6 +481,413 @@ def _build_incremental_comparison(
     return comparisons
 
 
+def _max_token_ratio(summaries: list[dict[str, Any]]) -> float:
+    ratios = [float(item["token_ratio"]) for item in summaries if item.get("token_ratio") is not None]
+    if not ratios:
+        return 0.0
+    return round(max(ratios), 4)
+
+
+def _build_scale_health(
+    *,
+    monorepo_cases: list[dict[str, Any]],
+    realistic_directory_cases: list[dict[str, Any]],
+    monorepo_fixture: dict[str, Any],
+    thresholds: dict[str, float],
+) -> dict[str, Any]:
+    monorepo_summaries = [_summarize_case(case) for case in monorepo_cases]
+    realistic_summaries = [_summarize_case(case) for case in realistic_directory_cases]
+    monorepo_max_ratio = _max_token_ratio(monorepo_summaries)
+    realistic_max_ratio = _max_token_ratio(realistic_summaries)
+    expected_min_files = int(monorepo_fixture.get("expected_min_files") or 0)
+    checks = [
+        {
+            "name": "monorepo_restore_verified",
+            "severity": "fail",
+            "passed": bool(monorepo_summaries) and all(item["restore_verified"] for item in monorepo_summaries),
+            "observed": sum(1 for item in monorepo_summaries if item["restore_verified"]),
+            "expected": len(monorepo_summaries),
+        },
+        {
+            "name": "monorepo_file_floor",
+            "severity": "warn",
+            "passed": expected_min_files >= thresholds["monorepo_min_files"],
+            "observed": expected_min_files,
+            "expected": f">= {thresholds['monorepo_min_files']}",
+        },
+        {
+            "name": "monorepo_token_ratio",
+            "severity": "warn",
+            "passed": bool(monorepo_summaries) and monorepo_max_ratio <= thresholds["monorepo_max_token_ratio"],
+            "observed": monorepo_max_ratio,
+            "expected": f"<= {thresholds['monorepo_max_token_ratio']}",
+        },
+        {
+            "name": "realistic_directory_restore_verified",
+            "severity": "fail",
+            "passed": bool(realistic_summaries) and all(item["restore_verified"] for item in realistic_summaries),
+            "observed": sum(1 for item in realistic_summaries if item["restore_verified"]),
+            "expected": len(realistic_summaries),
+        },
+        {
+            "name": "realistic_directory_token_ratio",
+            "severity": "warn",
+            "passed": bool(realistic_summaries) and realistic_max_ratio <= thresholds["realistic_directory_max_token_ratio"],
+            "observed": realistic_max_ratio,
+            "expected": f"<= {thresholds['realistic_directory_max_token_ratio']}",
+        },
+    ]
+    failed_checks = [item for item in checks if item["severity"] == "fail" and not item["passed"]]
+    warned_checks = [item for item in checks if item["severity"] == "warn" and not item["passed"]]
+    if failed_checks:
+        status = "fail"
+    elif warned_checks:
+        status = "warn"
+    else:
+        status = "ok"
+    return {
+        "status": status,
+        "thresholds": thresholds,
+        "checks": checks,
+    }
+
+
+def _build_best_verified_recommendations(
+    cases: list[dict[str, Any]],
+    *,
+    expected_kind: str,
+) -> list[dict[str, Any]]:
+    summaries = [
+        _summarize_case(case)
+        for case in cases
+        if case.get("kind") == expected_kind
+    ]
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for item in summaries:
+        key = (item["backend"], item.get("sample_type", "synthetic"))
+        grouped.setdefault(key, []).append(item)
+
+    recommendations: list[dict[str, Any]] = []
+    for (backend, sample_type), items in sorted(grouped.items()):
+        verified_items = [item for item in items if item["restore_verified"]]
+        if not verified_items:
+            continue
+        baseline = next(
+            (
+                item
+                for item in verified_items
+                if item.get("focus_mode") == "full" and item.get("skeleton_density") == "adaptive"
+            ),
+            None,
+        )
+        best = min(
+            verified_items,
+            key=lambda item: (
+                float(item["token_ratio"]),
+                int(item["estimated_skeleton_tokens"]),
+                str(item.get("focus_mode", "")),
+            ),
+        )
+        baseline_tokens = int((baseline or best)["estimated_skeleton_tokens"])
+        best_tokens = int(best["estimated_skeleton_tokens"])
+        recommendations.append(
+            {
+                "backend": backend,
+                "kind": expected_kind,
+                "sample_type": sample_type,
+                "recommended_focus_mode": best.get("focus_mode", "full"),
+                "recommended_skeleton_density": best.get("skeleton_density", "adaptive"),
+                "recommended_token_ratio": best["token_ratio"],
+                "recommended_skeleton_tokens": best_tokens,
+                "baseline_focus_mode": (baseline or best).get("focus_mode", "full"),
+                "baseline_skeleton_density": (baseline or best).get("skeleton_density", "adaptive"),
+                "baseline_skeleton_tokens": baseline_tokens,
+                "skeleton_token_savings_vs_baseline": max(0, baseline_tokens - best_tokens),
+                "skeleton_token_size_ratio_vs_baseline": round(best_tokens / baseline_tokens, 4) if baseline_tokens else 0.0,
+                "source_chars": best["source_chars"],
+                "restore_verified": best["restore_verified"],
+            }
+        )
+    return recommendations
+
+
+def _build_release_readiness(
+    *,
+    scale_health: dict[str, Any],
+    large_directory_recommendations: list[dict[str, Any]],
+    long_text_recommendations: list[dict[str, Any]],
+    all_cases: list[dict[str, Any]],
+) -> dict[str, Any]:
+    case_summaries = [_summarize_case(case) for case in all_cases]
+    restore_failed_cases = [
+        item["label"]
+        for item in case_summaries
+        if not item["restore_verified"]
+    ]
+    scale_checks = scale_health.get("checks") or []
+    failed_scale_checks = [
+        item["name"]
+        for item in scale_checks
+        if item.get("severity") == "fail" and not item.get("passed")
+    ]
+    warned_scale_checks = [
+        item["name"]
+        for item in scale_checks
+        if item.get("severity") == "warn" and not item.get("passed")
+    ]
+    readiness_checks = [
+        {
+            "name": "all_restore_verified",
+            "severity": "block",
+            "passed": not restore_failed_cases,
+            "observed": len(restore_failed_cases),
+            "expected": 0,
+        },
+        {
+            "name": "scale_health_has_no_failures",
+            "severity": "block",
+            "passed": not failed_scale_checks,
+            "observed": len(failed_scale_checks),
+            "expected": 0,
+        },
+        {
+            "name": "large_directory_recommendations_available",
+            "severity": "block",
+            "passed": bool(large_directory_recommendations),
+            "observed": len(large_directory_recommendations),
+            "expected": ">= 1",
+        },
+        {
+            "name": "long_text_recommendations_available",
+            "severity": "block",
+            "passed": bool(long_text_recommendations),
+            "observed": len(long_text_recommendations),
+            "expected": ">= 1",
+        },
+        {
+            "name": "scale_health_has_no_warnings",
+            "severity": "watch",
+            "passed": not warned_scale_checks,
+            "observed": len(warned_scale_checks),
+            "expected": 0,
+        },
+    ]
+    blocked = [item for item in readiness_checks if item["severity"] == "block" and not item["passed"]]
+    watching = [item for item in readiness_checks if item["severity"] == "watch" and not item["passed"]]
+    if blocked:
+        status = "blocked"
+        next_action = "fix blocking restore or benchmark coverage failures before treating this run as release-ready"
+    elif watching:
+        status = "watch"
+        next_action = "review scale-health warnings and decide whether to tune thresholds or improve compression efficiency"
+    else:
+        status = "ready"
+        next_action = "use this run as a candidate baseline for broader cross-platform validation"
+    return {
+        "status": status,
+        "next_action": next_action,
+        "checks": readiness_checks,
+        "restore_failed_cases": restore_failed_cases[:20],
+        "failed_scale_checks": failed_scale_checks,
+        "warned_scale_checks": warned_scale_checks,
+        "case_count": len(case_summaries),
+        "restore_verified_count": sum(1 for item in case_summaries if item["restore_verified"]),
+    }
+
+
+def _case_trend_key(item: dict[str, Any]) -> str:
+    return "|".join(
+        [
+            str(item.get("kind") or ""),
+            str(item.get("sample_type") or ""),
+            str(item.get("backend") or ""),
+            str(item.get("label") or ""),
+            str(item.get("focus_mode") or ""),
+            str(item.get("skeleton_density") or ""),
+        ]
+    )
+
+
+def _collect_report_case_summaries(report: dict[str, Any]) -> list[dict[str, Any]]:
+    summaries = report.get("summaries") or {}
+    collected: list[dict[str, Any]] = []
+    for key in [
+        "directory_cases",
+        "realistic_directory_cases",
+        "monorepo_directory_cases",
+        "directory_incremental_cases",
+        "text_cases",
+        "realistic_text_cases",
+    ]:
+        for item in summaries.get(key) or []:
+            if isinstance(item, dict):
+                collected.append(item)
+    return collected
+
+
+def _load_baseline_report(path: Path | None) -> dict[str, Any] | None:
+    if path is None:
+        return None
+    resolved = path.expanduser().resolve()
+    if not resolved.exists():
+        raise FileNotFoundError(f"baseline benchmark JSON not found: {resolved}")
+    return json.loads(resolved.read_text(encoding="utf-8"))
+
+
+def _build_regression_trends(
+    *,
+    current_cases: list[dict[str, Any]],
+    baseline_report: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if baseline_report is None:
+        return {
+            "status": "no-baseline",
+            "baseline_generated_at": "",
+            "matched_case_count": 0,
+            "current_case_count": len(current_cases),
+            "restore_regressions": [],
+            "token_ratio_regressions": [],
+            "compress_time_regressions": [],
+            "improvements": [],
+        }
+    current_summaries = [_summarize_case(case) for case in current_cases]
+    baseline_by_key = {
+        _case_trend_key(item): item
+        for item in _collect_report_case_summaries(baseline_report)
+    }
+    restore_regressions: list[dict[str, Any]] = []
+    token_ratio_regressions: list[dict[str, Any]] = []
+    compress_time_regressions: list[dict[str, Any]] = []
+    improvements: list[dict[str, Any]] = []
+    matched_count = 0
+    for current in current_summaries:
+        baseline = baseline_by_key.get(_case_trend_key(current))
+        if baseline is None:
+            continue
+        matched_count += 1
+        if baseline.get("restore_verified") is True and current.get("restore_verified") is not True:
+            restore_regressions.append(
+                {
+                    "label": current["label"],
+                    "backend": current["backend"],
+                    "sample_type": current.get("sample_type", ""),
+                    "previous": True,
+                    "current": current.get("restore_verified"),
+                }
+            )
+        baseline_ratio = float(baseline.get("token_ratio") or 0.0)
+        current_ratio = float(current.get("token_ratio") or 0.0)
+        ratio_delta = round(current_ratio - baseline_ratio, 4)
+        if baseline_ratio and ratio_delta > 0.05:
+            token_ratio_regressions.append(
+                {
+                    "label": current["label"],
+                    "backend": current["backend"],
+                    "sample_type": current.get("sample_type", ""),
+                    "baseline_token_ratio": baseline_ratio,
+                    "current_token_ratio": current_ratio,
+                    "delta": ratio_delta,
+                }
+            )
+        elif baseline_ratio and ratio_delta < -0.05:
+            improvements.append(
+                {
+                    "label": current["label"],
+                    "backend": current["backend"],
+                    "sample_type": current.get("sample_type", ""),
+                    "metric": "token_ratio",
+                    "baseline": baseline_ratio,
+                    "current": current_ratio,
+                    "delta": ratio_delta,
+                }
+            )
+        baseline_ms = float(baseline.get("compress_ms_avg") or 0.0)
+        current_ms = float(current.get("compress_ms_avg") or 0.0)
+        if baseline_ms and current_ms / baseline_ms > 1.5:
+            compress_time_regressions.append(
+                {
+                    "label": current["label"],
+                    "backend": current["backend"],
+                    "sample_type": current.get("sample_type", ""),
+                    "baseline_compress_ms_avg": round(baseline_ms, 2),
+                    "current_compress_ms_avg": round(current_ms, 2),
+                    "ratio": round(current_ms / baseline_ms, 4),
+                }
+            )
+    if restore_regressions:
+        status = "regressed"
+    elif token_ratio_regressions or compress_time_regressions:
+        status = "watch"
+    elif improvements:
+        status = "improved"
+    else:
+        status = "stable"
+    return {
+        "status": status,
+        "baseline_generated_at": baseline_report.get("generated_at", ""),
+        "matched_case_count": matched_count,
+        "current_case_count": len(current_summaries),
+        "restore_regressions": restore_regressions[:20],
+        "token_ratio_regressions": token_ratio_regressions[:20],
+        "compress_time_regressions": compress_time_regressions[:20],
+        "improvements": improvements[:20],
+    }
+
+
+def _recommendation_preview(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    preview: list[dict[str, Any]] = []
+    for item in items[:6]:
+        preview.append(
+            {
+                "backend": item.get("backend", ""),
+                "sample_type": item.get("sample_type", ""),
+                "focus_mode": item.get("recommended_focus_mode", ""),
+                "skeleton_density": item.get("recommended_skeleton_density", ""),
+                "token_ratio": item.get("recommended_token_ratio", 0),
+                "size_ratio_vs_baseline": item.get("skeleton_token_size_ratio_vs_baseline", 0),
+            }
+        )
+    return preview
+
+
+def _build_executive_summary(
+    *,
+    release_readiness: dict[str, Any],
+    scale_health: dict[str, Any],
+    regression_trends: dict[str, Any],
+    large_directory_recommendations: list[dict[str, Any]],
+    long_text_recommendations: list[dict[str, Any]],
+) -> dict[str, Any]:
+    trend_status = str(regression_trends.get("status") or "unknown")
+    readiness_status = str(release_readiness.get("status") or "unknown")
+    scale_status = str(scale_health.get("status") or "unknown")
+    restore_verified_count = int(release_readiness.get("restore_verified_count") or 0)
+    case_count = int(release_readiness.get("case_count") or 0)
+    regression_counts = {
+        "restore": len(regression_trends.get("restore_regressions") or []),
+        "token_ratio": len(regression_trends.get("token_ratio_regressions") or []),
+        "compress_time": len(regression_trends.get("compress_time_regressions") or []),
+        "improvements": len(regression_trends.get("improvements") or []),
+    }
+    if readiness_status == "blocked" or trend_status == "regressed":
+        overall = "blocked"
+    elif readiness_status == "watch" or scale_status == "warn" or trend_status == "watch":
+        overall = "watch"
+    else:
+        overall = "ready"
+    return {
+        "overall_status": overall,
+        "release_readiness": readiness_status,
+        "scale_health": scale_status,
+        "regression_trends": trend_status,
+        "restore_verified": f"{restore_verified_count}/{case_count}",
+        "regression_counts": regression_counts,
+        "large_directory_recommendations": _recommendation_preview(large_directory_recommendations),
+        "long_text_recommendations": _recommendation_preview(long_text_recommendations),
+        "next_action": release_readiness.get("next_action", ""),
+    }
+
+
 def _markdown_table(headers: list[str], rows: list[list[Any]]) -> str:
     lines = ["| " + " | ".join(headers) + " |", "| " + " | ".join(["---"] * len(headers)) + " |"]
     for row in rows:
@@ -493,10 +905,186 @@ def _render_markdown(report: dict[str, Any]) -> str:
         f"- platform: `{report['platform']}`",
         f"- synthetic_directory: `{report.get('benchmark_inputs', {}).get('synthetic_directory', '')}`",
         f"- realistic_directory: `{report.get('benchmark_inputs', {}).get('realistic_directory', '')}`",
+        f"- monorepo_directory: `{report.get('benchmark_inputs', {}).get('monorepo_directory', '')}`",
+        "",
+        "## Executive Summary",
+        "",
+        f"- overall_status: `{report.get('executive_summary', {}).get('overall_status', 'unknown')}`",
+        f"- restore_verified: `{report.get('executive_summary', {}).get('restore_verified', '0/0')}`",
+        f"- regression_trends: `{report.get('executive_summary', {}).get('regression_trends', 'unknown')}`",
+        f"- next_action: {report.get('executive_summary', {}).get('next_action', '')}",
+        "",
+    ]
+    executive = report.get("executive_summary") or {}
+    for title, key in [
+        ("Large directory recommendation preview", "large_directory_recommendations"),
+        ("Long text recommendation preview", "long_text_recommendations"),
+    ]:
+        items = executive.get(key) or []
+        if items:
+            lines.extend([f"{title}:", ""])
+            lines.extend(
+                [
+                    f"- `{item.get('sample_type', '')}`/{item.get('backend', '')}: `{item.get('focus_mode', '')}` + `{item.get('skeleton_density', '')}` ratio `{item.get('token_ratio', 0)}`"
+                    for item in items[:4]
+                ]
+            )
+            lines.append("")
+    lines.extend([
+        "## Release Readiness",
+        "",
+        f"- status: `{report.get('release_readiness', {}).get('status', 'unknown')}`",
+        f"- restore_verified: `{report.get('release_readiness', {}).get('restore_verified_count', 0)}/{report.get('release_readiness', {}).get('case_count', 0)}`",
+        f"- next_action: {report.get('release_readiness', {}).get('next_action', '')}",
+        "",
+    ])
+    readiness = report.get("release_readiness") or {}
+    readiness_rows = [
+        [
+            item["name"],
+            item["severity"],
+            item["passed"],
+            item["observed"],
+            item["expected"],
+        ]
+        for item in readiness.get("checks", [])
+    ]
+    lines.append(
+        _markdown_table(
+            ["Check", "Severity", "Passed", "Observed", "Expected"],
+            readiness_rows,
+        )
+    )
+    if readiness.get("restore_failed_cases"):
+        lines.extend(["", "Restore failures:", ""])
+        lines.extend([f"- `{item}`" for item in readiness.get("restore_failed_cases", [])])
+    if readiness.get("warned_scale_checks"):
+        lines.extend(["", "Watch items:", ""])
+        lines.extend([f"- `{item}`" for item in readiness.get("warned_scale_checks", [])])
+    lines.extend([
+        "",
+        "## Regression Trends",
+        "",
+        f"- status: `{report.get('regression_trends', {}).get('status', 'unknown')}`",
+        f"- baseline_generated_at: `{report.get('regression_trends', {}).get('baseline_generated_at', '')}`",
+        f"- matched_cases: `{report.get('regression_trends', {}).get('matched_case_count', 0)}/{report.get('regression_trends', {}).get('current_case_count', 0)}`",
+        "",
+    ])
+    trend = report.get("regression_trends") or {}
+    trend_rows = [
+        ["restore_regressions", len(trend.get("restore_regressions") or [])],
+        ["token_ratio_regressions", len(trend.get("token_ratio_regressions") or [])],
+        ["compress_time_regressions", len(trend.get("compress_time_regressions") or [])],
+        ["improvements", len(trend.get("improvements") or [])],
+    ]
+    lines.append(_markdown_table(["Trend", "Count"], trend_rows))
+    for title, key in [
+        ("Restore Regressions", "restore_regressions"),
+        ("Token Ratio Regressions", "token_ratio_regressions"),
+        ("Compress Time Regressions", "compress_time_regressions"),
+        ("Improvements", "improvements"),
+    ]:
+        items = trend.get(key) or []
+        if items:
+            lines.extend(["", f"### {title}", ""])
+            lines.extend([f"- `{item.get('label', '')}` ({item.get('backend', '')}, {item.get('sample_type', '')})" for item in items[:10]])
+    lines.extend([
+        "",
+        "## Scale Health",
+        "",
+        f"- status: `{report.get('scale_health', {}).get('status', 'unknown')}`",
+        "",
+    ])
+    scale_health = report.get("scale_health") or {}
+    scale_rows = [
+        [
+            item["name"],
+            item["severity"],
+            item["passed"],
+            item["observed"],
+            item["expected"],
+        ]
+        for item in scale_health.get("checks", [])
+    ]
+    lines.append(
+        _markdown_table(
+            ["Check", "Severity", "Passed", "Observed", "Expected"],
+            scale_rows,
+        )
+    )
+    if report["summaries"].get("large_directory_recommendations"):
+        lines.extend(["", "## Large Directory Recommendations", ""])
+        recommendation_rows = [
+            [
+                item["backend"],
+                item["sample_type"],
+                item["recommended_focus_mode"],
+                item["recommended_skeleton_density"],
+                item["recommended_token_ratio"],
+                item["recommended_skeleton_tokens"],
+                item["baseline_skeleton_tokens"],
+                item["skeleton_token_savings_vs_baseline"],
+                item["skeleton_token_size_ratio_vs_baseline"],
+                item["restore_verified"],
+            ]
+            for item in report["summaries"]["large_directory_recommendations"]
+        ]
+        lines.append(
+            _markdown_table(
+                [
+                    "Backend",
+                    "Sample type",
+                    "Recommended focus",
+                    "Recommended density",
+                    "Token ratio",
+                    "Recommended tokens",
+                    "Baseline tokens",
+                    "Tokens saved vs baseline",
+                    "Size ratio vs baseline",
+                    "Restore ok",
+                ],
+                recommendation_rows,
+            )
+        )
+    if report["summaries"].get("long_text_recommendations"):
+        lines.extend(["", "## Long Text Recommendations", ""])
+        long_text_recommendation_rows = [
+            [
+                item["backend"],
+                item["sample_type"],
+                item["recommended_focus_mode"],
+                item["recommended_skeleton_density"],
+                item["recommended_token_ratio"],
+                item["recommended_skeleton_tokens"],
+                item["baseline_skeleton_tokens"],
+                item["skeleton_token_savings_vs_baseline"],
+                item["skeleton_token_size_ratio_vs_baseline"],
+                item["restore_verified"],
+            ]
+            for item in report["summaries"]["long_text_recommendations"]
+        ]
+        lines.append(
+            _markdown_table(
+                [
+                    "Backend",
+                    "Sample type",
+                    "Recommended focus",
+                    "Recommended density",
+                    "Token ratio",
+                    "Recommended tokens",
+                    "Baseline tokens",
+                    "Tokens saved vs baseline",
+                    "Size ratio vs baseline",
+                    "Restore ok",
+                ],
+                long_text_recommendation_rows,
+            )
+        )
+    lines.extend([
         "",
         "## Directory Cases",
         "",
-    ]
+    ])
     directory_rows = [
         [
             item["label"],
@@ -573,6 +1161,46 @@ def _render_markdown(report: dict[str, Any]) -> str:
                     "Restore ok",
                 ],
                 realistic_directory_rows,
+            )
+        )
+    if report["summaries"].get("monorepo_directory_cases"):
+        lines.extend(["", "## Monorepo Directory Cases", ""])
+        monorepo_rows = [
+            [
+                item["label"],
+                item["backend"],
+                item["sample_type"],
+                item["source_chars"],
+                item["skeleton_chars"],
+                item["estimated_source_tokens"],
+                item["estimated_skeleton_tokens"],
+                item["estimated_tokens_saved"],
+                item["token_ratio"],
+                item["compress_ms_avg"],
+                item["inspect_ms_avg"],
+                item["restore_ms_avg"],
+                item["restore_verified"],
+            ]
+            for item in report["summaries"]["monorepo_directory_cases"]
+        ]
+        lines.append(
+            _markdown_table(
+                [
+                    "Case",
+                    "Backend",
+                    "Sample type",
+                    "Source chars",
+                    "Skeleton chars",
+                    "Source tokens",
+                    "Skeleton tokens",
+                    "Tokens saved",
+                    "Token ratio",
+                    "Compress ms",
+                    "Inspect ms",
+                    "Restore ms",
+                    "Restore ok",
+                ],
+                monorepo_rows,
             )
         )
     if report["summaries"].get("directory_incremental_cases"):
@@ -987,6 +1615,102 @@ def _build_directory_fixture(root: Path) -> Path:
     return sample_root
 
 
+def _build_monorepo_fixture(
+    root: Path,
+    *,
+    package_count: int,
+    files_per_package: int,
+) -> tuple[Path, dict[str, Any]]:
+    monorepo_root = root / "sample_monorepo"
+    package_roots: list[str] = []
+    language_counts: dict[str, int] = {"python": 0, "typescript": 0, "markdown": 0, "config": 0}
+    for package_idx in range(1, package_count + 1):
+        package_root = monorepo_root / "packages" / f"service_{package_idx:02d}"
+        package_roots.append(package_root.relative_to(monorepo_root).as_posix())
+        (package_root / "src").mkdir(parents=True, exist_ok=True)
+        (package_root / "tests").mkdir(parents=True, exist_ok=True)
+        (package_root / "docs").mkdir(parents=True, exist_ok=True)
+        (package_root / "config").mkdir(parents=True, exist_ok=True)
+        for file_idx in range(1, files_per_package + 1):
+            lane = file_idx % 4
+            if lane == 0:
+                target = package_root / "src" / f"handler_{file_idx:03d}.py"
+                target.write_text(
+                    "from pathlib import Path\n\n"
+                    f"def handle_service_{package_idx}_{file_idx}(payload: dict) -> str:\n"
+                    "    normalized = {key: str(value).strip() for key, value in payload.items()}\n"
+                    "    audit_path = Path('audit') / 'events.log'\n"
+                    "    event_parts = []\n"
+                    "    for key in sorted(normalized):\n"
+                    "        event_parts.append(f'{key}={normalized[key]}')\n"
+                    "    event_parts.append(str(audit_path))\n"
+                    f"    event_parts.append('service-{package_idx}-handler-{file_idx}')\n"
+                    "    return '|'.join(event_parts)\n",
+                    encoding="utf-8",
+                )
+                language_counts["python"] += 1
+            elif lane == 1:
+                target = package_root / "src" / f"component_{file_idx:03d}.ts"
+                target.write_text(
+                    "import { createHash } from 'crypto'\n\n"
+                    "type ComponentEvent = { id: string; payload: Record<string, string> }\n\n"
+                    f"export function component{package_idx}_{file_idx}(value: string): string {{\n"
+                    "  const event: ComponentEvent = { id: value, payload: { source: 'monorepo-benchmark' } }\n"
+                    "  const digest = createHash('sha256').update(event.id).digest('hex')\n"
+                    "  return `${event.payload.source}:${digest}`\n"
+                    "}\n",
+                    encoding="utf-8",
+                )
+                language_counts["typescript"] += 1
+            elif lane == 2:
+                target = package_root / "docs" / f"chapter_{file_idx:03d}.md"
+                target.write_text(
+                    f"# Service {package_idx} Chapter {file_idx}\n\n"
+                    "This document preserves operator context, architecture notes, and handoff continuity.\n\n"
+                    "## Interfaces\n\n"
+                    "The service exposes request handlers, configuration surfaces, and review notes that should remain visible in compressed skeletons.\n\n"
+                    "## Operations\n\n"
+                    "Operators use this package-level context to understand rollout sequencing, ownership boundaries, and incident response expectations.\n",
+                    encoding="utf-8",
+                )
+                language_counts["markdown"] += 1
+            else:
+                target = package_root / "config" / f"settings_{file_idx:03d}.yaml"
+                target.write_text(
+                    f"service: service_{package_idx:02d}\n"
+                    f"setting: value_{file_idx:03d}\n"
+                    "enabled: true\n"
+                    "owners:\n"
+                    "  - platform\n"
+                    "  - context-compression\n"
+                    "limits:\n"
+                    "  max_batch_size: 128\n"
+                    "  retry_budget: 3\n",
+                    encoding="utf-8",
+                )
+                language_counts["config"] += 1
+        (package_root / "README.md").write_text(
+            f"# Service {package_idx:02d}\n\n"
+            "Package-level README for monorepo grouping and overview benchmark coverage.\n",
+            encoding="utf-8",
+        )
+        language_counts["markdown"] += 1
+
+    (monorepo_root / ".mcp-skeletonignore").write_text(
+        "node_modules/\n"
+        "dist/\n"
+        "*.map\n",
+        encoding="utf-8",
+    )
+    return monorepo_root, {
+        "package_count": package_count,
+        "files_per_package": files_per_package,
+        "package_roots": package_roots,
+        "language_counts": language_counts,
+        "expected_min_files": package_count * files_per_package,
+    }
+
+
 def _build_incremental_repo_fixture(source_dir: Path, workspace: Path) -> tuple[Path, dict[str, Any]]:
     repo_root = workspace / f"{source_dir.name}_incremental_repo"
     shutil.copytree(source_dir, repo_root)
@@ -1066,6 +1790,8 @@ def _benchmark_directory_case(
                 skeleton_density,
                 "--input-dir",
                 str(source_dir),
+                "--exclude",
+                "testing/results/",
                 "--output-dir",
                 str(out_dir),
                 "--tokenizer-backend",
@@ -1345,6 +2071,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skeleton-densities", nargs="*", default=DEFAULT_SKELETON_DENSITIES, help="Skeleton density modes to benchmark for full skeleton cases.")
     parser.add_argument("--text-target-chars", nargs="*", type=int, default=DEFAULT_TEXT_TARGETS, help="Synthetic long-text sizes.")
     parser.add_argument("--real-text-files", nargs="*", default=[str(path) for path in DEFAULT_REAL_TEXT_FILES], help="Repository documents to concatenate into one realistic long-text corpus.")
+    parser.add_argument("--monorepo-packages", type=int, default=6, help="Package roots to generate for the synthetic monorepo benchmark.")
+    parser.add_argument("--monorepo-files-per-package", type=int, default=80, help="Files to generate per synthetic monorepo package.")
+    parser.add_argument("--scale-health-monorepo-min-files", type=int, default=DEFAULT_SCALE_HEALTH_THRESHOLDS["monorepo_min_files"], help="Warning threshold for the generated monorepo fixture file floor.")
+    parser.add_argument("--scale-health-monorepo-max-token-ratio", type=float, default=DEFAULT_SCALE_HEALTH_THRESHOLDS["monorepo_max_token_ratio"], help="Warning threshold for the largest monorepo skeleton/source token ratio.")
+    parser.add_argument("--scale-health-realistic-directory-max-token-ratio", type=float, default=DEFAULT_SCALE_HEALTH_THRESHOLDS["realistic_directory_max_token_ratio"], help="Warning threshold for the largest realistic-directory skeleton/source token ratio.")
+    parser.add_argument("--baseline-json", help="Optional previous benchmark JSON report used to compute non-blocking regression trends.")
     parser.add_argument("--output-json", default=str(DEFAULT_JSON), help="Where to write the benchmark JSON report.")
     parser.add_argument("--output-md", default=str(DEFAULT_MD), help="Where to write the Markdown benchmark report.")
     parser.add_argument("--quick", action="store_true", help="Run a smaller benchmark suitable for smoke coverage.")
@@ -1357,6 +2089,7 @@ def main() -> int:
     output_md = Path(args.output_md).expanduser()
     _ensure_parent(output_json)
     _ensure_parent(output_md)
+    baseline_report = _load_baseline_report(Path(args.baseline_json) if args.baseline_json else None)
 
     with tempfile.TemporaryDirectory(prefix="context_scale_benchmark.") as tmp:
         workspace = Path(tmp)
@@ -1370,9 +2103,21 @@ def main() -> int:
             iterations = 1
 
         backends = _build_backends(args.backends, include_tiktoken=True)
+        monorepo_packages = 3 if args.quick else max(1, args.monorepo_packages)
+        monorepo_files_per_package = 60 if args.quick else max(1, args.monorepo_files_per_package)
+        monorepo_path, monorepo_fixture = _build_monorepo_fixture(
+            workspace,
+            package_count=monorepo_packages,
+            files_per_package=monorepo_files_per_package,
+        )
         directory_focus_modes = list(dict.fromkeys(args.directory_focus_modes or DEFAULT_DIRECTORY_FOCUS_MODES))
         text_focus_modes = list(dict.fromkeys(args.text_focus_modes or DEFAULT_TEXT_FOCUS_MODES))
         skeleton_densities = list(dict.fromkeys(args.skeleton_densities or DEFAULT_SKELETON_DENSITIES))
+        scale_health_thresholds = {
+            "monorepo_min_files": max(1, args.scale_health_monorepo_min_files),
+            "monorepo_max_token_ratio": max(0.0, args.scale_health_monorepo_max_token_ratio),
+            "realistic_directory_max_token_ratio": max(0.0, args.scale_health_realistic_directory_max_token_ratio),
+        }
         incremental_repo_dir, incremental_fixture_metadata = _build_incremental_repo_fixture(directory_path, workspace)
         realistic_text_path = workspace / "realistic_repo_corpus.md"
         realistic_text_fixture = _build_realistic_text_fixture(
@@ -1449,6 +2194,23 @@ def main() -> int:
                     )
                     case["sample_type"] = "realistic"
                     realistic_directory_cases.append(case)
+        monorepo_directory_cases = []
+        for backend in backends:
+            for focus_mode in directory_focus_modes:
+                for skeleton_density in (skeleton_densities if focus_mode == "full" else ["adaptive"]):
+                    case = _benchmark_directory_case(
+                        label=f"{monorepo_path.name}_monorepo_{focus_mode}_{skeleton_density}",
+                        source_dir=monorepo_path,
+                        backend=backend,
+                        tokenizer_model=args.tokenizer_model,
+                        iterations=iterations,
+                        workspace=workspace,
+                        focus_mode=focus_mode,
+                        skeleton_density=skeleton_density,
+                    )
+                    case["sample_type"] = "monorepo"
+                    case["fixture_metadata"] = monorepo_fixture
+                    monorepo_directory_cases.append(case)
         directory_incremental_cases = [
             _benchmark_incremental_directory_case(
                 label=f"{directory_path.name}_incremental",
@@ -1462,7 +2224,9 @@ def main() -> int:
             for backend in backends
         ]
         full_density_directory_cases = [
-            case for case in (directory_cases + realistic_directory_cases) if case.get("compress", {}).get("focus_mode") == "full"
+            case
+            for case in (directory_cases + realistic_directory_cases + monorepo_directory_cases)
+            if case.get("compress", {}).get("focus_mode") == "full"
         ]
         full_density_text_cases = [
             case for case in (text_cases + realistic_text_cases) if case.get("compress", {}).get("focus_mode") == "full"
@@ -1488,10 +2252,56 @@ def main() -> int:
             if case.get("compress", {}).get("skeleton_density") == "adaptive" and case.get("sample_type") == "realistic"
         ]
         incremental_comparison = _build_incremental_comparison(full_directory_cases, directory_incremental_cases)
-        directory_focus_comparison = _build_focus_comparison(directory_cases + realistic_directory_cases, expected_kind="directory")
+        directory_focus_comparison = _build_focus_comparison(directory_cases + realistic_directory_cases + monorepo_directory_cases, expected_kind="directory")
         text_focus_comparison = _build_focus_comparison(text_cases + realistic_text_cases, expected_kind="text")
         directory_density_comparison = _build_density_comparison(full_density_directory_cases, expected_kind="directory")
         text_density_comparison = _build_density_comparison(full_density_text_cases, expected_kind="text")
+        large_directory_recommendations = _build_best_verified_recommendations(
+            directory_cases + realistic_directory_cases + monorepo_directory_cases,
+            expected_kind="directory",
+        )
+        long_text_recommendations = _build_best_verified_recommendations(
+            text_cases + realistic_text_cases,
+            expected_kind="text",
+        )
+        scale_health = _build_scale_health(
+            monorepo_cases=monorepo_directory_cases,
+            realistic_directory_cases=realistic_directory_cases,
+            monorepo_fixture=monorepo_fixture,
+            thresholds=scale_health_thresholds,
+        )
+        release_readiness = _build_release_readiness(
+            scale_health=scale_health,
+            large_directory_recommendations=large_directory_recommendations,
+            long_text_recommendations=long_text_recommendations,
+            all_cases=(
+                directory_cases
+                + realistic_directory_cases
+                + monorepo_directory_cases
+                + directory_incremental_cases
+                + text_cases
+                + realistic_text_cases
+            ),
+        )
+        all_benchmark_cases = (
+            directory_cases
+            + realistic_directory_cases
+            + monorepo_directory_cases
+            + directory_incremental_cases
+            + text_cases
+            + realistic_text_cases
+        )
+        regression_trends = _build_regression_trends(
+            current_cases=all_benchmark_cases,
+            baseline_report=baseline_report,
+        )
+        executive_summary = _build_executive_summary(
+            release_readiness=release_readiness,
+            scale_health=scale_health,
+            regression_trends=regression_trends,
+            large_directory_recommendations=large_directory_recommendations,
+            long_text_recommendations=long_text_recommendations,
+        )
 
         report = {
             "status": "ok",
@@ -1505,10 +2315,18 @@ def main() -> int:
             "benchmark_inputs": {
                 "synthetic_directory": str(directory_path),
                 "realistic_directory": str(real_directory_path),
+                "monorepo_directory": str(monorepo_path),
+                "monorepo_fixture": monorepo_fixture,
                 "realistic_text_fixture": realistic_text_fixture,
+                "baseline_json": str(Path(args.baseline_json).expanduser().resolve()) if args.baseline_json else "",
             },
+            "scale_health": scale_health,
+            "release_readiness": release_readiness,
+            "regression_trends": regression_trends,
+            "executive_summary": executive_summary,
             "directory_cases": directory_cases,
             "realistic_directory_cases": realistic_directory_cases,
+            "monorepo_directory_cases": monorepo_directory_cases,
             "directory_incremental_cases": directory_incremental_cases,
             "text_cases": text_cases,
             "realistic_text_cases": realistic_text_cases,
@@ -1517,23 +2335,50 @@ def main() -> int:
                 "directory_full_cases": [_summarize_case(case) for case in full_directory_cases],
                 "realistic_directory_cases": [_summarize_case(case) for case in realistic_directory_cases],
                 "realistic_directory_full_cases": [_summarize_case(case) for case in realistic_full_directory_cases],
+                "monorepo_directory_cases": [_summarize_case(case) for case in monorepo_directory_cases],
                 "directory_incremental_cases": [_summarize_case(case) for case in directory_incremental_cases],
                 "incremental_comparison": incremental_comparison,
                 "text_cases": [_summarize_case(case) for case in text_cases],
                 "text_full_cases": [_summarize_case(case) for case in full_text_cases],
                 "realistic_text_cases": [_summarize_case(case) for case in realistic_text_cases],
                 "realistic_text_full_cases": [_summarize_case(case) for case in realistic_full_text_cases],
-                "directory_focus_cases": [_summarize_case(case) for case in (directory_cases + realistic_directory_cases)],
+                "directory_focus_cases": [_summarize_case(case) for case in (directory_cases + realistic_directory_cases + monorepo_directory_cases)],
                 "directory_focus_comparison": directory_focus_comparison,
                 "directory_density_comparison": directory_density_comparison,
+                "large_directory_recommendations": large_directory_recommendations,
                 "text_focus_cases": [_summarize_case(case) for case in (text_cases + realistic_text_cases)],
                 "text_focus_comparison": text_focus_comparison,
                 "text_density_comparison": text_density_comparison,
+                "long_text_recommendations": long_text_recommendations,
             },
         }
         output_json.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         output_md.write_text(_render_markdown(report), encoding="utf-8")
-        print(json.dumps({"status": "ok", "output_json": str(output_json), "output_md": str(output_md)}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "output_json": str(output_json),
+                    "output_md": str(output_md),
+                    "executive_summary": executive_summary,
+                    "release_readiness": {
+                        "status": release_readiness["status"],
+                        "restore_verified": f"{release_readiness['restore_verified_count']}/{release_readiness['case_count']}",
+                        "next_action": release_readiness["next_action"],
+                    },
+                    "regression_trends": {
+                        "status": regression_trends["status"],
+                        "matched_case_count": regression_trends["matched_case_count"],
+                        "current_case_count": regression_trends["current_case_count"],
+                        "restore_regression_count": len(regression_trends["restore_regressions"]),
+                        "token_ratio_regression_count": len(regression_trends["token_ratio_regressions"]),
+                        "compress_time_regression_count": len(regression_trends["compress_time_regressions"]),
+                        "improvement_count": len(regression_trends["improvements"]),
+                    },
+                },
+                ensure_ascii=False,
+            )
+        )
     return 0
 
 

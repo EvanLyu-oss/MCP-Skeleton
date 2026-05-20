@@ -16,6 +16,16 @@
 - documented a safe dogfood workflow using ignored result directories and sandbox restores
 - added `testing/dogfood_self_check.sh` to compress, inspect, sandbox-restore, and hash-check this repository during active development
 - added BOM-aware UTF-16LE/BE, UTF-8 BOM, GB2312, and EUC-JP text decoding for skeleton extraction while preserving byte-exact restore
+- added a synthetic monorepo benchmark fixture so large multi-package directory behavior is measured in the scale harness
+- added scale-health benchmark checks for large-directory restore fidelity, monorepo fixture size, and token-ratio guardrails
+- expanded monorepo benchmark coverage across full, tree, imports, and symbols focus modes
+- made scale-health benchmark thresholds configurable from the benchmark CLI
+- added large-directory benchmark recommendations that pick the lowest-token verified focus/density option per backend and sample type
+- added long-text benchmark recommendations for manuscript-scale focus/density selection
+- added release-readiness benchmark summaries and next-action guidance that distinguish blocking restore failures from watch-level scale signals
+- added optional baseline benchmark comparison output for restore, token-ratio, and compression-time regression trends
+- added executive benchmark summaries for quick test-machine handoff of readiness, regression, restore, and recommended modes
+- expanded benchmark stdout JSON with executive summary, release-readiness, and regression-trend snapshots for CI and test-machine logs
 
 ## 0.1.0
 

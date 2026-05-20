@@ -269,6 +269,14 @@ The benchmark compares:
 - full directory bundles vs incremental bundles
 - focus-mode skeleton variants vs the default full skeleton
 - skeleton-density variants for the default full skeleton
+- synthetic monorepo-style package trees across full, tree, imports, and symbols focus modes
+- large-directory recommendations that identify the lowest-token verified focus/density choice per backend and sample type
+- long-text recommendations that identify the lowest-token verified focus/density choice for manuscript-scale inputs
+- release-readiness summaries that separate blocking restore failures from watch-level scale/token signals
+- optional baseline JSON comparisons for non-blocking restore, token-ratio, and compression-time regression trends
+- executive summaries for quick test-machine handoff of readiness, regression, restore, and recommended modes
+- stdout executive summaries from the benchmark command so CI and test-machine logs carry the key result without opening report files
+- configurable scale-health checks for restore verification, monorepo file floor, and large-directory token ratios
 - synthetic fixtures vs realistic repo-scale directory/text corpora
 - restore verification for both text and directory cases
 

@@ -1051,28 +1051,57 @@ ok_context_restore_invalid_relpath_json=true
 # benchmark harness
 benchmark_json="$TMP_ROOT/benchmark.json"
 benchmark_md="$TMP_ROOT/benchmark.md"
-python3 "$ROOT/testing/context_scale_benchmark.py" --quick --output-json "$benchmark_json" --output-md "$benchmark_md" > /dev/null
-python3 - "$benchmark_json" "$benchmark_md" <<'PY'
+benchmark_stdout="$TMP_ROOT/benchmark_stdout.json"
+python3 "$ROOT/testing/context_scale_benchmark.py" --quick --output-json "$benchmark_json" --output-md "$benchmark_md" > "$benchmark_stdout"
+python3 - "$benchmark_json" "$benchmark_md" "$benchmark_stdout" <<'PY'
 import json, sys
 from pathlib import Path
 p = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
 assert Path(sys.argv[2]).exists()
+stdout_payload = json.loads(Path(sys.argv[3]).read_text(encoding='utf-8'))
+assert stdout_payload['status'] == 'ok'
+assert stdout_payload['output_json'] == str(Path(sys.argv[1]))
+assert stdout_payload['output_md'] == str(Path(sys.argv[2]))
+assert stdout_payload['executive_summary']['overall_status'] in {'ready', 'watch'}
+assert stdout_payload['release_readiness']['restore_verified']
+assert stdout_payload['regression_trends']['status'] in {'no-baseline', 'stable', 'improved', 'watch', 'regressed'}
 assert p['status'] == 'ok'
+assert p['executive_summary']['overall_status'] in {'ready', 'watch'}
+assert p['executive_summary']['restore_verified'] == f"{p['release_readiness']['restore_verified_count']}/{p['release_readiness']['case_count']}"
+assert p['executive_summary']['large_directory_recommendations']
+assert p['executive_summary']['long_text_recommendations']
+assert p['release_readiness']['status'] in {'ready', 'watch'}
+assert p['release_readiness']['next_action']
+assert p['release_readiness']['checks']
+assert p['release_readiness']['restore_verified_count'] == p['release_readiness']['case_count']
+assert p['regression_trends']['status'] in {'no-baseline', 'stable', 'improved', 'watch', 'regressed'}
+assert 'matched_case_count' in p['regression_trends']
+assert p['scale_health']['status'] in {'ok', 'warn'}
+assert p['scale_health']['checks']
 assert p['directory_cases']
 assert p['directory_incremental_cases']
 assert p['realistic_directory_cases']
+assert p['monorepo_directory_cases']
 assert p['realistic_text_cases']
 assert p['summaries']['incremental_comparison']
 assert p['summaries']['directory_focus_comparison']
 assert p['summaries']['text_focus_comparison']
+assert p['summaries']['large_directory_recommendations']
+assert p['summaries']['long_text_recommendations']
 assert p['summaries']['realistic_directory_full_cases']
+assert p['summaries']['monorepo_directory_cases']
 assert p['summaries']['realistic_text_full_cases']
 assert any(item['focus_mode'] == 'symbols' for item in p['summaries']['directory_focus_cases'])
+assert any(item['sample_type'] == 'monorepo' and item['focus_mode'] == 'symbols' for item in p['summaries']['directory_focus_cases'])
+assert any(item['sample_type'] == 'monorepo' for item in p['summaries']['large_directory_recommendations'])
 assert any(item['focus_mode'] == 'writing-outline' for item in p['summaries']['text_focus_cases'])
+assert all(item['restore_verified'] is True for item in p['summaries']['long_text_recommendations'])
 assert all(case['restore_verified'] is True for case in p['directory_cases'])
 assert all(case['restore_verified'] is True for case in p['realistic_directory_cases'])
+assert all(case['restore_verified'] is True for case in p['monorepo_directory_cases'])
 assert all(case['restore_verified'] is True for case in p['realistic_text_cases'])
 assert all(case['restore_verified'] is True for case in p['directory_incremental_cases'])
+assert p['benchmark_inputs']['monorepo_fixture']['package_count'] >= 1
 PY
 ok_context_scale_benchmark_json=true
 
