@@ -296,6 +296,7 @@ Recent repeatable benchmark signals on this repository:
 - `/Users/carwynmac/MCP-Skeleton/CONTEXT_TOKENIZER_REPO_SCALE_REPORT_20260429.md`
 - `/Users/carwynmac/MCP-Skeleton/CONTEXT_INCREMENTAL_BENCHMARK_REPORT_20260508.md`
 - `/Users/carwynmac/MCP-Skeleton/CONTEXT_FOCUS_BENCHMARK_REPORT_20260508.md`
+- `/Users/carwynmac/MCP-Skeleton/CONTEXT_CROSS_PLATFORM_VALIDATION_REPORT_20260520.md`
 - `/Users/carwynmac/MCP-Skeleton/RELEASE_CHECKLIST_0_1.md`
 
 ## Scope

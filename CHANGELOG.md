@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- no changes yet
+
+## 0.1.1
+
+- validated v0.1.1 as a cross-platform `ready` candidate on macOS and Windows quick benchmark paths
+- documented the macOS and Windows validation results in `CONTEXT_CROSS_PLATFORM_VALIDATION_REPORT_20260520.md`
 - added a directory restore completeness audit to the CLI smoke suite, explicitly comparing original included paths, restore-package paths, restored paths, and default skipped directories
 - exposed directory compression skip metadata in `source_summary` so operators can distinguish true restore gaps from the default `.git`, `__pycache__`, and `.pytest_cache` skip contract
 - documented that incremental restore reconstructs the git change surface rather than pretending to rebuild the full repository tree
