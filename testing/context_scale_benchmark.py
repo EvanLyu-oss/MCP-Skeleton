@@ -78,21 +78,6 @@ def _run_cli_json(args: list[str], *, cwd: Path) -> CommandResult:
     return CommandResult(payload=payload, elapsed_ms=elapsed_ms, stdout=proc.stdout, stderr=proc.stderr, command=args)
 
 
-def _run_cli(args: list[str], *, cwd: Path) -> tuple[int, float, str, str]:
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(REPO_ROOT)
-    started = time.perf_counter()
-    proc = subprocess.run(
-        [sys.executable, "-m", "cli", *args],
-        cwd=str(cwd),
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    elapsed_ms = (time.perf_counter() - started) * 1000.0
-    return proc.returncode, elapsed_ms, proc.stdout, proc.stderr
-
-
 def _sha256_text(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -2024,22 +2009,19 @@ def _benchmark_text_case(
         inspect_payload = inspect_result.payload
         inspect_times.append(inspect_result.elapsed_ms)
         restored_text = workspace / f"{label}_{backend}_restore_{idx}.md"
-        rc, elapsed_ms, stdout, stderr = _run_cli(
+        restore_result = _run_cli_json(
             [
                 "context",
                 "restore",
                 "--package-file",
                 str(manifest_path),
-                "--emit-text",
+                "--output-file",
+                str(restored_text),
+                "--json",
             ],
             cwd=REPO_ROOT,
         )
-        if rc != 0:
-            raise RuntimeError(
-                f"command failed ({rc}): context restore --package-file {manifest_path} --emit-text\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
-            )
-        restored_text.write_text(stdout, encoding="utf-8")
-        restore_times.append(elapsed_ms)
+        restore_times.append(restore_result.elapsed_ms)
     assert compress_payload is not None and inspect_payload is not None
     restored_text = workspace / f"{label}_{backend}_restore_{iterations - 1}.md"
     return {
