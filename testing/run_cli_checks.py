@@ -450,6 +450,168 @@ def _check_apply_patch_roundtrip(workspace: Path) -> None:
     assert _sha256(candidate) == _sha256(output_file)
 
 
+def _check_patch_apply_merge_conflict(workspace: Path) -> None:
+    source = workspace / "merge_source.md"
+    candidate = workspace / "merge_candidate.md"
+    target = workspace / "merge_target.md"
+    source.write_text("# Merge\n\nOriginal content.\n", encoding="utf-8")
+    candidate.write_text("# Merge\n\nUpdated candidate content.\n", encoding="utf-8")
+    target.write_text("Conflicting local edit before replay.\n", encoding="utf-8")
+
+    bundle_dir = workspace / "merge_source_bundle"
+    _run_cli_json(
+        [
+            "context",
+            "compress",
+            "--text-file",
+            str(source),
+            "--output-dir",
+            str(bundle_dir),
+            "--json",
+        ]
+    )
+    patch_dir = workspace / "merge_patch_bundle"
+    _run_cli_json(
+        [
+            "context",
+            "patch",
+            "--package-file",
+            str(bundle_dir / "context_manifest.json"),
+            "--text-file",
+            str(candidate),
+            "--output-dir",
+            str(patch_dir),
+            "--json",
+        ]
+    )
+    payload = _run_cli_json(
+        [
+            "context",
+            "patch-apply",
+            "--patch-file",
+            str(patch_dir / "patch_manifest.json"),
+            "--source-package-file",
+            str(bundle_dir / "context_manifest.json"),
+            "--merge-mode",
+            "reject-conflicts",
+            "--output-file",
+            str(target),
+            "--json",
+        ],
+        expect=3,
+    )
+    assert payload["status"] == "warning"
+    assert payload["apply_mode"] == "merge_conflict_blocked"
+    assert payload["merge_check_passed"] is False
+    assert payload["merge_conflict_count"] >= 1
+    assert target.read_text(encoding="utf-8") == "Conflicting local edit before replay.\n"
+
+
+def _check_directory_patch_apply_reports(workspace: Path) -> None:
+    original = workspace / "mixed_original"
+    modified = workspace / "mixed_modified"
+    for root in [original, modified]:
+        (root / "subdir").mkdir(parents=True)
+    (original / "file1.txt").write_text("alpha\n", encoding="utf-8")
+    (original / "file2.txt").write_text("remove me\n", encoding="utf-8")
+    (original / "subdir" / "file3.txt").write_text("keep me\n", encoding="utf-8")
+    (modified / "file1.txt").write_text("alpha updated\n", encoding="utf-8")
+    (modified / "file5.txt").write_text("brand new\n", encoding="utf-8")
+    (modified / "subdir" / "file3.txt").write_text("keep me edited\n", encoding="utf-8")
+
+    bundle_dir = workspace / "mixed_bundle"
+    _run_cli_json(
+        ["context", "bundle", "--input-dir", str(original), "--output-dir", str(bundle_dir), "--json"]
+    )
+    patch_dir = workspace / "mixed_patch"
+    patch = _run_cli_json(
+        [
+            "context",
+            "patch",
+            "--package-file",
+            str(bundle_dir / "context_manifest.json"),
+            "--input-dir",
+            str(modified),
+            "--output-dir",
+            str(patch_dir),
+            "--json",
+        ],
+        expect=3,
+    )
+    assert patch["change_counts"]["added_paths"] == 1
+    assert patch["change_counts"]["removed_paths"] == 1
+    assert patch["change_counts"]["changed_paths"] >= 2
+
+    output_dir = workspace / "mixed_output"
+    applied = _run_cli_json(
+        [
+            "context",
+            "patch-apply",
+            "--patch-file",
+            str(patch_dir / "patch_manifest.json"),
+            "--source-package-file",
+            str(bundle_dir / "context_manifest.json"),
+            "--policy-mode",
+            "open",
+            "--merge-mode",
+            "overwrite",
+            "--output-dir",
+            str(output_dir),
+            "--json",
+        ]
+    )
+    assert applied["status"] == "ok"
+    replayed = output_dir / "mixed_original"
+    for rel in ["file1.txt", "file5.txt", "subdir/file3.txt"]:
+        assert _sha256(modified / rel) == _sha256(replayed / rel)
+    assert not (replayed / "file2.txt").exists()
+
+    dry_output = workspace / "dry_output"
+    dry_report = workspace / "dry_run_report.json"
+    dry_run = _run_cli_json(
+        [
+            "context",
+            "patch-apply",
+            "--patch-file",
+            str(patch_dir / "patch_manifest.json"),
+            "--source-package-file",
+            str(bundle_dir / "context_manifest.json"),
+            "--dry-run",
+            "--write-dry-run-report",
+            str(dry_report),
+            "--output-dir",
+            str(dry_output),
+            "--json",
+        ]
+    )
+    report = json.loads(dry_report.read_text(encoding="utf-8"))
+    assert dry_run["dry_run"] is True
+    assert report["dry_run"] is True
+    assert report["surface_size"] >= 1
+    assert report["risk_band"] in {"small", "medium", "large"}
+    assert not dry_output.exists()
+
+    blocked = _run_cli_json(
+        [
+            "context",
+            "patch-apply",
+            "--patch-file",
+            str(patch_dir / "patch_manifest.json"),
+            "--source-package-file",
+            str(bundle_dir / "context_manifest.json"),
+            "--policy-mode",
+            "strict",
+            "--output-dir",
+            str(workspace / "policy_blocked_output"),
+            "--json",
+        ],
+        expect=3,
+    )
+    assert blocked["status"] == "warning"
+    assert blocked["apply_mode"] == "policy_blocked"
+    assert blocked["policy_passed"] is False
+
+
 def _check_invalid_input_dir(workspace: Path) -> None:
     missing = workspace / "missing"
     payload = _run_cli_json(
@@ -497,6 +659,8 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("context_directory_focus_density_json_ok", _check_directory_focus_density),
     ("context_compress_incremental_json_ok", _check_incremental_compress_restore),
     ("context_apply_patch_roundtrip_json_ok", _check_apply_patch_roundtrip),
+    ("context_patch_apply_merge_conflict_json_ok", _check_patch_apply_merge_conflict),
+    ("context_patch_apply_directory_reports_json_ok", _check_directory_patch_apply_reports),
     ("context_invalid_input_dir_json_ok", _check_invalid_input_dir),
     ("context_scale_benchmark_quick_json_ok", _check_scale_benchmark_quick),
 ]

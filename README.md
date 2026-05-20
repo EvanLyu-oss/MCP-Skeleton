@@ -252,7 +252,7 @@ Cross-platform smoke checks, including Windows environments without Bash:
 python3 testing/run_cli_checks.py
 ```
 
-This Python runner covers key text, directory, filtering, focus/density, incremental, patch/replay, invalid-input, and benchmark readiness paths.
+This Python runner covers key text, directory, filtering, focus/density, incremental, patch/replay, merge-conflict, dry-run report, policy-block, invalid-input, and benchmark readiness paths.
 
 Repo-scale benchmark:
 

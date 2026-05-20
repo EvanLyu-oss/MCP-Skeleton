@@ -4,6 +4,8 @@
 
 - added and expanded a Python-native cross-platform smoke runner for Windows and other environments without Bash
 - fixed text patch snapshots and replay to preserve candidate bytes exactly across platforms
+- documented the Windows Python smoke runner 11/11 validation result in the cross-platform validation report
+- expanded the Python smoke runner with merge-conflict, directory patch-apply, dry-run report, and policy-block replay coverage
 
 ## 0.1.1
 

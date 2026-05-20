@@ -90,6 +90,26 @@ Results:
 - `scale_health.status`: `ok`
 - `regression_trends.status`: `no-baseline`
 
+## Post-v0.1.1 Windows Python Smoke
+
+After v0.1.1, a Python-native smoke runner was added for Windows environments without Bash:
+
+```powershell
+python testing/run_cli_checks.py
+```
+
+Windows validation initially reported `10/11` checks passing and exposed a real text patch replay issue: text patch candidate snapshots were written and replayed through text-mode file handling, which could alter newline layout and break byte-level SHA256 equality.
+
+The text patch path now writes candidate snapshots as raw bytes and replays those bytes directly. After the fix, Windows validation reported:
+
+- `runner`: `python`
+- `check_count`: `11`
+- `passed`: `11`
+- `failed`: `0`
+- `context_apply_patch_roundtrip_json_ok`: pass
+
+This confirms that text patch snapshot/replay now preserves candidate bytes exactly across platforms.
+
 ## Release Readiness
 
 The v0.1.1 candidate has no known blocking restore failures in the validated surfaces.
