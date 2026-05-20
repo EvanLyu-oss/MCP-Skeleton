@@ -1312,6 +1312,9 @@ def _check_scale_benchmark_quick(workspace: Path) -> None:
     assert report["status"] == "ok"
     assert report["release_readiness"]["restore_verified_count"] == report["release_readiness"]["case_count"]
     assert report["scale_health"]["status"] in {"ok", "warn"}
+    scale_checks = {item["name"]: item for item in report["scale_health"]["checks"]}
+    assert scale_checks["monorepo_best_size_ratio_vs_standard"]["passed"] is True
+    assert scale_checks["realistic_directory_best_size_ratio_vs_standard"]["passed"] is True
     assert report["executive_summary"]["large_directory_recommendations"]
     assert report["executive_summary"]["long_text_recommendations"]
     for key in ["large_directory_recommendations", "long_text_recommendations"]:

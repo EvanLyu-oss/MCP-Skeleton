@@ -35,6 +35,8 @@ DEFAULT_SCALE_HEALTH_THRESHOLDS = {
     "monorepo_min_files": 100,
     "monorepo_max_token_ratio": 0.75,
     "realistic_directory_max_token_ratio": 0.25,
+    "monorepo_best_size_ratio_vs_standard": 0.45,
+    "realistic_directory_best_size_ratio_vs_standard": 0.25,
 }
 DEFAULT_REAL_TEXT_FILES = [
     REPO_ROOT / "README.md",
@@ -473,6 +475,35 @@ def _max_token_ratio(summaries: list[dict[str, Any]]) -> float:
     return round(max(ratios), 4)
 
 
+def _max_best_size_ratio_vs_standard(summaries: list[dict[str, Any]]) -> float:
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for item in summaries:
+        grouped.setdefault((item["backend"], item.get("source_path", "")), []).append(item)
+    ratios: list[float] = []
+    for items in grouped.values():
+        verified_items = [item for item in items if item["restore_verified"]]
+        if not verified_items:
+            continue
+        standard = next(
+            (
+                item
+                for item in verified_items
+                if item.get("focus_mode") == "full" and item.get("skeleton_density") == "standard"
+            ),
+            None,
+        )
+        if standard is None:
+            continue
+        standard_tokens = int(standard.get("estimated_skeleton_tokens") or 0)
+        if standard_tokens <= 0:
+            continue
+        best_tokens = min(int(item.get("estimated_skeleton_tokens") or 0) for item in verified_items)
+        ratios.append(best_tokens / standard_tokens)
+    if not ratios:
+        return 0.0
+    return round(max(ratios), 4)
+
+
 def _build_scale_health(
     *,
     monorepo_cases: list[dict[str, Any]],
@@ -484,6 +515,8 @@ def _build_scale_health(
     realistic_summaries = [_summarize_case(case) for case in realistic_directory_cases]
     monorepo_max_ratio = _max_token_ratio(monorepo_summaries)
     realistic_max_ratio = _max_token_ratio(realistic_summaries)
+    monorepo_best_size_ratio = _max_best_size_ratio_vs_standard(monorepo_summaries)
+    realistic_best_size_ratio = _max_best_size_ratio_vs_standard(realistic_summaries)
     expected_min_files = int(monorepo_fixture.get("expected_min_files") or 0)
     checks = [
         {
@@ -508,6 +541,13 @@ def _build_scale_health(
             "expected": f"<= {thresholds['monorepo_max_token_ratio']}",
         },
         {
+            "name": "monorepo_best_size_ratio_vs_standard",
+            "severity": "warn",
+            "passed": bool(monorepo_summaries) and monorepo_best_size_ratio <= thresholds["monorepo_best_size_ratio_vs_standard"],
+            "observed": monorepo_best_size_ratio,
+            "expected": f"<= {thresholds['monorepo_best_size_ratio_vs_standard']}",
+        },
+        {
             "name": "realistic_directory_restore_verified",
             "severity": "fail",
             "passed": bool(realistic_summaries) and all(item["restore_verified"] for item in realistic_summaries),
@@ -520,6 +560,13 @@ def _build_scale_health(
             "passed": bool(realistic_summaries) and realistic_max_ratio <= thresholds["realistic_directory_max_token_ratio"],
             "observed": realistic_max_ratio,
             "expected": f"<= {thresholds['realistic_directory_max_token_ratio']}",
+        },
+        {
+            "name": "realistic_directory_best_size_ratio_vs_standard",
+            "severity": "warn",
+            "passed": bool(realistic_summaries) and realistic_best_size_ratio <= thresholds["realistic_directory_best_size_ratio_vs_standard"],
+            "observed": realistic_best_size_ratio,
+            "expected": f"<= {thresholds['realistic_directory_best_size_ratio_vs_standard']}",
         },
     ]
     failed_checks = [item for item in checks if item["severity"] == "fail" and not item["passed"]]
@@ -2125,6 +2172,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scale-health-monorepo-min-files", type=int, default=DEFAULT_SCALE_HEALTH_THRESHOLDS["monorepo_min_files"], help="Warning threshold for the generated monorepo fixture file floor.")
     parser.add_argument("--scale-health-monorepo-max-token-ratio", type=float, default=DEFAULT_SCALE_HEALTH_THRESHOLDS["monorepo_max_token_ratio"], help="Warning threshold for the largest monorepo skeleton/source token ratio.")
     parser.add_argument("--scale-health-realistic-directory-max-token-ratio", type=float, default=DEFAULT_SCALE_HEALTH_THRESHOLDS["realistic_directory_max_token_ratio"], help="Warning threshold for the largest realistic-directory skeleton/source token ratio.")
+    parser.add_argument("--scale-health-monorepo-best-size-ratio-vs-standard", type=float, default=DEFAULT_SCALE_HEALTH_THRESHOLDS["monorepo_best_size_ratio_vs_standard"], help="Warning threshold for the largest best-verified monorepo skeleton size ratio versus full+standard.")
+    parser.add_argument("--scale-health-realistic-directory-best-size-ratio-vs-standard", type=float, default=DEFAULT_SCALE_HEALTH_THRESHOLDS["realistic_directory_best_size_ratio_vs_standard"], help="Warning threshold for the largest best-verified realistic-directory skeleton size ratio versus full+standard.")
     parser.add_argument("--baseline-json", help="Optional previous benchmark JSON report used to compute non-blocking regression trends.")
     parser.add_argument("--output-json", default=str(DEFAULT_JSON), help="Where to write the benchmark JSON report.")
     parser.add_argument("--output-md", default=str(DEFAULT_MD), help="Where to write the Markdown benchmark report.")
@@ -2166,6 +2215,8 @@ def main() -> int:
             "monorepo_min_files": max(1, args.scale_health_monorepo_min_files),
             "monorepo_max_token_ratio": max(0.0, args.scale_health_monorepo_max_token_ratio),
             "realistic_directory_max_token_ratio": max(0.0, args.scale_health_realistic_directory_max_token_ratio),
+            "monorepo_best_size_ratio_vs_standard": max(0.0, args.scale_health_monorepo_best_size_ratio_vs_standard),
+            "realistic_directory_best_size_ratio_vs_standard": max(0.0, args.scale_health_realistic_directory_best_size_ratio_vs_standard),
         }
         incremental_repo_dir, incremental_fixture_metadata = _build_incremental_repo_fixture(directory_path, workspace)
         realistic_text_path = workspace / "realistic_repo_corpus.md"

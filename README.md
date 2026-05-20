@@ -286,6 +286,7 @@ The benchmark compares:
 - executive summaries for quick test-machine handoff of readiness, regression, restore, and recommended modes
 - stdout executive summaries from the benchmark command so CI and test-machine logs carry the key result without opening report files
 - configurable scale-health checks for restore verification, monorepo file floor, and large-directory token ratios
+- scale-health guardrails for best verified monorepo and realistic-directory size ratio versus full+standard baselines
 - synthetic fixtures vs realistic repo-scale directory/text corpora
 - restore verification for both text and directory cases
 
