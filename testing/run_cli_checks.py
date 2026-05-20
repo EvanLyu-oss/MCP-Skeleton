@@ -116,6 +116,80 @@ def _check_text_restore(workspace: Path) -> None:
     assert _sha256(text_file) == _sha256(restore_file)
 
 
+def _check_text_writing_outline(workspace: Path) -> None:
+    text_file = workspace / "outline_text.md"
+    text_file.write_text(
+        "# MCP Skeleton\n\n"
+        "This paragraph keeps restore fidelity while exposing chapter and section outlines.\n\n"
+        "## Notes\n\n"
+        "The writing-outline view should show enough structure for long-form review.\n",
+        encoding="utf-8",
+    )
+    payload = _run_cli_json(
+        [
+            "context",
+            "compress",
+            "--text-file",
+            str(text_file),
+            "--focus-mode",
+            "writing-outline",
+            "--json",
+        ]
+    )
+    assert payload["status"] == "ok"
+    assert payload["focus_mode"] == "writing-outline"
+    assert "FOCUS_MODE: writing-outline" in payload["skeleton_text"]
+    assert "CHAPTER_FOLDS:" in payload["skeleton_text"]
+    assert "HEADINGS:" in payload["skeleton_text"]
+    assert "SECTIONS:" in payload["skeleton_text"]
+
+
+def _check_text_density(workspace: Path) -> None:
+    text_file = workspace / "large_text.md"
+    parts = []
+    for idx in range(1, 181):
+        parts.append(
+            f"# Chapter {idx}\n\n"
+            "This chapter keeps repeating context compression continuity, exact restore, "
+            f"patch replay, and benchmark harness language {idx}.\n\n"
+            "## Notes\n\n"
+            "The structure should stay visible while compact skeletons get more selective.\n"
+        )
+    text_file.write_text("\n".join(parts), encoding="utf-8")
+    standard = _run_cli_json(
+        [
+            "context",
+            "compress",
+            "--text-file",
+            str(text_file),
+            "--skeleton-density",
+            "standard",
+            "--json",
+        ]
+    )
+    compact = _run_cli_json(
+        [
+            "context",
+            "compress",
+            "--text-file",
+            str(text_file),
+            "--skeleton-density",
+            "compact",
+            "--json",
+        ]
+    )
+    assert standard["status"] == "ok"
+    assert compact["status"] == "ok"
+    assert standard["skeleton_density"] == "standard"
+    assert compact["skeleton_density"] == "compact"
+    assert "SKELETON_DENSITY: standard" in standard["skeleton_text"]
+    assert "SKELETON_DENSITY: compact" in compact["skeleton_text"]
+    assert compact["source_summary"]["chapter_group_count"] >= 6
+    assert "CHAPTER_FOLDS:" in compact["skeleton_text"]
+    assert compact["skeleton_char_count"] < standard["skeleton_char_count"]
+    assert "... (+" in compact["skeleton_text"]
+
+
 def _check_non_utf8_text_restore(workspace: Path) -> None:
     source = workspace / "gbk_notes.md"
     source.write_bytes("# 标题\n\n这是 GBK 编码文本，用于测试无损恢复。\n".encode("gb18030"))
@@ -475,6 +549,122 @@ def _check_directory_focus_density(workspace: Path) -> None:
     assert compact["skeleton_char_count"] < standard["skeleton_char_count"]
 
 
+def _check_directory_symbols(workspace: Path) -> None:
+    project = workspace / "symbols_project"
+    (project / "src").mkdir(parents=True)
+    (project / "docs").mkdir()
+    (project / "src" / "app.py").write_text(
+        "import json\n\n"
+        "class AppRunner:\n"
+        "    def run(self, value: str) -> str:\n"
+        "        return json.dumps({'value': value})\n",
+        encoding="utf-8",
+    )
+    (project / "src" / "helpers.py").write_text(
+        "from pathlib import Path\n\n"
+        "def helper(path: Path) -> str:\n"
+        "    return path.name\n",
+        encoding="utf-8",
+    )
+    (project / "docs" / "notes.md").write_text("# Notes\n\nSymbol focus should prefer code shape.\n", encoding="utf-8")
+    payload = _run_cli_json(
+        [
+            "context",
+            "compress",
+            "--preset",
+            "codebase",
+            "--focus-mode",
+            "symbols",
+            "--input-dir",
+            str(project),
+            "--json",
+        ]
+    )
+    assert payload["status"] == "ok"
+    assert payload["focus_mode"] == "symbols"
+    assert "FOCUS_MODE: symbols" in payload["skeleton_text"]
+    assert "SYMBOLS:" in payload["skeleton_text"]
+    assert "IMPORTS:" not in payload["skeleton_text"]
+    assert "TREE:" not in payload["skeleton_text"]
+
+
+def _check_directory_aggregation(workspace: Path) -> None:
+    project = workspace / "large_project"
+    for rel in ["src/api", "src/core", "docs", "tests", "scripts", "examples"]:
+        (project / rel).mkdir(parents=True)
+    for idx in range(1, 51):
+        (project / "src" / "api" / f"handler_{idx}.py").write_text(
+            "from pathlib import Path\n\n"
+            f"def handler_{idx}() -> str:\n"
+            f"    return 'api-{idx}'\n",
+            encoding="utf-8",
+        )
+        (project / "src" / "core" / f"service_{idx}.py").write_text(
+            "import json\n\n"
+            f"def service_{idx}() -> str:\n"
+            f"    return 'core-{idx}'\n",
+            encoding="utf-8",
+        )
+    for idx in range(1, 21):
+        (project / "docs" / f"chapter_{idx}.md").write_text(
+            f"# Chapter {idx}\n\nThis chapter describes context compression structure {idx}.\n",
+            encoding="utf-8",
+        )
+        (project / "tests" / f"test_case_{idx}.py").write_text(
+            f"def test_case_{idx}() -> None:\n    assert True\n",
+            encoding="utf-8",
+        )
+    for idx in range(1, 11):
+        (project / "scripts" / f"task_{idx}.sh").write_text(
+            "#!/bin/sh\n"
+            f"echo task-{idx}\n",
+            encoding="utf-8",
+        )
+        (project / "examples" / f"snippet_{idx}.md").write_text(
+            f"# Example {idx}\n\nThis example mirrors compression usage {idx}.\n",
+            encoding="utf-8",
+        )
+
+    standard = _run_cli_json(
+        [
+            "context",
+            "compress",
+            "--preset",
+            "codebase",
+            "--input-dir",
+            str(project),
+            "--skeleton-density",
+            "standard",
+            "--json",
+        ]
+    )
+    adaptive = _run_cli_json(
+        [
+            "context",
+            "compress",
+            "--preset",
+            "codebase",
+            "--input-dir",
+            str(project),
+            "--skeleton-density",
+            "adaptive",
+            "--json",
+        ]
+    )
+    assert standard["status"] == "ok"
+    assert adaptive["status"] == "ok"
+    assert adaptive["source_summary"]["directory_groups"]
+    assert adaptive["source_summary"]["extension_mix"]
+    assert "DIRECTORY_GROUPS:" in adaptive["skeleton_text"]
+    assert "HOT_SUBTREES:" in adaptive["skeleton_text"]
+    assert "COLLAPSED_SUBTREES:" in adaptive["skeleton_text"]
+    assert "EXTENSION_MIX:" in adaptive["skeleton_text"]
+    assert "sample_paths=" in adaptive["skeleton_text"]
+    assert "roots=" in adaptive["skeleton_text"]
+    assert adaptive["skeleton_char_count"] < standard["skeleton_char_count"]
+    assert "... (+" in adaptive["skeleton_text"]
+
+
 def _build_incremental_repo(workspace: Path, *, name: str = "incremental_project") -> Path:
     project = workspace / name
     (project / "src").mkdir(parents=True)
@@ -602,6 +792,111 @@ def _check_apply_patch_roundtrip(workspace: Path) -> None:
     )
     assert replay["status"] == "ok"
     assert _sha256(candidate) == _sha256(output_file)
+
+
+def _check_patch_text_manifest(workspace: Path) -> None:
+    source = workspace / "text_patch_source.md"
+    candidate = workspace / "text_patch_candidate.md"
+    source.write_text("# Plan\n\nOriginal context.\n", encoding="utf-8")
+    candidate.write_text("# Plan\n\nOriginal context with a targeted update.\n", encoding="utf-8")
+    bundle_dir = workspace / "text_patch_source_bundle"
+    _run_cli_json(
+        [
+            "context",
+            "compress",
+            "--text-file",
+            str(source),
+            "--output-dir",
+            str(bundle_dir),
+            "--json",
+        ]
+    )
+    patch_dir = workspace / "text_patch_bundle"
+    payload = _run_cli_json(
+        [
+            "context",
+            "patch",
+            "--package-file",
+            str(bundle_dir / "context_manifest.json"),
+            "--text-file",
+            str(candidate),
+            "--output-dir",
+            str(patch_dir),
+            "--json",
+        ]
+    )
+    manifest = json.loads((patch_dir / "patch_manifest.json").read_text(encoding="utf-8"))
+    assert payload["status"] == "ok"
+    assert payload["patch_mode"] == "text_unified_diff"
+    assert payload["changed_paths"] == [candidate.name]
+    assert manifest["patch_mode"] == "text_unified_diff"
+    assert manifest["change_counts"]["changed_paths"] == 1
+    assert manifest["files"]["candidate_snapshot_file"].endswith("candidate_snapshot.txt")
+    assert (patch_dir / "candidate_snapshot.txt").exists()
+    assert _sha256(candidate) == _sha256(patch_dir / "candidate_snapshot.txt")
+
+
+def _check_patch_incremental_manifest(workspace: Path) -> None:
+    project = _build_incremental_repo(workspace, name="incremental_patch_manifest_project")
+    bundle_dir = workspace / "incremental_patch_manifest_bundle"
+    _run_cli_json(
+        [
+            "context",
+            "compress",
+            "--input-dir",
+            str(project),
+            "--incremental",
+            "--output-dir",
+            str(bundle_dir),
+            "--json",
+        ]
+    )
+    restore_root = workspace / "incremental_patch_manifest_restore"
+    _run_cli_json(
+        [
+            "context",
+            "restore",
+            "--package-file",
+            str(bundle_dir / "context_manifest.json"),
+            "--output-dir",
+            str(restore_root),
+            "--json",
+        ]
+    )
+    candidate = workspace / "incremental_patch_manifest_candidate"
+    shutil.copytree(restore_root / project.name, candidate)
+    (candidate / "src" / "app.py").write_text("def run() -> str:\n    return 'candidate'\n", encoding="utf-8")
+    (candidate / "docs").mkdir(exist_ok=True)
+    (candidate / "docs" / "notes.md").write_text("Recovered note.\n", encoding="utf-8")
+
+    patch_dir = workspace / "incremental_patch_manifest_patch"
+    payload = _run_cli_json(
+        [
+            "context",
+            "patch",
+            "--package-file",
+            str(bundle_dir / "context_manifest.json"),
+            "--input-dir",
+            str(candidate),
+            "--output-dir",
+            str(patch_dir),
+            "--json",
+        ]
+    )
+    manifest = json.loads((patch_dir / "patch_manifest.json").read_text(encoding="utf-8"))
+    assert payload["status"] == "ok"
+    assert payload["incremental_mode"] is True
+    assert payload["incremental_changed_paths"] == ["src/app.py"]
+    assert payload["incremental_added_paths"] == ["src/new.py"]
+    assert payload["incremental_removed_paths"] == []
+    assert payload["changed_paths"] == ["src/app.py"]
+    assert payload["added_paths"] == ["docs/notes.md"]
+    assert manifest["incremental_mode"] is True
+    assert manifest["incremental_changed_paths"] == ["src/app.py"]
+    assert manifest["incremental_added_paths"] == ["src/new.py"]
+    assert manifest["incremental_removed_paths"] == []
+    assert manifest["change_counts"]["added_paths"] == 1
+    assert manifest["change_counts"]["changed_paths"] == 1
 
 
 def _check_patch_apply_merge_conflict(workspace: Path) -> None:
@@ -1025,6 +1320,8 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("py_compile_ok", _check_py_compile),
     ("context_preset_json_ok", _check_preset_json),
     ("context_restore_text_json_ok", _check_text_restore),
+    ("context_compress_text_writing_outline_json_ok", _check_text_writing_outline),
+    ("context_compress_text_density_json_ok", _check_text_density),
     ("context_non_utf8_text_restore_json_ok", _check_non_utf8_text_restore),
     ("context_restore_directory_json_ok", _check_directory_restore),
     ("context_bundle_json_ok", _check_bundle_outputs),
@@ -1032,8 +1329,12 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("context_apply_check_drift_json_ok", _check_apply_check_drift),
     ("context_directory_filter_ignore_json_ok", _check_directory_filtering),
     ("context_directory_focus_density_json_ok", _check_directory_focus_density),
+    ("context_compress_directory_symbols_json_ok", _check_directory_symbols),
+    ("context_compress_directory_aggregation_json_ok", _check_directory_aggregation),
     ("context_compress_incremental_json_ok", _check_incremental_compress_restore),
     ("context_apply_patch_roundtrip_json_ok", _check_apply_patch_roundtrip),
+    ("context_patch_text_json_ok", _check_patch_text_manifest),
+    ("context_patch_incremental_json_ok", _check_patch_incremental_manifest),
     ("context_patch_apply_merge_conflict_json_ok", _check_patch_apply_merge_conflict),
     ("context_patch_apply_directory_reports_json_ok", _check_directory_patch_apply_reports),
     ("context_patch_apply_incremental_reports_json_ok", _check_incremental_patch_apply_reports),
