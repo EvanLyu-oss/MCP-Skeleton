@@ -890,6 +890,14 @@ def _check_directory_aggregation(workspace: Path) -> None:
     assert adaptive["source_scale_profile"]["scale_class"] == "large"
     assert adaptive["source_scale_profile"]["total_files"] >= 120
     assert adaptive["recommended_config"]["exclude"]
+    recommended_args = adaptive["recommended_command_args"]
+    assert recommended_args[:3] == ["context", "compress", "--input-dir"]
+    assert Path(recommended_args[3]) == project.resolve()
+    assert "--focus-mode" in recommended_args
+    assert "--skeleton-density" in recommended_args
+    assert "--exclude" in recommended_args
+    assert recommended_args[-1] == "--json"
+    assert "recommended_command_arg_count:" in adaptive["summary_text"]
     assert any(item["code"] == "no_directory_filters" for item in adaptive["compression_warnings"])
     assert "DIRECTORY_GROUPS:" in adaptive["skeleton_text"]
     assert "HOT_SUBTREES:" in adaptive["skeleton_text"]

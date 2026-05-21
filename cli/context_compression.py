@@ -246,6 +246,10 @@ def build_context_compress_payload(
         skeleton_density=resolved_skeleton_density,
         preset_id=preset["preset_id"],
     )
+    recommended_command_args = _build_recommended_context_compress_args(
+        source=source,
+        recommended_config=advice["recommended_config"],
+    )
     payload = {
         "status": "ok",
         "entrypoint": "context-compress",
@@ -285,6 +289,7 @@ def build_context_compress_payload(
         "compression_warnings": advice["warnings"],
         "compression_recommendations": advice["recommendations"],
         "recommended_config": advice["recommended_config"],
+        "recommended_command_args": recommended_command_args,
         "source_scale_profile": advice["source_scale_profile"],
         "next_steps": [
             "feed skeleton_text to the target AI or IDE instead of the original raw context",
@@ -2253,6 +2258,10 @@ def _build_context_compress_summary_text(payload: dict[str, Any]) -> str:
             lines.append(f"recommended_focus_mode: {first.get('suggested_focus_mode')}")
         if first.get("suggested_skeleton_density"):
             lines.append(f"recommended_skeleton_density: {first.get('suggested_skeleton_density')}")
+    recommended_command_args = list(payload.get("recommended_command_args") or [])
+    if recommended_command_args:
+        lines.append(f"recommended_command_arg_count: {len(recommended_command_args)}")
+        lines.append(f"recommended_command_first_arg: {recommended_command_args[0]}")
     return "\n".join(lines)
 
 
@@ -3817,6 +3826,47 @@ def _build_compression_advice(
         "recommended_config": recommended_config,
         "source_scale_profile": scale_profile,
     }
+
+
+def _build_recommended_context_compress_args(
+    *,
+    source: dict[str, Any],
+    recommended_config: dict[str, Any],
+) -> list[str]:
+    source_path = str(source.get("source_path") or "")
+    compression_mode = str(source.get("compression_mode") or "")
+    if not source_path:
+        return []
+
+    if compression_mode in {"directory", "directory_incremental"}:
+        args = ["context", "compress", "--input-dir", source_path]
+        if compression_mode == "directory_incremental":
+            args.append("--incremental")
+            base_commit = str(source.get("incremental_base_commit") or "")
+            if base_commit:
+                args.extend(["--base-commit", base_commit])
+    elif compression_mode == "file":
+        args = ["context", "compress", "--input-file", source_path]
+    elif compression_mode == "text":
+        args = ["context", "compress", "--text-file", source_path]
+    else:
+        return []
+
+    preset_id = str(recommended_config.get("preset_id") or "")
+    focus_mode = str(recommended_config.get("focus_mode") or "")
+    skeleton_density = str(recommended_config.get("skeleton_density") or "")
+    if preset_id:
+        args.extend(["--preset", preset_id])
+    if focus_mode:
+        args.extend(["--focus-mode", focus_mode])
+    if skeleton_density:
+        args.extend(["--skeleton-density", skeleton_density])
+    for pattern in recommended_config.get("exclude") or []:
+        pattern_text = str(pattern).strip()
+        if pattern_text:
+            args.extend(["--exclude", pattern_text])
+    args.append("--json")
+    return args
 
 
 def _build_source_scale_profile(source_summary: dict[str, Any], *, metrics: dict[str, Any]) -> dict[str, Any]:
