@@ -298,7 +298,7 @@ python3 -m cli context config --recommend --input-dir . --preset codebase --outp
 ```
 
 Recommendation mode runs the same compression analysis used by `context compress`, then writes a reusable config with the suggested focus, density, and exclude patterns.
-Add `--output-report-file mcp-skeleton-onboarding.md` to write an audit-friendly Markdown report with the source summary, token estimate, warnings, and next steps.
+Add `--output-report-file mcp-skeleton-onboarding.md` to write an audit-friendly Markdown report with the source scale profile, token estimate, warnings, and next steps.
 
 Install a lightweight git pre-commit hook for local self-use:
 

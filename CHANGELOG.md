@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- added source scale details to `context config --recommend` JSON and onboarding reports
 - added source scale profiling and large-directory filter/focus recommendations to `context compress`
 - added `.mcp-skeleton.yaml` and `.mcp-skeleton.yml` config discovery and validation
 - added `context config init`, `context init`, and YAML config template output by file suffix

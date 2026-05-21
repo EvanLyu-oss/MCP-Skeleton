@@ -500,9 +500,11 @@ def _check_context_config_recommend_json(workspace: Path) -> None:
     assert "node_modules/" in recommended["config"]["exclude"]
     assert recommended["analysis"]["source_kind"] in {"directory", "mixed_project", "codebase"}
     assert isinstance(recommended["analysis"]["estimated_token_reduction_ratio"], float)
+    assert recommended["analysis"]["source_scale_profile"]["scale_class"] == "small"
     report_text = report_file.read_text(encoding="utf-8")
     assert "# MCP-Skeleton Config Recommendation" in report_text
     assert "## Recommended Config" in report_text
+    assert "source_scale_class:" in report_text
     assert "node_modules/" in report_text
 
     validated = _run_cli_json(["context", "config", "--validate", "--config", str(config_file), "--json"])

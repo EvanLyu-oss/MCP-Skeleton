@@ -323,6 +323,9 @@ def _render_context_config_recommend_report(payload: dict[str, Any]) -> str:
         "## Source",
         f"- source_kind: {analysis.get('source_kind', '')}",
         f"- source_label: {analysis.get('source_label', '')}",
+        f"- source_scale_class: {(analysis.get('source_scale_profile') or {}).get('scale_class', '')}",
+        f"- source_total_files: {(analysis.get('source_scale_profile') or {}).get('total_files', '')}",
+        f"- source_total_chars: {(analysis.get('source_scale_profile') or {}).get('total_chars', '')}",
         f"- current_preset: {analysis.get('preset_id', '')}",
         f"- current_focus_mode: {analysis.get('focus_mode', '')}",
         f"- current_skeleton_density: {analysis.get('skeleton_density', '')}",
@@ -477,7 +480,12 @@ def _build_context_config_payload(args: argparse.Namespace) -> tuple[dict[str, A
         )
         recommended = dict(compression_payload.get("recommended_config") or {})
         metrics = dict(compression_payload.get("metrics") or {})
-        suggested_excludes = list(context_defaults["exclude_patterns"] or compression_payload.get("preset_suggested_excludes") or [])
+        suggested_excludes = list(
+            context_defaults["exclude_patterns"]
+            or recommended.get("exclude")
+            or compression_payload.get("preset_suggested_excludes")
+            or []
+        )
         recommended_config = {
             "preset": recommended.get("preset_id") or compression_payload.get("preset_id") or "generic",
             "focus_mode": recommended.get("focus_mode") or compression_payload.get("focus_mode") or "full",
@@ -501,6 +509,7 @@ def _build_context_config_payload(args: argparse.Namespace) -> tuple[dict[str, A
                 "estimated_token_reduction_ratio": metrics.get("estimated_token_reduction_ratio"),
                 "estimated_tokens_saved": metrics.get("estimated_tokens_saved"),
                 "estimated_token_direction": metrics.get("estimated_token_direction"),
+                "source_scale_profile": compression_payload.get("source_scale_profile") or {},
                 "compression_warnings": compression_payload.get("compression_warnings") or [],
                 "compression_recommendations": compression_payload.get("compression_recommendations") or [],
                 "recommended_config": compression_payload.get("recommended_config") or {},
