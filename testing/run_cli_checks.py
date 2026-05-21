@@ -1567,12 +1567,15 @@ def _check_scale_benchmark_quick(workspace: Path) -> None:
     for key in ["large_directory_recommendations", "long_text_recommendations"]:
         preview = report["executive_summary"][key][0]
         assert "savings_percent_vs_baseline" in preview
+        assert "source_scale_class" in preview
+        assert "compression_warning_count" in preview
         assert preview["candidate_count"] >= preview["verified_candidate_count"] >= 1
         recommendation = report["summaries"][key][0]
         assert "recommended_compress_ms_avg" in recommendation
         assert "baseline_compress_ms_avg" in recommendation
         assert "compress_time_ratio_vs_baseline" in recommendation
         assert "token_ratio_span_verified" in recommendation
+        assert "source_scale_class" in recommendation
     assert max(item["skeleton_token_savings_percent_vs_baseline"] for item in report["summaries"]["large_directory_recommendations"]) >= 30
     assert max(item["skeleton_token_savings_percent_vs_baseline"] for item in report["summaries"]["long_text_recommendations"]) >= 10
 

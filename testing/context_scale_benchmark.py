@@ -323,6 +323,8 @@ def _build_backends(explicit_backends: list[str] | None, *, include_tiktoken: bo
 
 def _summarize_case(case: dict[str, Any]) -> dict[str, Any]:
     metrics = case["compress"]["metrics"]
+    compress_payload = case.get("compress") or {}
+    scale_profile = compress_payload.get("source_scale_profile") or {}
     restore_details = case.get("restore_details") or {}
     return {
         "label": case["label"],
@@ -332,6 +334,10 @@ def _summarize_case(case: dict[str, Any]) -> dict[str, Any]:
         "source_path": case.get("source_path", ""),
         "focus_mode": case.get("compress", {}).get("focus_mode", "full"),
         "skeleton_density": case.get("compress", {}).get("skeleton_density", "adaptive"),
+        "source_scale_class": scale_profile.get("scale_class", ""),
+        "source_scale_total_files": scale_profile.get("total_files", 0),
+        "compression_warning_count": len(compress_payload.get("compression_warnings") or []),
+        "compression_recommendation_count": len(compress_payload.get("compression_recommendations") or []),
         "source_chars": metrics["source_char_count"],
         "skeleton_chars": metrics["skeleton_char_count"],
         "estimated_source_tokens": metrics["estimated_token_count_source"],
@@ -677,6 +683,10 @@ def _build_best_verified_recommendations(
                 "recommended_token_ratio": best["token_ratio"],
                 "recommended_skeleton_tokens": best_tokens,
                 "recommended_compress_ms_avg": round(best_compress_ms, 2),
+                "source_scale_class": best.get("source_scale_class", ""),
+                "source_scale_total_files": best.get("source_scale_total_files", 0),
+                "compression_warning_count": best.get("compression_warning_count", 0),
+                "compression_recommendation_count": best.get("compression_recommendation_count", 0),
                 "baseline_focus_mode": baseline_item.get("focus_mode", "full"),
                 "baseline_skeleton_density": baseline_item.get("skeleton_density", "adaptive"),
                 "baseline_skeleton_tokens": baseline_tokens,
@@ -940,6 +950,8 @@ def _recommendation_preview(items: list[dict[str, Any]]) -> list[dict[str, Any]]
                 "savings_percent_vs_baseline": item.get("skeleton_token_savings_percent_vs_baseline", 0),
                 "candidate_count": item.get("candidate_count", 0),
                 "verified_candidate_count": item.get("verified_candidate_count", 0),
+                "source_scale_class": item.get("source_scale_class", ""),
+                "compression_warning_count": item.get("compression_warning_count", 0),
             }
         )
     return preview
@@ -1132,6 +1144,8 @@ def _render_markdown(report: dict[str, Any]) -> str:
                 item["source_path"],
                 item["recommended_focus_mode"],
                 item["recommended_skeleton_density"],
+                item.get("source_scale_class", ""),
+                item.get("compression_warning_count", 0),
                 item["recommended_token_ratio"],
                 item["recommended_skeleton_tokens"],
                 item["baseline_skeleton_tokens"],
@@ -1155,6 +1169,8 @@ def _render_markdown(report: dict[str, Any]) -> str:
                     "Source",
                     "Recommended focus",
                     "Recommended density",
+                    "Scale",
+                    "Warnings",
                     "Token ratio",
                     "Recommended tokens",
                     "Baseline tokens",
