@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.3
+
 - added a public cross-platform testing guide with quick smoke, stress benchmark, and test-machine result templates
 - expanded benchmark stdout executive summaries with scale profile, case count, monorepo fixture size, token-ratio guardrails, and best savings signals for test-machine handoff
 - added named benchmark scale profiles for quick, standard, and stress coverage, while preserving the existing `--quick` shortcut

@@ -1,12 +1,12 @@
 # MCP-Skeleton Cross-Platform Validation Report
 
-Date: 2026-05-20
-Candidate: v0.1.2
+Date: 2026-05-21
+Candidate: v0.1.3
 Repository: https://github.com/EvanLyu-oss/MCP-Skeleton
 
 ## Summary
 
-MCP-Skeleton reached a cross-platform `ready` benchmark state after validation on macOS and Windows. The v0.1.2 candidate extends the v0.1.1 benchmark baseline with a Python-native smoke runner that now covers `25/25` checks on both platforms.
+MCP-Skeleton reached a cross-platform `ready` benchmark state after validation on macOS and Windows. The v0.1.3 candidate extends the v0.1.2 baseline with stronger benchmark diagnostics, named quick/standard/stress scale profiles, large-directory recommendation guardrails, richer stdout handoff fields, and a public cross-platform testing guide.
 
 The final Windows quick benchmark reported:
 
@@ -25,6 +25,21 @@ The final macOS quick benchmark reported:
 - `regression_trends.status`: `no-baseline`
 
 The different case counts are expected because the macOS run included tokenizer-backed coverage that was not present in the Windows quick run.
+
+The final v0.1.3 macOS candidate validation reported:
+
+- Python smoke runner: `25/25`
+- Bash smoke runner: `36/36`
+- dogfood self-check: `30/30` files restored with matching SHA256
+- `py_compile`: pass
+
+The final post-v0.1.2 Windows validation before the v0.1.3 candidate reported:
+
+- Python smoke runner: `25/25`
+- `context_scale_benchmark_quick_json_ok`: pass
+- `failed`: `0`
+
+The Windows v0.1.3 final quick smoke is intentionally left for the external Windows test machine to confirm from the `v0.1.3` tag.
 
 ## Validated Fixes
 
@@ -135,9 +150,27 @@ Windows validation for the same mainline update reported:
 - `failed`: `0`
 - update method: tarball download, because Git HTTPS timed out on the test machine
 
+## v0.1.3 Benchmark And Testing Baseline
+
+After v0.1.2, the benchmark harness was expanded to make large-directory and long-text tuning easier to validate:
+
+- recommendation diagnostics now include per-source grouping, candidate counts, token savings percentages, token-ratio span, and compression-time comparisons
+- the writing preset now preserves text-density budgets for single text inputs, restoring meaningful adaptive/compact long-text savings without changing restore fidelity
+- scale-health checks now guard the best verified monorepo and realistic-directory skeleton size ratio versus `full + standard` baselines
+- `--scale-profile quick`, `--scale-profile standard`, and `--scale-profile stress` provide repeatable test-machine benchmark profiles while preserving the legacy `--quick` shortcut
+- benchmark stdout `executive_summary` now carries scale profile, case count, monorepo fixture size, token-ratio guardrails, and best savings signals
+- `CROSS_PLATFORM_TESTING.md` documents quick smoke, stress benchmark, and compact result reporting flows
+
+macOS validation for commit `677d11e` reported:
+
+- Python smoke runner: `25/25`
+- Bash smoke runner: `36/36`
+- dogfood self-check: `30/30` files restored with matching SHA256
+- `py_compile`: pass
+
 ## Release Readiness
 
-The v0.1.2 candidate has no known blocking restore failures in the validated surfaces.
+The v0.1.3 candidate has no known blocking restore failures in the validated surfaces.
 
 Current status:
 
@@ -146,6 +179,8 @@ Current status:
 - Text restore: validated on macOS and Windows quick benchmark
 - Monorepo benchmark health: `ok`
 - Large-directory token guardrails: `ok`
+- Benchmark scale profiles: `quick`, `standard`, and `stress`
+- Cross-platform testing workflow: documented in `CROSS_PLATFORM_TESTING.md`
 - Release readiness: `ready`
 
 ## Notes
