@@ -264,6 +264,8 @@ For repeatable test-machine prompts, stress benchmark commands, and result repor
 
 This Python runner covers key text, writing-outline, text-density, directory, bundle, filtering, focus/density, directory symbols/aggregation, incremental, clean incremental diagnostics, apply-check drift, text and incremental patch manifests, incremental patch replay, patch/replay, merge-conflict, dry-run report, policy template/block, invalid-input, invalid-restore-path, and benchmark readiness paths.
 
+`context compress --json` also emits `compression_warnings`, `compression_recommendations`, and `recommended_config` so users can spot token expansion or low-savings configurations and switch to a better focus/density without changing restore fidelity.
+
 Repo-scale benchmark:
 
 ```bash

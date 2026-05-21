@@ -237,6 +237,13 @@ def build_context_compress_payload(
         tokenizer_backend=tokenizer_backend,
         tokenizer_model=tokenizer_model,
     )
+    advice = _build_compression_advice(
+        source_summary=source["source_summary"],
+        metrics=metrics,
+        focus_mode=resolved_focus_mode,
+        skeleton_density=resolved_skeleton_density,
+        preset_id=preset["preset_id"],
+    )
     payload = {
         "status": "ok",
         "entrypoint": "context-compress",
@@ -271,6 +278,9 @@ def build_context_compress_payload(
         "restore_package": restore_blob,
         "compression_ratio": metrics["char_reduction_ratio"],
         "metrics": metrics,
+        "compression_warnings": advice["warnings"],
+        "compression_recommendations": advice["recommendations"],
+        "recommended_config": advice["recommended_config"],
         "next_steps": [
             "feed skeleton_text to the target AI or IDE instead of the original raw context",
             "keep the restore package together with the skeleton so the original source can be reconstructed exactly",
@@ -282,6 +292,7 @@ def build_context_compress_payload(
         payload["output_dir"] = str(output_dir.resolve())
         payload["files"] = {key: str(value) for key, value in package_files.items()}
         payload["next_steps"].insert(0, f"open {package_files['skeleton_file']}")
+    payload["summary_text"] = _build_context_compress_summary_text(payload)
     return payload
 
 
@@ -2192,6 +2203,45 @@ def _build_context_inspect_summary_text(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _build_context_compress_summary_text(payload: dict[str, Any]) -> str:
+    lines = [
+        f"status: {payload.get('status', '')}",
+        f"preset_id: {payload.get('preset_id', '')}",
+        f"focus_mode: {payload.get('focus_mode', 'full')}",
+        f"skeleton_density: {payload.get('skeleton_density', 'adaptive')}",
+        f"compression_mode: {payload.get('compression_mode', '')}",
+        f"source_kind: {payload.get('source_kind', '')}",
+        f"source_label: {payload.get('source_label', '')}",
+        f"skeleton_char_count: {payload.get('skeleton_char_count', 0)}",
+        f"compression_ratio: {payload.get('compression_ratio', 0)}",
+    ]
+    metrics = payload.get("metrics") or {}
+    for key in [
+        "estimated_token_count_source",
+        "estimated_token_count_skeleton",
+        "estimated_token_direction",
+        "estimated_token_reduction_ratio",
+        "estimated_tokens_saved",
+        "token_estimate_backend",
+    ]:
+        if key in metrics:
+            lines.append(f"{key}: {metrics.get(key)}")
+    warnings = list(payload.get("compression_warnings") or [])
+    recommendations = list(payload.get("compression_recommendations") or [])
+    if warnings:
+        lines.append(f"compression_warning_count: {len(warnings)}")
+        lines.append(f"first_compression_warning: {warnings[0].get('message', '')}")
+    if recommendations:
+        lines.append(f"compression_recommendation_count: {len(recommendations)}")
+        first = recommendations[0]
+        lines.append(f"first_recommendation: {first.get('message', '')}")
+        if first.get("suggested_focus_mode"):
+            lines.append(f"recommended_focus_mode: {first.get('suggested_focus_mode')}")
+        if first.get("suggested_skeleton_density"):
+            lines.append(f"recommended_skeleton_density: {first.get('suggested_skeleton_density')}")
+    return "\n".join(lines)
+
+
 def _build_context_apply_check_summary_text(payload: dict[str, Any]) -> str:
     lines = [
         f"status: {payload.get('status', '')}",
@@ -3632,6 +3682,97 @@ def _build_context_metrics(
     if primary_metrics.get("tokenizer_error"):
         metrics["tokenizer_error"] = primary_metrics["tokenizer_error"]
     return metrics
+
+
+def _build_compression_advice(
+    *,
+    source_summary: dict[str, Any],
+    metrics: dict[str, Any],
+    focus_mode: str,
+    skeleton_density: str,
+    preset_id: str,
+) -> dict[str, Any]:
+    source_kind = str(source_summary.get("source_kind") or "")
+    token_ratio = float(metrics.get("estimated_token_reduction_ratio") or 0.0)
+    token_direction = str(metrics.get("estimated_token_direction") or "")
+    source_tokens = int(metrics.get("estimated_token_count_source") or 0)
+    skeleton_tokens = int(metrics.get("estimated_token_count_skeleton") or 0)
+    tokens_saved = int(metrics.get("estimated_tokens_saved") or 0)
+    savings_percent = round((tokens_saved / source_tokens) * 100, 2) if source_tokens else 0.0
+    warnings: list[dict[str, Any]] = []
+    recommendations: list[dict[str, Any]] = []
+
+    if token_direction == "expanded" or token_ratio > 1.0:
+        warnings.append(
+            {
+                "code": "token_expansion",
+                "severity": "warning",
+                "message": f"estimated token ratio is {token_ratio}; the skeleton is larger than the source token estimate",
+                "estimated_source_tokens": source_tokens,
+                "estimated_skeleton_tokens": skeleton_tokens,
+            }
+        )
+    elif token_ratio >= 0.75:
+        warnings.append(
+            {
+                "code": "low_token_savings",
+                "severity": "notice",
+                "message": f"estimated token ratio is {token_ratio}; consider a more compact focus or density for stronger savings",
+                "estimated_savings_percent": savings_percent,
+            }
+        )
+
+    suggested_focus = focus_mode
+    suggested_density = skeleton_density
+    if source_kind == "directory":
+        if focus_mode == "full":
+            suggested_focus = "imports" if preset_id == "codebase" else "tree"
+        if skeleton_density == "standard":
+            suggested_density = "adaptive"
+    elif source_kind in {"text", "markdown"}:
+        if focus_mode == "full" and token_ratio >= 0.75:
+            suggested_focus = "writing-outline"
+        if skeleton_density == "standard":
+            suggested_density = "adaptive"
+        elif token_ratio >= 0.75:
+            suggested_density = "compact"
+
+    if warnings or suggested_focus != focus_mode or suggested_density != skeleton_density:
+        recommendations.append(
+            {
+                "code": "try_more_compact_skeleton",
+                "message": "try a more compact AI-facing skeleton while keeping the restore package byte-exact",
+                "current_focus_mode": focus_mode,
+                "current_skeleton_density": skeleton_density,
+                "suggested_focus_mode": suggested_focus,
+                "suggested_skeleton_density": suggested_density,
+                "estimated_token_ratio": token_ratio,
+                "estimated_savings_percent": savings_percent,
+            }
+        )
+    elif savings_percent >= 30:
+        recommendations.append(
+            {
+                "code": "current_config_ok",
+                "message": "current skeleton settings already provide meaningful estimated token savings",
+                "current_focus_mode": focus_mode,
+                "current_skeleton_density": skeleton_density,
+                "estimated_token_ratio": token_ratio,
+                "estimated_savings_percent": savings_percent,
+            }
+        )
+
+    recommended_config = {
+        "preset_id": preset_id,
+        "focus_mode": suggested_focus,
+        "skeleton_density": suggested_density,
+        "reason": recommendations[0]["message"] if recommendations else "",
+    }
+    return {
+        "warnings": warnings,
+        "recommendations": recommendations,
+        "recommended_config": recommended_config,
+    }
 
 
 def _estimate_token_count(char_count: int) -> int:

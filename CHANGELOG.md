@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- added smart compression warnings and recommended config hints to `context compress` JSON and summary output
 - documented the final Windows v0.1.3 quick smoke and stress benchmark validation results
 
 ## 0.1.3

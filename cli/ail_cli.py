@@ -117,9 +117,7 @@ def cmd_context(args: argparse.Namespace) -> int:
                 _write_cli_output_file(Path(output_file), str(payload.get("skeleton_text", "")))
             sys.stdout.write(str(payload.get("skeleton_text", "")))
             return EXIT_OK
-        return _emit_simple_result(args, payload, text=_render_simple_summary(payload, [
-            "preset_id", "focus_mode", "skeleton_density", "compression_mode", "source_kind", "source_label", "skeleton_char_count", "compression_ratio"
-        ]))
+        return _emit_simple_result(args, payload, text=str(payload.get("summary_text", "")))
 
     if command == "bundle":
         payload = build_context_bundle_payload(

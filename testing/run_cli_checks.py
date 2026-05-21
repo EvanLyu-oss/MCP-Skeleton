@@ -99,6 +99,10 @@ def _check_text_restore(workspace: Path) -> None:
     )
     assert payload["status"] == "ok"
     assert payload["compression_mode"] == "text"
+    assert "compression_warnings" in payload
+    assert payload["compression_recommendations"]
+    assert payload["recommended_config"]["skeleton_density"] in {"adaptive", "compact"}
+    assert "estimated_token_reduction_ratio" in payload["summary_text"]
 
     restore_file = workspace / "restored_text.md"
     restore = _run_cli_json(
@@ -182,6 +186,8 @@ def _check_text_density(workspace: Path) -> None:
     assert compact["status"] == "ok"
     assert standard["skeleton_density"] == "standard"
     assert compact["skeleton_density"] == "compact"
+    assert standard["recommended_config"]["skeleton_density"] == "adaptive"
+    assert compact["recommended_config"]["skeleton_density"] in {"adaptive", "compact"}
     assert "SKELETON_DENSITY: standard" in standard["skeleton_text"]
     assert "SKELETON_DENSITY: compact" in compact["skeleton_text"]
     assert compact["source_summary"]["chapter_group_count"] >= 6
