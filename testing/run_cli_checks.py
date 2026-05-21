@@ -381,6 +381,52 @@ def _check_context_config_template_and_validation(workspace: Path) -> None:
     assert "focus_mode" in invalid["error"]["message"]
 
 
+def _check_context_config_recommend_json(workspace: Path) -> None:
+    project = workspace / "config_recommend_project"
+    (project / "src").mkdir(parents=True)
+    (project / "node_modules").mkdir()
+    (project / "src" / "app.py").write_text(
+        "import pathlib\n\n"
+        "class Runner:\n"
+        "    def run(self) -> str:\n"
+        "        return pathlib.Path.cwd().name\n",
+        encoding="utf-8",
+    )
+    (project / "node_modules" / "ignored.js").write_text("console.log('large dependency');\n", encoding="utf-8")
+    config_file = project / ".mcp-skeleton.json"
+
+    recommended = _run_cli_json(
+        [
+            "context",
+            "config",
+            "--recommend",
+            "--input-dir",
+            str(project),
+            "--preset",
+            "codebase",
+            "--output-file",
+            str(config_file),
+            "--json",
+        ]
+    )
+    assert recommended["status"] == "ok"
+    assert recommended["mode"] == "recommend"
+    assert recommended["written"] is True
+    assert recommended["config"]["preset"] == "codebase"
+    assert recommended["config"]["focus_mode"] in {"imports", "tree", "symbols", "full"}
+    assert recommended["config"]["skeleton_density"] in {"adaptive", "compact", "standard"}
+    assert "node_modules/" in recommended["config"]["exclude"]
+    assert recommended["analysis"]["source_kind"] in {"directory", "mixed_project", "codebase"}
+    assert isinstance(recommended["analysis"]["estimated_token_reduction_ratio"], float)
+
+    validated = _run_cli_json(["context", "config", "--validate", "--config", str(config_file), "--json"])
+    assert validated["resolved_defaults"]["preset_id"] == "codebase"
+    compressed = _run_cli_json(["context", "compress", "--input-dir", str(project), "--json"])
+    assert compressed["config_file"].endswith(".mcp-skeleton.json")
+    entries = {item["relative_path"] for item in compressed["source_summary"]["entries"]}
+    assert "node_modules/ignored.js" not in entries
+
+
 def _check_bundle_outputs(workspace: Path) -> None:
     project = _build_simple_project(workspace, name="bundle_project", with_git=True)
     (project / "src" / "app.py").write_text(
@@ -1445,6 +1491,7 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("context_restore_directory_json_ok", _check_directory_restore),
     ("context_config_json_ok", _check_context_config_json),
     ("context_config_template_validation_json_ok", _check_context_config_template_and_validation),
+    ("context_config_recommend_json_ok", _check_context_config_recommend_json),
     ("context_bundle_json_ok", _check_bundle_outputs),
     ("context_compress_incremental_clean_diagnostics_json_ok", _check_clean_incremental_diagnostics),
     ("context_apply_check_drift_json_ok", _check_apply_check_drift),

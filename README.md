@@ -288,6 +288,14 @@ python3 -m cli context config --validate --config .mcp-skeleton.json --json
 
 The config command reports supported presets, focus modes, density modes, and resolved defaults, which makes mis-typed values fail early before a long compression run.
 
+Ask MCP-Skeleton to recommend project defaults from a real input:
+
+```bash
+python3 -m cli context config --recommend --input-dir . --preset codebase --output-file .mcp-skeleton.json --json
+```
+
+Recommendation mode runs the same compression analysis used by `context compress`, then writes a reusable config with the suggested focus, density, and exclude patterns.
+
 Repo-scale benchmark:
 
 ```bash

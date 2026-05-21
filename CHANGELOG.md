@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- added `context config --recommend` to generate project defaults from real compression analysis
 - added `context config` to emit and validate `.mcp-skeleton.json` templates with structured JSON output
 - added `.mcp-skeleton.json` config defaults for `context compress` and `context bundle`, with CLI flags still taking precedence
 - added smart compression warnings and recommended config hints to `context compress` JSON and summary output

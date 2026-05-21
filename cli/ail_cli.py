@@ -180,6 +180,19 @@ def _resolve_context_defaults(args: argparse.Namespace) -> tuple[Path | None, di
     return config_file, config_values, values
 
 
+def _write_context_config_file(output_file: Path | None, config: dict[str, Any], *, force: bool) -> tuple[str, bool]:
+    if output_file is None:
+        return "", False
+    target = output_file.expanduser()
+    if not target.is_absolute():
+        target = (Path.cwd() / target).resolve()
+    if target.exists() and not force:
+        raise ValueError(f"config file already exists; use --force to overwrite: {target}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return str(target), True
+
+
 def _build_context_config_payload(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     supported = {
         "presets": sorted(CONTEXT_PRESETS.keys()),
@@ -188,6 +201,7 @@ def _build_context_config_payload(args: argparse.Namespace) -> tuple[dict[str, A
         "config_keys": list(CONTEXT_CONFIG_KEYS),
     }
     output_file = _opt_path(args, "output_file")
+    force = bool(getattr(args, "force", False))
     if bool(getattr(args, "validate", False)):
         config_file, config_values, context_defaults = _resolve_context_defaults(args)
         if config_file is None:
@@ -210,6 +224,58 @@ def _build_context_config_payload(args: argparse.Namespace) -> tuple[dict[str, A
             EXIT_OK,
         )
 
+    if bool(getattr(args, "recommend", False)):
+        config_file, config_values, context_defaults = _resolve_context_defaults(args)
+        compression_payload = build_context_compress_payload(
+            inline_text=_inline_text(args),
+            text_file=_opt_path(args, "text_file"),
+            input_file=_opt_path(args, "input_file"),
+            input_dir=_opt_path(args, "input_dir"),
+            preset_id=context_defaults["preset_id"],
+            tokenizer_backend=getattr(args, "tokenizer_backend", None),
+            tokenizer_model=getattr(args, "tokenizer_model", None),
+            focus_mode=context_defaults["focus_mode"],
+            skeleton_density=context_defaults["skeleton_density"],
+            exclude_patterns=context_defaults["exclude_patterns"],
+            config_file=config_file,
+            config_values=config_values,
+        )
+        recommended = dict(compression_payload.get("recommended_config") or {})
+        metrics = dict(compression_payload.get("metrics") or {})
+        suggested_excludes = list(context_defaults["exclude_patterns"] or compression_payload.get("preset_suggested_excludes") or [])
+        recommended_config = {
+            "preset": recommended.get("preset_id") or compression_payload.get("preset_id") or "generic",
+            "focus_mode": recommended.get("focus_mode") or compression_payload.get("focus_mode") or "full",
+            "skeleton_density": recommended.get("skeleton_density") or compression_payload.get("skeleton_density") or "adaptive",
+            "exclude": suggested_excludes,
+        }
+        written_path, written = _write_context_config_file(output_file, recommended_config, force=force)
+        return (
+            {
+                "status": "ok",
+                "entrypoint": "context-config",
+                "mode": "recommend",
+                "config_file": written_path,
+                "written": written,
+                "config": recommended_config,
+                "analysis": {
+                    "source_kind": compression_payload.get("source_kind"),
+                    "source_label": compression_payload.get("source_label"),
+                    "preset_id": compression_payload.get("preset_id"),
+                    "focus_mode": compression_payload.get("focus_mode"),
+                    "skeleton_density": compression_payload.get("skeleton_density"),
+                    "estimated_token_reduction_ratio": metrics.get("estimated_token_reduction_ratio"),
+                    "estimated_tokens_saved": metrics.get("estimated_tokens_saved"),
+                    "estimated_token_direction": metrics.get("estimated_token_direction"),
+                    "compression_warnings": compression_payload.get("compression_warnings") or [],
+                    "compression_recommendations": compression_payload.get("compression_recommendations") or [],
+                    "recommended_config": compression_payload.get("recommended_config") or {},
+                },
+                "supported": supported,
+            },
+            EXIT_OK,
+        )
+
     payload = {
         "status": "ok",
         "entrypoint": "context-config",
@@ -218,18 +284,9 @@ def _build_context_config_payload(args: argparse.Namespace) -> tuple[dict[str, A
         "config": dict(CONTEXT_CONFIG_TEMPLATE),
         "supported": supported,
     }
-    if output_file is not None:
-        target = output_file.expanduser()
-        if not target.is_absolute():
-            target = (Path.cwd() / target).resolve()
-        if target.exists() and not bool(getattr(args, "force", False)):
-            raise ValueError(f"config file already exists; use --force to overwrite: {target}")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(json.dumps(CONTEXT_CONFIG_TEMPLATE, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        payload["config_file"] = str(target)
-        payload["written"] = True
-    else:
-        payload["written"] = False
+    written_path, written = _write_context_config_file(output_file, CONTEXT_CONFIG_TEMPLATE, force=force)
+    payload["config_file"] = written_path
+    payload["written"] = written
     return payload, EXIT_OK
 
 
@@ -601,9 +658,17 @@ def _build_parser() -> argparse.ArgumentParser:
     config = context_subparsers.add_parser("config", help="Emit or validate a .mcp-skeleton.json project defaults file")
     config.add_argument("--config", dest="config_file", help="Config file to validate; defaults to discovered .mcp-skeleton.json when --validate is used")
     config.add_argument("--validate", action="store_true", help="Validate an existing config file instead of emitting a template")
+    config.add_argument("--recommend", action="store_true", help="Analyze an input and emit recommended project defaults")
+    config.add_argument("--text", dest="context_text")
     config.add_argument("--input-file", dest="input_file", help="Discover .mcp-skeleton.json next to this file when validating")
     config.add_argument("--input-dir", dest="input_dir", help="Discover .mcp-skeleton.json inside this directory when validating")
     config.add_argument("--text-file", dest="text_file", help="Discover .mcp-skeleton.json next to this text file when validating")
+    config.add_argument("--preset", dest="preset_id")
+    config.add_argument("--focus-mode", dest="focus_mode", choices=["full", "tree", "imports", "symbols", "writing-outline"])
+    config.add_argument("--skeleton-density", dest="skeleton_density", choices=["adaptive", "standard", "compact"])
+    config.add_argument("--exclude", dest="exclude_patterns", action="append", help="Exclude a relative path or glob from recommendation analysis; can be repeated")
+    config.add_argument("--tokenizer-backend", dest="tokenizer_backend", default="auto", choices=["auto", "heuristic", "tiktoken"])
+    config.add_argument("--tokenizer-model", dest="tokenizer_model")
     config.add_argument("--output-file", dest="output_file", help="Write the default template to this path")
     config.add_argument("--force", action="store_true", help="Overwrite --output-file if it already exists")
     config.add_argument("--json", action="store_true")
