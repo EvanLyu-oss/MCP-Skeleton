@@ -72,30 +72,30 @@ def run_dogfood_self_check() -> dict[str, Any]:
         shutil.rmtree(DOGFOOD_ROOT)
     DOGFOOD_ROOT.mkdir(parents=True)
 
-    recommend = _run_cli_json(
+    start = _run_cli_json(
         [
             "context",
-            "config",
-            "--recommend",
+            "start",
             "--input-dir",
             str(ROOT),
             "--preset",
             "codebase",
             "--exclude",
             "testing/results/",
-            "--output-file",
+            "--output-config-file",
             str(CONFIG_FILE),
             "--output-report-file",
             str(ONBOARDING_REPORT),
+            "--force",
             "--json",
         ],
-        output_file=DOGFOOD_ROOT / "config_recommend.json",
+        output_file=DOGFOOD_ROOT / "context_start.json",
     )
     validate = _run_cli_json(
         ["context", "config", "--validate", "--config", str(CONFIG_FILE), "--json"],
         output_file=DOGFOOD_ROOT / "config_validate.json",
     )
-    recommended_args = [str(item) for item in (recommend.get("recommended_command_args") or [])]
+    recommended_args = [str(item) for item in (start.get("recommended_command_args") or [])]
     recommended_trial = _run_cli_json(
         recommended_args,
         output_file=DOGFOOD_ROOT / "recommended_trial_compress.json",
@@ -152,7 +152,8 @@ def run_dogfood_self_check() -> dict[str, Any]:
         "runner": "python",
         "source_root": str(ROOT),
         "restored_root": str(RESTORED_ROOT),
-        "config_recommend_status": recommend.get("status"),
+        "context_start_status": start.get("status"),
+        "config_recommend_status": start.get("status"),
         "config_validate_status": validate.get("status"),
         "recommended_trial_status": recommended_trial.get("status"),
         "bundle_status": bundle.get("status"),
@@ -162,11 +163,13 @@ def run_dogfood_self_check() -> dict[str, Any]:
         "expected_file_count": len(expected_files),
         "skeleton_char_count": int(compression.get("skeleton_char_count", 0) or 0),
         "compression_ratio": compression.get("compression_ratio", 0),
-        "recommended_focus_mode": (recommend.get("config") or {}).get("focus_mode", ""),
-        "recommended_skeleton_density": (recommend.get("config") or {}).get("skeleton_density", ""),
+        "start_restore_safe": bool(start.get("restore_safe")),
+        "start_doctor_readiness_status": start.get("doctor_readiness_status", ""),
+        "recommended_focus_mode": (start.get("recommended_config") or {}).get("focus_mode", ""),
+        "recommended_skeleton_density": (start.get("recommended_config") or {}).get("skeleton_density", ""),
         "recommended_command_arg_count": len(recommended_args),
         "recommended_trial_skeleton_char_count": int(recommended_trial.get("skeleton_char_count", 0) or 0),
-        "report_written": bool(recommend.get("report_written")),
+        "report_written": bool(start.get("report_written")),
         "missing_count": len(missing),
         "mismatched_count": len(mismatched),
         "missing_paths": missing[:40],
@@ -174,7 +177,8 @@ def run_dogfood_self_check() -> dict[str, Any]:
         "artifacts": {
             "config_file": str(CONFIG_FILE),
             "onboarding_report": str(ONBOARDING_REPORT),
-            "config_recommend_json": str(DOGFOOD_ROOT / "config_recommend.json"),
+            "context_start_json": str(DOGFOOD_ROOT / "context_start.json"),
+            "config_recommend_json": str(DOGFOOD_ROOT / "context_start.json"),
             "config_validate_json": str(DOGFOOD_ROOT / "config_validate.json"),
             "recommended_trial_compress_json": str(DOGFOOD_ROOT / "recommended_trial_compress.json"),
             "bundle_json": str(DOGFOOD_ROOT / "bundle.json"),

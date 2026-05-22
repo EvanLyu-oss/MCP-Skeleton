@@ -566,6 +566,41 @@ def _check_context_doctor_json(workspace: Path) -> None:
     assert any(item["name"] == "restore_roundtrip_ok" and item["passed"] for item in payload["checks"])
 
 
+def _check_context_start_json(workspace: Path) -> None:
+    project = workspace / "start_project"
+    (project / "src").mkdir(parents=True)
+    (project / "src" / "app.py").write_text(
+        "def run() -> str:\n"
+        "    return 'start-ready'\n",
+        encoding="utf-8",
+    )
+    payload = _run_cli_json(["context", "start", "--input-dir", str(project), "--json"])
+    assert payload["status"] == "ok"
+    assert payload["entrypoint"] == "context-start"
+    assert payload["mode"] == "start"
+    assert payload["restore_safe"] is True
+    assert payload["config_written"] is True
+    assert payload["report_written"] is True
+    assert Path(payload["config_file"]).exists()
+    assert Path(payload["report_file"]).exists()
+    assert ".mcp-skeleton.json" in payload["recommended_config"]["exclude"]
+    assert "mcp-skeleton-onboarding.md" in payload["recommended_config"]["exclude"]
+    assert payload["recommended_command_args"][:3] == ["context", "compress", "--input-dir"]
+    assert "--config" in payload["recommended_command_args"]
+    assert payload["recommended_command_args"][-1] == "--json"
+    assert "Restore safety: OK" in payload["summary_text"]
+    assert payload["restore_check"]["status"] == "ok"
+    assert payload["restore_check"]["missing_count"] == 0
+    assert payload["restore_check"]["mismatched_count"] == 0
+
+    compressed = _run_cli_json(payload["recommended_command_args"])
+    assert compressed["status"] == "ok"
+    entries = {item["relative_path"] for item in compressed["source_summary"]["entries"]}
+    assert "src/app.py" in entries
+    assert ".mcp-skeleton.json" not in entries
+    assert "mcp-skeleton-onboarding.md" not in entries
+
+
 def _check_bundle_outputs(workspace: Path) -> None:
     project = _build_simple_project(workspace, name="bundle_project", with_git=True)
     (project / "src" / "app.py").write_text(
@@ -1659,6 +1694,7 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("context_install_hook_json_ok", _check_context_install_hook_json),
     ("context_config_recommend_json_ok", _check_context_config_recommend_json),
     ("context_doctor_json_ok", _check_context_doctor_json),
+    ("context_start_json_ok", _check_context_start_json),
     ("context_bundle_json_ok", _check_bundle_outputs),
     ("context_compress_incremental_clean_diagnostics_json_ok", _check_clean_incremental_diagnostics),
     ("context_apply_check_drift_json_ok", _check_apply_check_drift),

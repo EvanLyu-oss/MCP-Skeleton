@@ -475,6 +475,197 @@ def _build_context_doctor_payload(args: argparse.Namespace) -> tuple[dict[str, A
     return payload, EXIT_OK if not failed_blocks else EXIT_VALIDATION
 
 
+def _render_context_start_summary(payload: dict[str, Any]) -> str:
+    metrics = payload.get("metrics") or {}
+    restore_safe = "OK" if payload.get("restore_safe") else "BLOCKED"
+    command = str(payload.get("next_command") or "")
+    lines = [
+        "MCP-Skeleton Start",
+        "",
+        f"Restore safety: {restore_safe}",
+        f"Readiness: {payload.get('doctor_readiness_status', '')}",
+        f"Recommended mode: {payload.get('recommended_mode', '')}",
+        f"Config file: {payload.get('config_file', '') or '(not written)'}",
+        f"Report file: {payload.get('report_file', '') or '(not written)'}",
+        f"Files included: {(payload.get('source_scale_profile') or {}).get('total_files', 0)}",
+        f"Estimated token savings: {metrics.get('estimated_savings_percent', 0)}%",
+        "",
+        "Next:",
+        command,
+    ]
+    warnings = list(payload.get("warnings") or [])
+    if warnings:
+        lines.extend(["", "Notes:"])
+        lines.extend(f"- {item.get('message', '')}" for item in warnings[:3])
+    return "\n".join(lines)
+
+
+def _clone_args(args: argparse.Namespace, **updates: Any) -> argparse.Namespace:
+    values = dict(vars(args))
+    values.update(updates)
+    return argparse.Namespace(**values)
+
+
+def _default_start_output_paths(args: argparse.Namespace) -> tuple[Path, Path]:
+    if _opt_path(args, "output_config_file") is not None:
+        config_path = _opt_path(args, "output_config_file")
+        assert config_path is not None
+        if config_path.is_absolute():
+            resolved_config = config_path
+        else:
+            resolved_config = (Path.cwd() / config_path).resolve()
+    elif _opt_path(args, "input_dir") is not None:
+        resolved_config = _opt_path(args, "input_dir").resolve() / ".mcp-skeleton.json"  # type: ignore[union-attr]
+    elif _opt_path(args, "input_file") is not None:
+        resolved_config = _opt_path(args, "input_file").resolve().parent / ".mcp-skeleton.json"  # type: ignore[union-attr]
+    elif _opt_path(args, "text_file") is not None:
+        resolved_config = _opt_path(args, "text_file").resolve().parent / ".mcp-skeleton.json"  # type: ignore[union-attr]
+    else:
+        resolved_config = Path.cwd().resolve() / ".mcp-skeleton.json"
+
+    if _opt_path(args, "output_report_file") is not None:
+        report_path = _opt_path(args, "output_report_file")
+        assert report_path is not None
+        resolved_report = report_path if report_path.is_absolute() else (Path.cwd() / report_path).resolve()
+    else:
+        resolved_report = resolved_config.parent / "mcp-skeleton-onboarding.md"
+    return resolved_config, resolved_report
+
+
+def _start_source_root(args: argparse.Namespace) -> Path:
+    if _opt_path(args, "input_dir") is not None:
+        return _opt_path(args, "input_dir").resolve()  # type: ignore[union-attr]
+    if _opt_path(args, "input_file") is not None:
+        return _opt_path(args, "input_file").resolve().parent  # type: ignore[union-attr]
+    if _opt_path(args, "text_file") is not None:
+        return _opt_path(args, "text_file").resolve().parent  # type: ignore[union-attr]
+    return Path.cwd().resolve()
+
+
+def _relative_start_exclude(path: Path, *, source_root: Path) -> str:
+    try:
+        return path.resolve().relative_to(source_root.resolve()).as_posix()
+    except ValueError:
+        return ""
+
+
+def _append_unique_excludes(config: dict[str, Any], patterns: list[str]) -> dict[str, Any]:
+    updated = dict(config)
+    existing = [str(item) for item in (updated.get("exclude") or []) if str(item).strip()]
+    seen = set(existing)
+    for pattern in patterns:
+        clean = str(pattern).strip()
+        if clean and clean not in seen:
+            existing.append(clean)
+            seen.add(clean)
+    updated["exclude"] = existing
+    return updated
+
+
+def _build_start_next_command_args(args: argparse.Namespace, *, config_path: Path) -> list[str]:
+    command_args = ["context", "compress"]
+    if _inline_text(args) is not None:
+        return []
+    if _opt_path(args, "input_dir") is not None:
+        command_args.extend(["--input-dir", str(_opt_path(args, "input_dir").resolve())])  # type: ignore[union-attr]
+    elif _opt_path(args, "input_file") is not None:
+        command_args.extend(["--input-file", str(_opt_path(args, "input_file").resolve())])  # type: ignore[union-attr]
+    elif _opt_path(args, "text_file") is not None:
+        command_args.extend(["--text-file", str(_opt_path(args, "text_file").resolve())])  # type: ignore[union-attr]
+    else:
+        return []
+    command_args.extend(["--config", str(config_path), "--json"])
+    return command_args
+
+
+def _build_context_start_payload(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    config_path, report_path = _default_start_output_paths(args)
+    source_root = _start_source_root(args)
+    force = bool(getattr(args, "force", False))
+    write_config = force or not config_path.exists()
+    write_report = force or not report_path.exists()
+    recommend_args = _clone_args(
+        args,
+        context_command="config",
+        recommend=True,
+        validate=False,
+        config_action="",
+        output_file=config_path if write_config else None,
+        output_report_file=report_path if write_report else None,
+    )
+    recommend_payload, _recommend_exit = _build_context_config_payload(recommend_args)
+    recommended_config = dict(recommend_payload.get("config") or {})
+    self_excludes = [
+        _relative_start_exclude(config_path, source_root=source_root),
+        _relative_start_exclude(report_path, source_root=source_root),
+    ]
+    recommended_config = _append_unique_excludes(recommended_config, self_excludes)
+    if write_config:
+        written_path, written = _write_context_config_file(config_path, recommended_config, force=True)
+        recommend_payload["config_file"] = written_path
+        recommend_payload["written"] = written
+        recommend_payload["config"] = recommended_config
+
+    doctor_args = _clone_args(
+        args,
+        context_command="doctor",
+        config_file=config_path if config_path.exists() or write_config else None,
+        preset_id=recommended_config.get("preset") or getattr(args, "preset_id", None),
+        focus_mode=recommended_config.get("focus_mode") or getattr(args, "focus_mode", None),
+        skeleton_density=recommended_config.get("skeleton_density") or getattr(args, "skeleton_density", None),
+        exclude_patterns=list(recommended_config.get("exclude") or getattr(args, "exclude_patterns", None) or []),
+    )
+    doctor_payload, doctor_exit = _build_context_doctor_payload(doctor_args)
+    metrics = dict(doctor_payload.get("metrics") or {})
+    source_tokens = int(metrics.get("estimated_token_count_source") or 0)
+    saved_tokens = int(metrics.get("estimated_tokens_saved") or 0)
+    estimated_savings_percent = round((saved_tokens / source_tokens) * 100, 2) if source_tokens else 0.0
+    metrics["estimated_savings_percent"] = estimated_savings_percent
+    recommended_command_args = _build_start_next_command_args(args, config_path=config_path)
+    if not recommended_command_args:
+        recommended_command_args = list(recommend_payload.get("recommended_command_args") or doctor_payload.get("recommended_command_args") or [])
+    next_command = " ".join(recommended_command_args)
+    restore_check = doctor_payload.get("restore_check") or {}
+    restore_safe = restore_check.get("status") == "ok"
+    payload = {
+        "status": "ok" if doctor_exit == EXIT_OK else "error",
+        "entrypoint": "context-start",
+        "mode": "start",
+        "config_file": str(config_path),
+        "config_written": bool(recommend_payload.get("written")),
+        "config_already_exists": config_path.exists() and not bool(recommend_payload.get("written")),
+        "report_file": str(report_path),
+        "report_written": bool(recommend_payload.get("report_written")),
+        "report_already_exists": report_path.exists() and not bool(recommend_payload.get("report_written")),
+        "recommended_config": recommended_config,
+        "recommended_mode": " / ".join(
+            str(item) for item in [
+                recommended_config.get("preset"),
+                recommended_config.get("focus_mode"),
+                recommended_config.get("skeleton_density"),
+            ] if item
+        ),
+        "recommended_command_args": recommended_command_args,
+        "next_command": next_command,
+        "doctor_readiness_status": doctor_payload.get("readiness_status", ""),
+        "restore_safe": restore_safe,
+        "restore_check": restore_check,
+        "source_scale_profile": doctor_payload.get("source_scale_profile") or {},
+        "metrics": metrics,
+        "warnings": list(doctor_payload.get("compression_warnings") or []),
+        "explanations": list(doctor_payload.get("compression_explanations") or []),
+        "recommendation": recommend_payload,
+        "doctor": doctor_payload,
+        "next_steps": [
+            "review the generated config and onboarding report",
+            "run next_command to create a compressed context bundle",
+            "keep the restore package with the skeleton so exact restore remains available",
+        ],
+    }
+    payload["summary_text"] = _render_context_start_summary(payload)
+    return payload, doctor_exit
+
+
 def _render_context_config_recommend_report(payload: dict[str, Any]) -> str:
     config = payload.get("config") or {}
     analysis = payload.get("analysis") or {}
@@ -832,9 +1023,9 @@ def main(argv: list[str] | None = None) -> int:
 
 def cmd_context(args: argparse.Namespace) -> int:
     command = getattr(args, "context_command", None)
-    supported = {"compress", "restore", "inspect", "apply-check", "preset", "config", "init", "install-hook", "doctor", "bundle", "patch", "patch-apply"}
+    supported = {"compress", "restore", "inspect", "apply-check", "preset", "config", "init", "install-hook", "doctor", "start", "bundle", "patch", "patch-apply"}
     if command not in supported:
-        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported context subcommands: compress, restore, inspect, apply-check, preset, config, init, install-hook, doctor, bundle, patch, patch-apply")
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported context subcommands: compress, restore, inspect, apply-check, preset, config, init, install-hook, doctor, start, bundle, patch, patch-apply")
 
     if command == "preset":
         payload = build_context_preset_payload(getattr(args, "preset_id", None))
@@ -859,6 +1050,10 @@ def cmd_context(args: argparse.Namespace) -> int:
         return _emit_simple_result(args, payload, text=_render_simple_summary(payload, [
             "readiness_status", "compression_mode", "source_label", "skeleton_char_count"
         ]), exit_code=exit_code)
+
+    if command == "start":
+        payload, exit_code = _build_context_start_payload(args)
+        return _emit_simple_result(args, payload, text=str(payload.get("summary_text", "")), exit_code=exit_code)
 
     if command == "compress":
         config_file, config_values, context_defaults = _resolve_context_defaults(args)
@@ -1235,6 +1430,23 @@ def _build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--tokenizer-backend", dest="tokenizer_backend", default="auto", choices=["auto", "heuristic", "tiktoken"])
     doctor.add_argument("--tokenizer-model", dest="tokenizer_model")
     doctor.add_argument("--json", action="store_true")
+
+    start = context_subparsers.add_parser("start", help="Zero-friction onboarding: recommend config, run doctor, and print the next compression command")
+    start.add_argument("--text", dest="context_text")
+    start.add_argument("--text-file", dest="text_file")
+    start.add_argument("--input-file", dest="input_file")
+    start.add_argument("--input-dir", dest="input_dir")
+    start.add_argument("--config", dest="config_file", help="Read existing context defaults before recommending")
+    start.add_argument("--preset", dest="preset_id")
+    start.add_argument("--focus-mode", dest="focus_mode", choices=["full", "tree", "imports", "symbols", "writing-outline"])
+    start.add_argument("--skeleton-density", dest="skeleton_density", choices=["adaptive", "standard", "compact"])
+    start.add_argument("--exclude", dest="exclude_patterns", action="append", help="Exclude a relative path or glob from directory compression; can be repeated")
+    start.add_argument("--tokenizer-backend", dest="tokenizer_backend", default="auto", choices=["auto", "heuristic", "tiktoken"])
+    start.add_argument("--tokenizer-model", dest="tokenizer_model")
+    start.add_argument("--output-config-file", dest="output_config_file", help="Config path to write; defaults to .mcp-skeleton.json near the input")
+    start.add_argument("--output-report-file", dest="output_report_file", help="Markdown onboarding report path; defaults to mcp-skeleton-onboarding.md near the config")
+    start.add_argument("--force", action="store_true", help="Overwrite generated config/report files if they already exist")
+    start.add_argument("--json", action="store_true")
 
     bundle = context_subparsers.add_parser("bundle", help="Export a full context bundle with compression, inspect, and optional apply-check artifacts")
     bundle.add_argument("--text", dest="context_text")

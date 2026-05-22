@@ -99,6 +99,14 @@ py -3 -m pip install '.[context-metrics]'
 
 ## Quick start
 
+Zero-learning project setup:
+
+```bash
+PYTHONPATH="$PWD" python3 -m cli context start --input-dir .
+```
+
+`context start` recommends a config, writes `.mcp-skeleton.json`, writes `mcp-skeleton-onboarding.md`, runs a restore-safety doctor check, and prints the next compression command.
+
 Compress a directory:
 
 ```bash

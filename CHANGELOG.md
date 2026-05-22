@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- added `context start` as a zero-friction onboarding command that writes config/report files, runs doctor, and prints the next compression command
+- updated dogfood self-check to use `context start` before recommended trial compression and byte-exact restore verification
+
 ## 0.1.5
 
 - validated the v0.1.5 release-readiness workflow on macOS and Windows
