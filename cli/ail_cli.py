@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -309,6 +311,168 @@ def _write_text_report_file(output_file: Path | None, report_text: str, *, force
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(report_text, encoding="utf-8")
     return str(target), True
+
+
+def _sha256_path(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _compare_doctor_restore(package_payload: dict[str, Any], *, output_dir: Path) -> dict[str, Any]:
+    mode = str(package_payload.get("compression_mode") or "")
+    source_path_text = str(package_payload.get("source_path") or "")
+    source_path = Path(source_path_text) if source_path_text else None
+    source_summary = package_payload.get("source_summary") or {}
+    if mode == "text" and source_path is not None:
+        restore_summary, emitted_text = restore_context_from_package(
+            package_payload,
+            output_file=output_dir / source_path.name,
+        )
+    else:
+        restore_summary, emitted_text = restore_context_from_package(package_payload, output_dir=output_dir)
+    missing: list[str] = []
+    mismatched: list[str] = []
+    checked = 0
+
+    if mode == "text" and source_path is None:
+        expected_hash = str(source_summary.get("sha256") or "")
+        checked = 1
+        restored_hash = hashlib.sha256(str(emitted_text or "").encode("utf-8")).hexdigest()
+        if expected_hash and restored_hash != expected_hash:
+            mismatched.append("inline-text")
+    elif mode in {"text", "file"} and source_path is not None:
+        restored_paths = [Path(item) for item in restore_summary.get("restored_paths") or []]
+        restored_path = restored_paths[0] if restored_paths else None
+        checked = 1
+        if restored_path is None or not restored_path.exists():
+            missing.append(source_path.name)
+        elif _sha256_path(source_path) != _sha256_path(restored_path):
+            mismatched.append(source_path.name)
+    elif mode in {"directory", "directory_incremental"} and source_path is not None:
+        restored_paths = [Path(item) for item in restore_summary.get("restored_paths") or []]
+        restored_root = restored_paths[0] if restored_paths else None
+        entries = list(source_summary.get("entries") or [])
+        checked = len(entries)
+        for entry in entries:
+            rel_path = str(entry.get("relative_path") or "")
+            if not rel_path:
+                continue
+            expected_hash = str((entry.get("summary") or {}).get("sha256") or "")
+            restored_path = restored_root / rel_path if restored_root is not None else None
+            if restored_path is None or not restored_path.exists():
+                missing.append(rel_path)
+                continue
+            if expected_hash and _sha256_path(restored_path) != expected_hash:
+                mismatched.append(rel_path)
+    else:
+        return {
+            "status": "skipped",
+            "message": f"restore comparison is not available for compression_mode={mode}",
+            "checked_count": checked,
+            "missing_count": 0,
+            "mismatched_count": 0,
+            "restore_summary": restore_summary,
+        }
+
+    status = "ok" if not missing and not mismatched else "error"
+    return {
+        "status": status,
+        "checked_count": checked,
+        "missing_count": len(missing),
+        "mismatched_count": len(mismatched),
+        "missing_paths": missing[:40],
+        "mismatched_paths": mismatched[:40],
+        "restore_summary": restore_summary,
+    }
+
+
+def _build_context_doctor_payload(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    config_file, config_values, context_defaults = _resolve_context_defaults(args)
+    compression_payload = build_context_compress_payload(
+        inline_text=_inline_text(args),
+        text_file=_opt_path(args, "text_file"),
+        input_file=_opt_path(args, "input_file"),
+        input_dir=_opt_path(args, "input_dir"),
+        preset_id=context_defaults["preset_id"],
+        tokenizer_backend=getattr(args, "tokenizer_backend", None),
+        tokenizer_model=getattr(args, "tokenizer_model", None),
+        incremental=bool(getattr(args, "incremental", False)),
+        base_commit=getattr(args, "base_commit", None),
+        focus_mode=context_defaults["focus_mode"],
+        skeleton_density=context_defaults["skeleton_density"],
+        exclude_patterns=context_defaults["exclude_patterns"],
+        config_file=config_file,
+        config_values=config_values,
+    )
+    with tempfile.TemporaryDirectory(prefix="mcp_skeleton_doctor.") as tmp:
+        restore_check = _compare_doctor_restore(compression_payload, output_dir=Path(tmp))
+
+    warnings = list(compression_payload.get("compression_warnings") or [])
+    recommendations = list(compression_payload.get("compression_recommendations") or [])
+    source_scale_profile = compression_payload.get("source_scale_profile") or {}
+    blocking_checks = [
+        {
+            "name": "config_loaded_or_defaults_resolved",
+            "passed": True,
+            "severity": "block",
+            "observed": str(config_file.resolve()) if config_file is not None else "defaults",
+        },
+        {
+            "name": "compress_payload_ok",
+            "passed": compression_payload.get("status") == "ok",
+            "severity": "block",
+            "observed": compression_payload.get("status"),
+        },
+        {
+            "name": "restore_roundtrip_ok",
+            "passed": restore_check.get("status") == "ok",
+            "severity": "block",
+            "observed": f"missing={restore_check.get('missing_count', 0)}, mismatched={restore_check.get('mismatched_count', 0)}",
+        },
+    ]
+    watch_checks = [
+        {
+            "name": "no_compression_warnings",
+            "passed": not warnings,
+            "severity": "watch",
+            "observed": len(warnings),
+        },
+        {
+            "name": "recommended_command_available",
+            "passed": bool(compression_payload.get("recommended_command_args")),
+            "severity": "watch",
+            "observed": len(compression_payload.get("recommended_command_args") or []),
+        },
+    ]
+    failed_blocks = [item for item in blocking_checks if not item["passed"]]
+    failed_watches = [item for item in watch_checks if not item["passed"]]
+    readiness = "blocked" if failed_blocks else "watch" if failed_watches or warnings else "ready"
+    payload = {
+        "status": "ok" if not failed_blocks else "error",
+        "entrypoint": "context-doctor",
+        "readiness_status": readiness,
+        "config_file": str(config_file.resolve()) if config_file is not None else "",
+        "config_values": config_values,
+        "compression_mode": compression_payload.get("compression_mode", ""),
+        "source_kind": compression_payload.get("source_kind", ""),
+        "source_label": compression_payload.get("source_label", ""),
+        "source_path": compression_payload.get("source_path", ""),
+        "source_scale_profile": source_scale_profile,
+        "skeleton_char_count": compression_payload.get("skeleton_char_count", 0),
+        "metrics": compression_payload.get("metrics") or {},
+        "compression_warnings": warnings,
+        "compression_recommendations": recommendations,
+        "compression_explanations": compression_payload.get("compression_explanations") or [],
+        "recommended_config": compression_payload.get("recommended_config") or {},
+        "recommended_command_args": compression_payload.get("recommended_command_args") or [],
+        "restore_check": restore_check,
+        "checks": blocking_checks + watch_checks,
+        "next_steps": [
+            "if readiness_status is ready, this source is safe to use with MCP-Skeleton compression/restore",
+            "if readiness_status is watch, review compression_warnings and recommended_command_args before long-running work",
+            "if readiness_status is blocked, fix restore/config errors before relying on this bundle",
+        ],
+    }
+    return payload, EXIT_OK if not failed_blocks else EXIT_VALIDATION
 
 
 def _render_context_config_recommend_report(payload: dict[str, Any]) -> str:
@@ -668,9 +832,9 @@ def main(argv: list[str] | None = None) -> int:
 
 def cmd_context(args: argparse.Namespace) -> int:
     command = getattr(args, "context_command", None)
-    supported = {"compress", "restore", "inspect", "apply-check", "preset", "config", "init", "install-hook", "bundle", "patch", "patch-apply"}
+    supported = {"compress", "restore", "inspect", "apply-check", "preset", "config", "init", "install-hook", "doctor", "bundle", "patch", "patch-apply"}
     if command not in supported:
-        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported context subcommands: compress, restore, inspect, apply-check, preset, config, init, install-hook, bundle, patch, patch-apply")
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported context subcommands: compress, restore, inspect, apply-check, preset, config, init, install-hook, doctor, bundle, patch, patch-apply")
 
     if command == "preset":
         payload = build_context_preset_payload(getattr(args, "preset_id", None))
@@ -689,6 +853,12 @@ def cmd_context(args: argparse.Namespace) -> int:
         else:
             print(json.dumps(payload.get("config", payload), indent=2, ensure_ascii=False))
         return exit_code
+
+    if command == "doctor":
+        payload, exit_code = _build_context_doctor_payload(args)
+        return _emit_simple_result(args, payload, text=_render_simple_summary(payload, [
+            "readiness_status", "compression_mode", "source_label", "skeleton_char_count"
+        ]), exit_code=exit_code)
 
     if command == "compress":
         config_file, config_values, context_defaults = _resolve_context_defaults(args)
@@ -1049,6 +1219,22 @@ def _build_parser() -> argparse.ArgumentParser:
     install_hook.add_argument("--dry-run", action="store_true", help="Print the hook that would be installed without writing it")
     install_hook.add_argument("--force", action="store_true", help="Overwrite an existing hook")
     install_hook.add_argument("--json", action="store_true")
+
+    doctor = context_subparsers.add_parser("doctor", help="Check config, compression advice, and exact restore readiness for one source")
+    doctor.add_argument("--text", dest="context_text")
+    doctor.add_argument("--text-file", dest="text_file")
+    doctor.add_argument("--input-file", dest="input_file")
+    doctor.add_argument("--input-dir", dest="input_dir")
+    doctor.add_argument("--config", dest="config_file", help="Read context defaults from a .mcp-skeleton.json/yaml file")
+    doctor.add_argument("--preset", dest="preset_id")
+    doctor.add_argument("--focus-mode", dest="focus_mode", choices=["full", "tree", "imports", "symbols", "writing-outline"])
+    doctor.add_argument("--skeleton-density", dest="skeleton_density", choices=["adaptive", "standard", "compact"])
+    doctor.add_argument("--exclude", dest="exclude_patterns", action="append", help="Exclude a relative path or glob from directory compression; can be repeated")
+    doctor.add_argument("--incremental", action="store_true")
+    doctor.add_argument("--base-commit", dest="base_commit")
+    doctor.add_argument("--tokenizer-backend", dest="tokenizer_backend", default="auto", choices=["auto", "heuristic", "tiktoken"])
+    doctor.add_argument("--tokenizer-model", dest="tokenizer_model")
+    doctor.add_argument("--json", action="store_true")
 
     bundle = context_subparsers.add_parser("bundle", help="Export a full context bundle with compression, inspect, and optional apply-check artifacts")
     bundle.add_argument("--text", dest="context_text")

@@ -527,6 +527,44 @@ def _check_context_config_recommend_json(workspace: Path) -> None:
     assert "node_modules/ignored.js" not in entries
 
 
+def _check_context_doctor_json(workspace: Path) -> None:
+    project = workspace / "doctor_project"
+    (project / "src").mkdir(parents=True)
+    (project / "docs").mkdir()
+    (project / "src" / "app.py").write_text(
+        "from pathlib import Path\n\n"
+        "def run() -> str:\n"
+        "    return Path.cwd().name\n",
+        encoding="utf-8",
+    )
+    (project / "docs" / "notes.md").write_text("# Notes\n\nDoctor readiness coverage.\n", encoding="utf-8")
+
+    payload = _run_cli_json(
+        [
+            "context",
+            "doctor",
+            "--input-dir",
+            str(project),
+            "--preset",
+            "codebase",
+            "--focus-mode",
+            "imports",
+            "--skeleton-density",
+            "adaptive",
+            "--json",
+        ]
+    )
+    assert payload["status"] == "ok"
+    assert payload["entrypoint"] == "context-doctor"
+    assert payload["readiness_status"] in {"ready", "watch"}
+    assert payload["restore_check"]["status"] == "ok"
+    assert payload["restore_check"]["missing_count"] == 0
+    assert payload["restore_check"]["mismatched_count"] == 0
+    assert payload["recommended_command_args"][-1] == "--json"
+    assert payload["compression_explanations"]
+    assert any(item["name"] == "restore_roundtrip_ok" and item["passed"] for item in payload["checks"])
+
+
 def _check_bundle_outputs(workspace: Path) -> None:
     project = _build_simple_project(workspace, name="bundle_project", with_git=True)
     (project / "src" / "app.py").write_text(
@@ -906,6 +944,9 @@ def _check_directory_aggregation(workspace: Path) -> None:
     assert "--exclude" in recommended_args
     assert recommended_args[-1] == "--json"
     assert "recommended_command_arg_count:" in adaptive["summary_text"]
+    assert adaptive["compression_explanations"]
+    assert any(item["code"] == "directory_scale" for item in adaptive["compression_explanations"])
+    assert "compression_explanation_count:" in adaptive["summary_text"]
     assert any(item["code"] == "no_directory_filters" for item in adaptive["compression_warnings"])
     assert "DIRECTORY_GROUPS:" in adaptive["skeleton_text"]
     assert "HOT_SUBTREES:" in adaptive["skeleton_text"]
@@ -1544,6 +1585,7 @@ def _check_restore_invalid_relpath(workspace: Path) -> None:
 def _check_scale_benchmark_quick(workspace: Path) -> None:
     output_json = workspace / "benchmark.json"
     output_md = workspace / "benchmark.md"
+    baseline_json = workspace / "benchmark-baseline.json"
     proc = _run(
         [
             sys.executable,
@@ -1554,13 +1596,18 @@ def _check_scale_benchmark_quick(workspace: Path) -> None:
             str(output_json),
             "--output-md",
             str(output_md),
+            "--save-baseline-json",
+            str(baseline_json),
         ],
         cwd=ROOT,
     )
     stdout_payload = json.loads(proc.stdout)
     report = json.loads(output_json.read_text(encoding="utf-8"))
+    baseline_report = json.loads(baseline_json.read_text(encoding="utf-8"))
     assert output_md.exists()
     assert stdout_payload["status"] == "ok"
+    assert stdout_payload["saved_baseline_json"].endswith("benchmark-baseline.json")
+    assert baseline_report["generated_at"] == report["generated_at"]
     assert stdout_payload["executive_summary"]["overall_status"] in {"ready", "watch"}
     assert stdout_payload["executive_summary"]["scale_profile"] == "quick"
     assert stdout_payload["executive_summary"]["case_count"] == report["release_readiness"]["case_count"]
@@ -1610,6 +1657,7 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("context_config_init_json_ok", _check_context_config_init_json),
     ("context_install_hook_json_ok", _check_context_install_hook_json),
     ("context_config_recommend_json_ok", _check_context_config_recommend_json),
+    ("context_doctor_json_ok", _check_context_doctor_json),
     ("context_bundle_json_ok", _check_bundle_outputs),
     ("context_compress_incremental_clean_diagnostics_json_ok", _check_clean_incremental_diagnostics),
     ("context_apply_check_drift_json_ok", _check_apply_check_drift),

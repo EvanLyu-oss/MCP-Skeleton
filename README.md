@@ -208,7 +208,15 @@ python3 testing/dogfood_self_check.py
 bash testing/dogfood_self_check.sh
 ```
 
-The dogfood self-check recommends an ignored `.mcp-skeleton.json`, writes an onboarding report, validates the config, compresses this repository, inspects the bundle, restores into `testing/results/dogfood-self-check/restore`, and verifies restored file hashes against the included source files. Keep dogfood restore and replay outputs outside the source tree or under ignored result directories. Prefer `patch-apply --dry-run --write-dry-run-report ...` until the replay surface has been inspected.
+The dogfood self-check recommends an ignored `.mcp-skeleton.json`, writes an onboarding report, validates the config, trial-runs the recommended compression argv, compresses this repository, inspects the bundle, restores into `testing/results/dogfood-self-check/restore`, and verifies restored file hashes against the included source files. Keep dogfood restore and replay outputs outside the source tree or under ignored result directories. Prefer `patch-apply --dry-run --write-dry-run-report ...` until the replay surface has been inspected.
+
+Readiness doctor for one source:
+
+```bash
+python3 -m cli context doctor --input-dir . --preset codebase --json
+```
+
+`context doctor` resolves config defaults, runs compression analysis, emits warnings/recommendations/explanations, restores into a temporary sandbox, and verifies the restored files against the original included hashes. It reports `readiness_status` as `ready`, `watch`, or `blocked`.
 
 Validate one edited incremental surface:
 
@@ -253,6 +261,12 @@ Named benchmark scale profiles:
 python3 testing/context_scale_benchmark.py --scale-profile quick
 python3 testing/context_scale_benchmark.py --scale-profile standard
 python3 testing/context_scale_benchmark.py --scale-profile stress
+```
+
+Save a run as the next regression baseline:
+
+```bash
+python3 testing/context_scale_benchmark.py --scale-profile quick --save-baseline-json testing/results/context_scale_baseline.json
 ```
 
 Cross-platform smoke checks, including Windows environments without Bash:

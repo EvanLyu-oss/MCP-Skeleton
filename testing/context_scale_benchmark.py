@@ -2232,6 +2232,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scale-health-monorepo-best-size-ratio-vs-standard", type=float, default=DEFAULT_SCALE_HEALTH_THRESHOLDS["monorepo_best_size_ratio_vs_standard"], help="Warning threshold for the largest best-verified monorepo skeleton size ratio versus full+standard.")
     parser.add_argument("--scale-health-realistic-directory-best-size-ratio-vs-standard", type=float, default=DEFAULT_SCALE_HEALTH_THRESHOLDS["realistic_directory_best_size_ratio_vs_standard"], help="Warning threshold for the largest best-verified realistic-directory skeleton size ratio versus full+standard.")
     parser.add_argument("--baseline-json", help="Optional previous benchmark JSON report used to compute non-blocking regression trends.")
+    parser.add_argument("--save-baseline-json", help="Optional path that receives a copy of this run as a future benchmark baseline.")
     parser.add_argument("--output-json", default=str(DEFAULT_JSON), help="Where to write the benchmark JSON report.")
     parser.add_argument("--output-md", default=str(DEFAULT_MD), help="Where to write the Markdown benchmark report.")
     parser.add_argument("--quick", action="store_true", help="Run a smaller benchmark suitable for smoke coverage.")
@@ -2544,12 +2545,19 @@ def main() -> int:
         }
         output_json.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         output_md.write_text(_render_markdown(report), encoding="utf-8")
+        saved_baseline_json = ""
+        if args.save_baseline_json:
+            baseline_output = Path(args.save_baseline_json).expanduser()
+            _ensure_parent(baseline_output)
+            baseline_output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            saved_baseline_json = str(baseline_output)
         print(
             json.dumps(
                 {
                     "status": "ok",
                     "output_json": str(output_json),
                     "output_md": str(output_md),
+                    "saved_baseline_json": saved_baseline_json,
                     "executive_summary": executive_summary,
                     "release_readiness": {
                         "status": release_readiness["status"],

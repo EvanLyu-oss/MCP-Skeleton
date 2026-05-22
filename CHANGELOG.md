@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- added `context doctor` readiness checks for config resolution, compression advice, sandbox restore, and byte/hash parity
+- added structured compression explanations so large-directory recommendations describe scale, hot groups, excludes, and focus/density rationale
+- added benchmark `--save-baseline-json` to copy a run into a reusable regression baseline file
+- expanded dogfood self-check to trial-run recommended compression args before bundle/restore verification
 - added `recommended_command_args` to `context config --recommend` JSON and Markdown reports for direct trial compression
 - added machine-readable `recommended_command_args` to `context compress --json` so scripts can apply recommended focus, density, and exclude settings
 - added scale class and compression advice counts to benchmark summaries and recommendation previews

@@ -95,6 +95,11 @@ def run_dogfood_self_check() -> dict[str, Any]:
         ["context", "config", "--validate", "--config", str(CONFIG_FILE), "--json"],
         output_file=DOGFOOD_ROOT / "config_validate.json",
     )
+    recommended_args = [str(item) for item in (recommend.get("recommended_command_args") or [])]
+    recommended_trial = _run_cli_json(
+        recommended_args,
+        output_file=DOGFOOD_ROOT / "recommended_trial_compress.json",
+    ) if recommended_args else {"status": "skipped"}
     bundle = _run_cli_json(
         [
             "context",
@@ -140,14 +145,16 @@ def run_dogfood_self_check() -> dict[str, Any]:
 
     compression = bundle.get("compression") or {}
     source_summary = compression.get("source_summary") or {}
+    dogfood_ok = not missing and not mismatched and recommended_trial.get("status") in {"ok", "skipped"}
     payload = {
-        "status": "ok" if not missing and not mismatched else "error",
+        "status": "ok" if dogfood_ok else "error",
         "entrypoint": "dogfood-self-check",
         "runner": "python",
         "source_root": str(ROOT),
         "restored_root": str(RESTORED_ROOT),
         "config_recommend_status": recommend.get("status"),
         "config_validate_status": validate.get("status"),
+        "recommended_trial_status": recommended_trial.get("status"),
         "bundle_status": bundle.get("status"),
         "inspect_status": inspect.get("status"),
         "restore_status": restore.get("status"),
@@ -157,6 +164,8 @@ def run_dogfood_self_check() -> dict[str, Any]:
         "compression_ratio": compression.get("compression_ratio", 0),
         "recommended_focus_mode": (recommend.get("config") or {}).get("focus_mode", ""),
         "recommended_skeleton_density": (recommend.get("config") or {}).get("skeleton_density", ""),
+        "recommended_command_arg_count": len(recommended_args),
+        "recommended_trial_skeleton_char_count": int(recommended_trial.get("skeleton_char_count", 0) or 0),
         "report_written": bool(recommend.get("report_written")),
         "missing_count": len(missing),
         "mismatched_count": len(mismatched),
@@ -167,6 +176,7 @@ def run_dogfood_self_check() -> dict[str, Any]:
             "onboarding_report": str(ONBOARDING_REPORT),
             "config_recommend_json": str(DOGFOOD_ROOT / "config_recommend.json"),
             "config_validate_json": str(DOGFOOD_ROOT / "config_validate.json"),
+            "recommended_trial_compress_json": str(DOGFOOD_ROOT / "recommended_trial_compress.json"),
             "bundle_json": str(DOGFOOD_ROOT / "bundle.json"),
             "inspect_json": str(DOGFOOD_ROOT / "inspect.json"),
             "restore_json": str(DOGFOOD_ROOT / "restore.json"),

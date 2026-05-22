@@ -288,6 +288,7 @@ def build_context_compress_payload(
         "metrics": metrics,
         "compression_warnings": advice["warnings"],
         "compression_recommendations": advice["recommendations"],
+        "compression_explanations": advice["explanations"],
         "recommended_config": advice["recommended_config"],
         "recommended_command_args": recommended_command_args,
         "source_scale_profile": advice["source_scale_profile"],
@@ -2242,6 +2243,7 @@ def _build_context_compress_summary_text(payload: dict[str, Any]) -> str:
             lines.append(f"{key}: {metrics.get(key)}")
     warnings = list(payload.get("compression_warnings") or [])
     recommendations = list(payload.get("compression_recommendations") or [])
+    explanations = list(payload.get("compression_explanations") or [])
     scale_profile = payload.get("source_scale_profile") or {}
     if scale_profile:
         lines.append(f"source_scale_class: {scale_profile.get('scale_class', '')}")
@@ -2258,6 +2260,9 @@ def _build_context_compress_summary_text(payload: dict[str, Any]) -> str:
             lines.append(f"recommended_focus_mode: {first.get('suggested_focus_mode')}")
         if first.get("suggested_skeleton_density"):
             lines.append(f"recommended_skeleton_density: {first.get('suggested_skeleton_density')}")
+    if explanations:
+        lines.append(f"compression_explanation_count: {len(explanations)}")
+        lines.append(f"first_compression_explanation: {explanations[0].get('message', '')}")
     recommended_command_args = list(payload.get("recommended_command_args") or [])
     if recommended_command_args:
         lines.append(f"recommended_command_arg_count: {len(recommended_command_args)}")
@@ -3729,6 +3734,7 @@ def _build_compression_advice(
     scale_profile = _build_source_scale_profile(source_summary, metrics=metrics)
     warnings: list[dict[str, Any]] = []
     recommendations: list[dict[str, Any]] = []
+    explanations: list[dict[str, Any]] = []
 
     if token_direction == "expanded" or token_ratio > 1.0:
         warnings.append(
@@ -3820,9 +3826,62 @@ def _build_compression_advice(
         "exclude": preset_excludes if source_kind == "directory" else [],
         "reason": recommendations[0]["message"] if recommendations else "",
     }
+    if source_kind == "directory":
+        directory_groups = list(source_summary.get("directory_groups") or [])
+        top_group = directory_groups[0] if directory_groups else {}
+        explanations.append(
+            {
+                "code": "directory_scale",
+                "message": f"{scale_profile['scale_class']} directory profile based on {total_files} files and {total_chars} chars",
+                "scale_class": scale_profile["scale_class"],
+                "total_files": total_files,
+                "total_chars": total_chars,
+            }
+        )
+        if top_group:
+            group_name = str(top_group.get("group") or top_group.get("root") or "")
+            group_chars = int(top_group.get("total_chars", top_group.get("char_count", 0)) or 0)
+            explanations.append(
+                {
+                    "code": "largest_directory_group",
+                    "message": f"largest visible group is `{group_name}` with {top_group.get('file_count', 0)} files",
+                    "root": group_name,
+                    "file_count": top_group.get("file_count", 0),
+                    "char_count": group_chars,
+                }
+            )
+        if preset_excludes and not filter_patterns:
+            explanations.append(
+                {
+                    "code": "exclude_rationale",
+                    "message": "recommended excludes target dependency, build, cache, virtualenv, and generated artifact paths before compression",
+                    "suggested_excludes": preset_excludes,
+                }
+            )
+        if suggested_focus != focus_mode or suggested_density != skeleton_density:
+            explanations.append(
+                {
+                    "code": "focus_density_rationale",
+                    "message": f"recommended `{suggested_focus}` + `{suggested_density}` to reduce AI-facing skeleton size while keeping restore bytes exact",
+                    "current_focus_mode": focus_mode,
+                    "current_skeleton_density": skeleton_density,
+                    "suggested_focus_mode": suggested_focus,
+                    "suggested_skeleton_density": suggested_density,
+                }
+            )
+    elif source_kind in {"text", "markdown"}:
+        explanations.append(
+            {
+                "code": "text_scale",
+                "message": f"text profile based on {total_chars} chars and estimated token ratio {token_ratio}",
+                "total_chars": total_chars,
+                "estimated_token_ratio": token_ratio,
+            }
+        )
     return {
         "warnings": warnings,
         "recommendations": recommendations,
+        "explanations": explanations,
         "recommended_config": recommended_config,
         "source_scale_profile": scale_profile,
     }
