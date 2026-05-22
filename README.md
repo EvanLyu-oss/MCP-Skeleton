@@ -222,6 +222,7 @@ Readiness doctor for one source:
 
 ```bash
 python3 -m cli context doctor --input-dir . --preset codebase --json
+python3 -m cli context doctor --input-dir . --preset codebase --write-report mcp-skeleton-readiness.md --json
 ```
 
 `context doctor` resolves config defaults, runs compression analysis, emits warnings/recommendations/explanations, restores into a temporary sandbox, and verifies the restored files against the original included hashes. It reports `readiness_status` as `ready`, `watch`, or `blocked`.

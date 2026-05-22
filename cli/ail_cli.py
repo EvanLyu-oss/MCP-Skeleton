@@ -472,7 +472,79 @@ def _build_context_doctor_payload(args: argparse.Namespace) -> tuple[dict[str, A
             "if readiness_status is blocked, fix restore/config errors before relying on this bundle",
         ],
     }
+    report_path, report_written = _write_text_report_file(
+        _opt_path(args, "output_report_file"),
+        _render_context_doctor_report(payload),
+        force=bool(getattr(args, "force", False)),
+    )
+    payload["report_file"] = report_path
+    payload["report_written"] = report_written
     return payload, EXIT_OK if not failed_blocks else EXIT_VALIDATION
+
+
+def _render_context_doctor_report(payload: dict[str, Any]) -> str:
+    metrics = payload.get("metrics") or {}
+    restore_check = payload.get("restore_check") or {}
+    scale_profile = payload.get("source_scale_profile") or {}
+    recommended_config = payload.get("recommended_config") or {}
+    warnings = list(payload.get("compression_warnings") or [])
+    explanations = list(payload.get("compression_explanations") or [])
+    command_args = list(payload.get("recommended_command_args") or [])
+    lines = [
+        "# MCP-Skeleton Doctor Report",
+        "",
+        "## Verdict",
+        f"- status: {payload.get('status', '')}",
+        f"- readiness_status: {payload.get('readiness_status', '')}",
+        f"- restore_status: {restore_check.get('status', '')}",
+        f"- missing_count: {restore_check.get('missing_count', 0)}",
+        f"- mismatched_count: {restore_check.get('mismatched_count', 0)}",
+        "",
+        "## Source",
+        f"- source_label: {payload.get('source_label', '')}",
+        f"- source_kind: {payload.get('source_kind', '')}",
+        f"- compression_mode: {payload.get('compression_mode', '')}",
+        f"- scale_class: {scale_profile.get('scale_class', '')}",
+        f"- total_files: {scale_profile.get('total_files', 0)}",
+        f"- total_chars: {scale_profile.get('total_chars', 0)}",
+        "",
+        "## Recommended Config",
+        f"- preset: {recommended_config.get('preset_id', '')}",
+        f"- focus_mode: {recommended_config.get('focus_mode', '')}",
+        f"- skeleton_density: {recommended_config.get('skeleton_density', '')}",
+        f"- exclude_count: {len(recommended_config.get('exclude') or [])}",
+        "",
+        "## Token Estimate",
+        f"- estimated_token_reduction_ratio: {metrics.get('estimated_token_reduction_ratio', '')}",
+        f"- estimated_token_direction: {metrics.get('estimated_token_direction', '')}",
+        f"- estimated_tokens_saved: {metrics.get('estimated_tokens_saved', '')}",
+        "",
+        "## Recommended Command Args",
+        json.dumps(command_args, ensure_ascii=False),
+        "",
+        "## Warnings",
+    ]
+    if warnings:
+        lines.extend(f"- {item.get('code', '')}: {item.get('message', '')}" for item in warnings)
+    else:
+        lines.append("- none")
+    lines.append("")
+    lines.append("## Explanations")
+    if explanations:
+        lines.extend(f"- {item.get('code', '')}: {item.get('message', '')}" for item in explanations)
+    else:
+        lines.append("- none")
+    lines.extend(
+        [
+            "",
+            "## Next Steps",
+            "- If restore_status is ok, the restore package is byte-safe for included files.",
+            "- If readiness_status is watch, review warnings before long-running work.",
+            "- Use the recommended command args for the next compression run.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _render_context_start_summary(payload: dict[str, Any]) -> str:
@@ -1429,6 +1501,8 @@ def _build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--base-commit", dest="base_commit")
     doctor.add_argument("--tokenizer-backend", dest="tokenizer_backend", default="auto", choices=["auto", "heuristic", "tiktoken"])
     doctor.add_argument("--tokenizer-model", dest="tokenizer_model")
+    doctor.add_argument("--write-report", dest="output_report_file", help="Write a Markdown readiness report")
+    doctor.add_argument("--force", action="store_true", help="Overwrite --write-report if it already exists")
     doctor.add_argument("--json", action="store_true")
 
     start = context_subparsers.add_parser("start", help="Zero-friction onboarding: recommend config, run doctor, and print the next compression command")

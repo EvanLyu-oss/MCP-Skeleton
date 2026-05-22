@@ -565,6 +565,28 @@ def _check_context_doctor_json(workspace: Path) -> None:
     assert payload["compression_explanations"]
     assert any(item["name"] == "restore_roundtrip_ok" and item["passed"] for item in payload["checks"])
 
+    report_file = workspace / "doctor-readiness.md"
+    reported = _run_cli_json(
+        [
+            "context",
+            "doctor",
+            "--input-dir",
+            str(project),
+            "--preset",
+            "codebase",
+            "--write-report",
+            str(report_file),
+            "--json",
+        ]
+    )
+    assert reported["status"] == "ok"
+    assert reported["report_written"] is True
+    assert reported["report_file"].endswith("doctor-readiness.md")
+    report_text = report_file.read_text(encoding="utf-8")
+    assert "# MCP-Skeleton Doctor Report" in report_text
+    assert "## Verdict" in report_text
+    assert "restore_status: ok" in report_text
+
 
 def _check_context_start_json(workspace: Path) -> None:
     project = workspace / "start_project"
