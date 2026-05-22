@@ -298,6 +298,24 @@ macOS validation for this release-hardening snapshot reported:
 
 Windows v0.1.5 validation should run `python testing/release_readiness_check.py` after pulling the release candidate. Bash smoke may be skipped automatically on Windows, but Python smoke, dogfood, doctor, quick benchmark, and baseline save should all pass.
 
+Windows validation for commit `3d5f8cd` reported:
+
+- `py_compile`: pass with exit code `0`
+- Python smoke runner: `32/32`
+- Python dogfood self-check: `32/32` files restored with matching SHA256
+- dogfood recommended trial compression: `ok`
+- `context doctor.status`: `ok`
+- `context doctor.readiness_status`: `watch`
+- `context doctor.restore_check.status`: `ok`
+- `context doctor.checked/missing/mismatched`: `32/0/0`
+- release readiness runner: `5/5` with Bash smoke skipped on Windows
+- quick benchmark release readiness: `ready`
+- quick benchmark restore verification: `62/62`
+- quick benchmark scale health: `ok`
+- quick benchmark baseline saved: `testing/results/release_quick_baseline.json`
+
+The Windows `watch` doctor status is advisory only; it reflects the full-repo default focus recommendation and does not indicate a restore or byte-fidelity failure.
+
 ## Release Readiness
 
 The v0.1.3 candidate has no known blocking restore failures in the validated surfaces.

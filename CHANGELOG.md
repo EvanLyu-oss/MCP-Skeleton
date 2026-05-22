@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- validated the v0.1.5 release-readiness workflow on macOS and Windows
 - added a Python release readiness runner that combines syntax checks, smoke checks, dogfood, doctor, quick benchmark, baseline save, and optional Bash smoke
 - updated release and cross-platform test guidance for v0.1.5 doctor/readiness/baseline validation
 - added `context doctor` readiness checks for config resolution, compression advice, sandbox restore, and byte/hash parity
