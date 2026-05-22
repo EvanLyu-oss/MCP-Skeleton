@@ -85,6 +85,30 @@ def _current_command_text(extra_args: list[str] | None = None) -> str:
     return _format_cli_command(args)
 
 
+def _current_command_text_with_replaced_option(option: str, value: str) -> str:
+    original = list(sys.argv[1:])
+    updated: list[str] = []
+    index = 0
+    replaced = False
+    while index < len(original):
+        item = original[index]
+        if item == option:
+            updated.extend([option, value])
+            replaced = True
+            index += 2 if index + 1 < len(original) else 1
+            continue
+        if item.startswith(f"{option}="):
+            updated.extend([option, value])
+            replaced = True
+            index += 1
+            continue
+        updated.append(item)
+        index += 1
+    if not replaced:
+        updated.extend([option, value])
+    return _format_cli_command(updated)
+
+
 def _build_error_guidance(code: str, message: str) -> dict[str, Any]:
     lower = message.lower()
     recovery_steps: list[str] = []
@@ -821,7 +845,7 @@ def _quick_output_dir_conflict_payload(output_dir: Path) -> dict[str, Any] | Non
         target = (Path.cwd() / target).resolve()
     if not target.exists() or not target.is_dir() or not any(target.iterdir()):
         return None
-    fix_command = _current_command_text(["--output-dir", str(target.parent / f"{target.name}-new")])
+    fix_command = _current_command_text_with_replaced_option("--output-dir", str(target.parent / f"{target.name}-new"))
     payload = {
         "status": "error",
         "entrypoint": "context-quick",

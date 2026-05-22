@@ -1684,7 +1684,11 @@ def _check_error_recovery_guidance_json(workspace: Path) -> None:
     assert conflict["quick_status"] == "blocked"
     assert conflict["error"]["code"] == "output_dir_not_empty"
     assert conflict["error"]["details"]["recovery_steps"]
-    assert "context quick" in conflict["error"]["details"]["fix_command_text"]
+    fix_command = conflict["error"]["details"]["fix_command_text"]
+    assert "context quick" in fix_command
+    assert fix_command.count("--output-dir") == 1
+    assert f" --output-dir {output_dir} " not in f" {fix_command} "
+    assert f"{output_dir}-new" in fix_command
     assert not (output_dir / "context_manifest.json").exists()
 
 
