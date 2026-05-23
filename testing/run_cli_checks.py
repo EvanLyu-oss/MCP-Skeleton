@@ -704,6 +704,7 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert "Source tokens:" in payload["summary_text"]
     assert "Timing:" in payload["summary_text"]
     assert "Next commands:" in payload["summary_text"]
+    assert "speed_tip" in payload
     inspect = _run_cli_json(payload["inspect_command_args"])
     assert inspect["status"] == "ok"
 
@@ -740,6 +741,7 @@ def _check_context_quick_fast_json(workspace: Path) -> None:
     assert Path(payload["manifest_file"]).exists()
     assert payload["timings_ms"]["start_config_recommend"] == 0.0
     assert payload["timings_ms"]["bundle"] < max(1000, payload["timings_ms"]["start"] * 2)
+    assert payload["speed_tip"] == {}
     assert "Mode: fast" in payload["summary_text"]
     assert "Fast path:" in payload["summary_text"]
     assert "_compression_payload" not in payload
@@ -747,6 +749,36 @@ def _check_context_quick_fast_json(workspace: Path) -> None:
     assert "_compression_payload" not in payload["start"]["doctor"]
     restore = _run_cli_json([*payload["restore_command_args"], "--json"])
     assert restore["status"] == "ok"
+
+
+def _check_context_quick_speed_tip_json(workspace: Path) -> None:
+    project = workspace / "quick_speed_tip_project"
+    (project / "src").mkdir(parents=True)
+    for index in range(105):
+        (project / "src" / f"module_{index:03d}.py").write_text(
+            f"def value_{index}() -> int:\n"
+            f"    return {index}\n",
+            encoding="utf-8",
+        )
+    bundle_dir = workspace / "quick_speed_tip_bundle"
+    payload = _run_cli_json(
+        [
+            "context",
+            "quick",
+            "--input-dir",
+            str(project),
+            "--output-dir",
+            str(bundle_dir),
+            "--json",
+        ]
+    )
+    assert payload["status"] == "ok"
+    assert payload["fast_path"] is False
+    assert payload["speed_tip"]["status"] == "available"
+    assert payload["speed_tip"]["total_files"] >= 100
+    assert "mcp-skeleton quick --fast" in payload["speed_tip"]["suggested_command_text"]
+    assert "Speed tip:" in payload["summary_text"]
+    assert "--fast" in payload["summary_text"]
 
 
 def _check_context_explain_json(workspace: Path) -> None:
@@ -1963,6 +1995,7 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("context_start_json_ok", _check_context_start_json),
     ("context_quick_json_ok", _check_context_quick_json),
     ("context_quick_fast_json_ok", _check_context_quick_fast_json),
+    ("context_quick_speed_tip_json_ok", _check_context_quick_speed_tip_json),
     ("context_explain_json_ok", _check_context_explain_json),
     ("top_level_cli_alias_json_ok", _check_top_level_cli_alias_json),
     ("context_auto_defaults_json_ok", _check_context_auto_defaults_json),

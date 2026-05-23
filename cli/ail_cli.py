@@ -863,6 +863,49 @@ def _quick_restore_command_args(bundle_payload: dict[str, Any]) -> list[str]:
     return args
 
 
+def _quick_fast_command_text(args: argparse.Namespace) -> str:
+    command_args = ["context", "quick", "--fast"]
+    if _inline_text(args) is not None:
+        return ""
+    if _opt_path(args, "input_dir") is not None:
+        command_args.extend(["--input-dir", str(_opt_path(args, "input_dir").resolve())])  # type: ignore[union-attr]
+    elif _opt_path(args, "input_file") is not None:
+        command_args.extend(["--input-file", str(_opt_path(args, "input_file").resolve())])  # type: ignore[union-attr]
+    elif _opt_path(args, "text_file") is not None:
+        command_args.extend(["--text-file", str(_opt_path(args, "text_file").resolve())])  # type: ignore[union-attr]
+    else:
+        return ""
+    output_dir = _opt_path(args, "output_dir")
+    if output_dir is not None:
+        command_args.extend(["--output-dir", str(output_dir.resolve() if output_dir.is_absolute() else (Path.cwd() / output_dir).resolve())])
+    if getattr(args, "zip_bundle", False):
+        command_args.append("--zip")
+    return _format_cli_command(command_args)
+
+
+def _build_quick_speed_tip(args: argparse.Namespace, *, start_payload: dict[str, Any], timings_ms: dict[str, Any], fast_path: bool) -> dict[str, Any]:
+    if fast_path:
+        return {}
+    scale_profile = start_payload.get("source_scale_profile") or {}
+    scale_class = str(scale_profile.get("scale_class") or "")
+    total_files = int(scale_profile.get("total_files") or 0)
+    total_ms = float(timings_ms.get("total") or 0.0)
+    if scale_class not in {"large", "huge"} and total_files < 100 and total_ms < 1500:
+        return {}
+    command_text = _quick_fast_command_text(args)
+    if not command_text:
+        return {}
+    return {
+        "status": "available",
+        "reason": "large input or noticeable quick runtime",
+        "scale_class": scale_class,
+        "total_files": total_files,
+        "observed_total_ms": total_ms,
+        "suggested_command_text": command_text,
+        "message": "Next time, use --fast to skip onboarding generation while keeping restore safety checks.",
+    }
+
+
 def _render_context_quick_summary(payload: dict[str, Any]) -> str:
     start = payload.get("start") or {}
     bundle = payload.get("bundle") or {}
@@ -911,6 +954,16 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
                 "Fast path:",
                 "- skipped config recommendation/onboarding generation",
                 "- kept sandbox restore safety verification enabled",
+            ]
+        )
+    speed_tip = payload.get("speed_tip") or {}
+    if speed_tip:
+        lines.extend(
+            [
+                "",
+                "Speed tip:",
+                f"- {speed_tip.get('message', '')}",
+                f"- Try: {speed_tip.get('suggested_command_text', '')}",
             ]
         )
     warnings = list(start.get("warnings") or [])
@@ -1128,6 +1181,13 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
     manifest_file = str(Path(bundle_root) / "context_manifest.json") if bundle_root else ""
     inspect_args = ["context", "inspect", "--package-file", manifest_file, "--json"] if manifest_file else []
     restore_args = _quick_restore_command_args(bundle_payload) if manifest_file else []
+    timings_ms = {
+        "start": start_ms,
+        "start_config_recommend": (start_payload.get("timings_ms") or {}).get("config_recommend", 0.0),
+        "start_doctor": (start_payload.get("timings_ms") or {}).get("doctor", 0.0),
+        "bundle": bundle_ms,
+        "total": 0.0,
+    }
     payload = {
         "status": "ok",
         "entrypoint": "context-quick",
@@ -1148,13 +1208,7 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
         "restore_command_text": _format_cli_command(restore_args),
         "start": start_payload,
         "bundle": bundle_payload,
-        "timings_ms": {
-            "start": start_ms,
-            "start_config_recommend": (start_payload.get("timings_ms") or {}).get("config_recommend", 0.0),
-            "start_doctor": (start_payload.get("timings_ms") or {}).get("doctor", 0.0),
-            "bundle": bundle_ms,
-            "total": 0.0,
-        },
+        "timings_ms": timings_ms,
         "next_steps": [
             "share the bundle directory or zip with the downstream AI/IDE",
             "keep the manifest file so exact restore remains available",
@@ -1162,6 +1216,12 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
         ],
     }
     payload["timings_ms"]["total"] = _elapsed_ms(total_started)
+    payload["speed_tip"] = _build_quick_speed_tip(
+        args,
+        start_payload=start_payload,
+        timings_ms=payload["timings_ms"],
+        fast_path=fast_path,
+    )
     payload["summary_text"] = _render_context_quick_summary(payload)
     return payload, EXIT_OK
 

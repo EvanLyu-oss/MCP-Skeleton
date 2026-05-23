@@ -139,6 +139,7 @@ mcp-skeleton quick --fast --input-dir .
 ```
 
 `--fast` skips config recommendation/onboarding generation but still runs sandbox restore verification before creating the bundle.
+Standard `quick` will also print a speed tip with a copy/paste `--fast` command when the input is large enough that the faster path is likely to feel better.
 
 Generated MCP-Skeleton work artifacts under `.workspace_ail/` are skipped by default so repeated `context quick` or dogfood runs do not pollute later compression or benchmark results.
 
