@@ -172,6 +172,14 @@ To copy the generated skeleton text directly to the macOS clipboard:
 mcp-skeleton quick --input-dir . --copy-command
 ```
 
+To find the last quick bundle for the current project later:
+
+```bash
+mcp-skeleton recent --input-dir .
+```
+
+`recent` reads `.workspace_ail/recent_quick.json` and prints the last bundle path, skeleton file, manifest, open command, clipboard command, inspect command, and restore command.
+
 For very large directories where you want the fastest safe bundle path, use:
 
 ```bash

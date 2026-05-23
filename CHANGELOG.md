@@ -17,6 +17,7 @@
 - added `context quick --open` plus copy/paste `open <bundle>` guidance for locating generated bundles on macOS
 - added `context quick --copy-command` plus copy/paste `cat context_skeleton.mcp | pbcopy` guidance for handing skeletons to AI/IDE tools
 - added `context quick` experience guidance for speed status, token-savings health, and when to prefer `--fast`
+- added `context recent` / `mcp-skeleton recent` to rediscover the last quick bundle, skeleton, restore manifest, and handoff commands for a project
 - hardened dogfood expectations against nested MCP-Skeleton onboarding artifacts created during local self-use
 - added `context doctor --write-report` for Markdown readiness reports
 - added automatic preset/focus/density defaults for common directory, code-file, and prose-file inputs

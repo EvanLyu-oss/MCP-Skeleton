@@ -70,6 +70,7 @@ CONTEXT_SUBCOMMANDS = {
     "doctor",
     "start",
     "quick",
+    "recent",
     "demo",
     "bundle",
     "patch",
@@ -1011,6 +1012,110 @@ def _maybe_copy_quick_skeleton(args: argparse.Namespace, *, skeleton_file: str) 
     return True, ""
 
 
+def _recent_root_from_args(args: argparse.Namespace) -> Path:
+    input_dir = _opt_path(args, "input_dir")
+    if input_dir is not None:
+        return input_dir.resolve()
+    input_file = _opt_path(args, "input_file") or _opt_path(args, "text_file")
+    if input_file is not None:
+        return input_file.resolve().parent
+    return Path.cwd().resolve()
+
+
+def _recent_file_from_args(args: argparse.Namespace) -> Path:
+    return _recent_root_from_args(args) / ".workspace_ail" / "recent_quick.json"
+
+
+def _build_recent_record(args: argparse.Namespace, payload: dict[str, Any]) -> dict[str, Any]:
+    metrics = ((payload.get("start") or {}).get("metrics") or {})
+    return {
+        "status": "ok",
+        "entrypoint": "context-recent-record",
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime()),
+        "source_root": str(_recent_root_from_args(args)),
+        "bundle_root": payload.get("bundle_root", ""),
+        "manifest_file": payload.get("manifest_file", ""),
+        "skeleton_file": (payload.get("handoff") or {}).get("skeleton_file", ""),
+        "inspect_command_text": payload.get("inspect_command_text", ""),
+        "restore_command_text": payload.get("restore_command_text", ""),
+        "open_command_text": payload.get("open_command_text", ""),
+        "copy_command_text": payload.get("copy_command_text", ""),
+        "estimated_tokens_saved": metrics.get("estimated_tokens_saved", 0),
+        "estimated_savings_percent": metrics.get("estimated_savings_percent", 0),
+        "experience": payload.get("experience") or {},
+    }
+
+
+def _write_recent_record(args: argparse.Namespace, payload: dict[str, Any]) -> str:
+    recent_file = _recent_file_from_args(args)
+    recent_file.parent.mkdir(parents=True, exist_ok=True)
+    recent_file.write_text(json.dumps(_build_recent_record(args, payload), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return str(recent_file)
+
+
+def _render_context_recent_summary(payload: dict[str, Any]) -> str:
+    lines = [
+        "MCP-Skeleton Recent",
+        "",
+        f"Status: {payload.get('recent_status', '')}",
+        f"Recent file: {payload.get('recent_file', '')}",
+        "",
+        "Last bundle:",
+        f"- Bundle: {payload.get('bundle_root', '') or '(not available)'}",
+        f"- Skeleton: {payload.get('skeleton_file', '') or '(not available)'}",
+        f"- Manifest: {payload.get('manifest_file', '') or '(not available)'}",
+        f"- Estimated tokens saved: {payload.get('estimated_tokens_saved', 0)}",
+        f"- Estimated token savings: {payload.get('estimated_savings_percent', 0)}%",
+        "",
+        "Open bundle:",
+        payload.get("open_command_text") or "(not available)",
+        "",
+        "Copy skeleton:",
+        payload.get("copy_command_text") or "(not available)",
+        "",
+        "Next commands:",
+        f"- Inspect: {payload.get('inspect_command_text', '') or '(not available)'}",
+        f"- Restore: {payload.get('restore_command_text', '') or '(not available)'}",
+    ]
+    return "\n".join(lines)
+
+
+def _build_context_recent_payload(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    recent_file = _recent_file_from_args(args)
+    if not recent_file.exists():
+        payload = {
+            "status": "error",
+            "entrypoint": "context-recent",
+            "recent_status": "missing",
+            "recent_file": str(recent_file),
+            "message": "no recent quick bundle was found for this project; run mcp-skeleton quick --input-dir . first",
+        }
+        payload["summary_text"] = _render_context_recent_summary(payload)
+        return payload, EXIT_VALIDATION
+    record = json.loads(recent_file.read_text(encoding="utf-8"))
+    payload = {
+        "status": "ok",
+        "entrypoint": "context-recent",
+        "recent_status": "ready",
+        "recent_file": str(recent_file),
+        **{key: record.get(key, "") for key in [
+            "source_root",
+            "bundle_root",
+            "manifest_file",
+            "skeleton_file",
+            "inspect_command_text",
+            "restore_command_text",
+            "open_command_text",
+            "copy_command_text",
+        ]},
+        "estimated_tokens_saved": record.get("estimated_tokens_saved", 0),
+        "estimated_savings_percent": record.get("estimated_savings_percent", 0),
+        "experience": record.get("experience") or {},
+    }
+    payload["summary_text"] = _render_context_recent_summary(payload)
+    return payload, EXIT_OK
+
+
 def _build_quick_speed_tip(args: argparse.Namespace, *, start_payload: dict[str, Any], timings_ms: dict[str, Any], fast_path: bool) -> dict[str, Any]:
     if fast_path:
         return {}
@@ -1472,6 +1577,7 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
         timings_ms=payload["timings_ms"],
         fast_path=fast_path,
     )
+    payload["recent_file"] = _write_recent_record(args, payload)
     payload["summary_text"] = _render_context_quick_summary(payload)
     return payload, EXIT_OK
 
@@ -2317,7 +2423,7 @@ def cmd_context(args: argparse.Namespace) -> int:
     command = getattr(args, "context_command", None)
     supported = CONTEXT_SUBCOMMANDS
     if command not in supported:
-        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported context subcommands: compress, restore, inspect, explain, apply-check, preset, config, init, install-hook, doctor, start, quick, demo, bundle, patch, patch-apply")
+        return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported context subcommands: compress, restore, inspect, explain, apply-check, preset, config, init, install-hook, doctor, start, quick, recent, demo, bundle, patch, patch-apply")
 
     if command == "preset":
         payload = build_context_preset_payload(getattr(args, "preset_id", None))
@@ -2347,6 +2453,10 @@ def cmd_context(args: argparse.Namespace) -> int:
 
     if command == "quick":
         payload, exit_code = _build_context_quick_payload(args)
+        return _emit_simple_result(args, payload, text=str(payload.get("summary_text", "")), exit_code=exit_code)
+
+    if command == "recent":
+        payload, exit_code = _build_context_recent_payload(args)
         return _emit_simple_result(args, payload, text=str(payload.get("summary_text", "")), exit_code=exit_code)
 
     if command == "demo":
@@ -2799,6 +2909,12 @@ def _build_parser() -> argparse.ArgumentParser:
     quick.add_argument("--output-file", dest="output_file", help="Write JSON or human summary to a file")
     quick.add_argument("--force", action="store_true", help="Overwrite generated config/report files if they already exist")
     quick.add_argument("--json", action="store_true")
+
+    recent = context_subparsers.add_parser("recent", help="Show the most recent quick bundle for this project")
+    recent.add_argument("--input-dir", dest="input_dir", help="Project directory whose .workspace_ail/recent_quick.json should be read; defaults to current directory")
+    recent.add_argument("--input-file", dest="input_file", help="Read recent state next to this file")
+    recent.add_argument("--text-file", dest="text_file", help="Read recent state next to this text file")
+    recent.add_argument("--json", action="store_true")
 
     demo = context_subparsers.add_parser("demo", help="Run a one-command demo that creates a sample project, safe bundle, and restore guidance")
     demo.add_argument("--output-dir", dest="output_dir", help="Demo root directory; defaults under .workspace_ail/demo_runs")

@@ -725,6 +725,7 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert payload["experience"]["speed_status"] in {"fast", "ok", "slow"}
     assert payload["experience"]["token_status"] in {"good", "watch", "expanded"}
     assert payload["experience"]["recommendation"]
+    assert Path(payload["recent_file"]).exists()
     assert payload["inspect_command_args"][:3] == ["context", "inspect", "--package-file"]
     assert payload["restore_command_args"][:3] == ["context", "restore", "--package-file"]
     assert payload["inspect_command_text"].startswith("mcp-skeleton inspect")
@@ -753,6 +754,34 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert "speed_tip" in payload
     inspect = _run_cli_json(payload["inspect_command_args"])
     assert inspect["status"] == "ok"
+
+
+def _check_context_recent_json(workspace: Path) -> None:
+    project = workspace / "recent_project"
+    (project / "src").mkdir(parents=True)
+    (project / "src" / "app.py").write_text(
+        "def run() -> str:\n"
+        "    return 'recent-ready'\n",
+        encoding="utf-8",
+    )
+    bundle_dir = workspace / "recent_bundle"
+    quick = _run_top_level_cli_json(["quick", "--input-dir", str(project), "--output-dir", str(bundle_dir), "--json"])
+    assert Path(quick["recent_file"]).exists()
+
+    recent = _run_top_level_cli_json(["recent", "--input-dir", str(project), "--json"])
+    assert recent["status"] == "ok"
+    assert recent["entrypoint"] == "context-recent"
+    assert recent["recent_status"] == "ready"
+    assert recent["bundle_root"] == quick["bundle_root"]
+    assert recent["manifest_file"] == quick["manifest_file"]
+    assert recent["skeleton_file"] == quick["handoff"]["skeleton_file"]
+    assert recent["open_command_text"].startswith("open ")
+    assert "| pbcopy" in recent["copy_command_text"]
+    assert recent["inspect_command_text"].startswith("mcp-skeleton inspect")
+    assert recent["restore_command_text"].startswith("mcp-skeleton restore")
+    assert "MCP-Skeleton Recent" in recent["summary_text"]
+    assert "Last bundle:" in recent["summary_text"]
+    assert "Copy skeleton:" in recent["summary_text"]
 
 
 def _check_context_quick_fast_json(workspace: Path) -> None:
@@ -2117,6 +2146,7 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("context_doctor_json_ok", _check_context_doctor_json),
     ("context_start_json_ok", _check_context_start_json),
     ("context_quick_json_ok", _check_context_quick_json),
+    ("context_recent_json_ok", _check_context_recent_json),
     ("context_quick_fast_json_ok", _check_context_quick_fast_json),
     ("context_quick_speed_tip_json_ok", _check_context_quick_speed_tip_json),
     ("context_demo_json_ok", _check_context_demo_json),
