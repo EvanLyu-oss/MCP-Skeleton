@@ -722,6 +722,9 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert payload["copy_requested"] is False
     assert payload["copy_performed"] is False
     assert "| pbcopy" in payload["copy_command_text"]
+    assert payload["experience"]["speed_status"] in {"fast", "ok", "slow"}
+    assert payload["experience"]["token_status"] in {"good", "watch", "expanded"}
+    assert payload["experience"]["recommendation"]
     assert payload["inspect_command_args"][:3] == ["context", "inspect", "--package-file"]
     assert payload["restore_command_args"][:3] == ["context", "restore", "--package-file"]
     assert payload["inspect_command_text"].startswith("mcp-skeleton inspect")
@@ -740,6 +743,9 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert "context_skeleton.mcp" in payload["summary_text"]
     assert "Open bundle folder:" in payload["summary_text"]
     assert "Copy skeleton to clipboard:" in payload["summary_text"]
+    assert "Experience:" in payload["summary_text"]
+    assert "Speed:" in payload["summary_text"]
+    assert "Token savings:" in payload["summary_text"]
     assert "Source tokens:" in payload["summary_text"]
     assert "Timing:" in payload["summary_text"]
     assert "Copy/paste next:" in payload["summary_text"]

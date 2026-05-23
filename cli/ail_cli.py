@@ -1034,6 +1034,56 @@ def _build_quick_speed_tip(args: argparse.Namespace, *, start_payload: dict[str,
     }
 
 
+def _build_quick_experience_payload(*, start_payload: dict[str, Any], timings_ms: dict[str, Any], fast_path: bool) -> dict[str, Any]:
+    scale_profile = start_payload.get("source_scale_profile") or {}
+    metrics = start_payload.get("metrics") or {}
+    total_ms = float(timings_ms.get("total") or 0.0)
+    total_files = int(scale_profile.get("total_files") or 0)
+    scale_class = str(scale_profile.get("scale_class") or "unknown")
+    savings_percent = float(metrics.get("estimated_savings_percent") or 0.0)
+    token_direction = str(metrics.get("estimated_token_direction") or "")
+
+    if total_ms < 500:
+        speed_status = "fast"
+        speed_message = "quick completed in well under a second on this input"
+    elif total_ms < 2500:
+        speed_status = "ok"
+        speed_message = "quick runtime is within the normal interactive range"
+    else:
+        speed_status = "slow"
+        speed_message = "quick took long enough that --fast may feel better next time"
+
+    if token_direction == "reduced" and savings_percent >= 30:
+        token_status = "good"
+        token_message = "token savings look meaningful for AI/IDE handoff"
+    elif token_direction == "reduced":
+        token_status = "watch"
+        token_message = "token savings exist, but review whether the skeleton is compact enough"
+    else:
+        token_status = "expanded"
+        token_message = "this input is very small; compression can expand tiny projects"
+
+    recommendation = "use this bundle as the AI/IDE handoff"
+    if speed_status == "slow" and not fast_path:
+        recommendation = "next time, use --fast for a quicker safe bundle path"
+    elif token_status == "expanded":
+        recommendation = "use quick on a larger project or long document to see the token advantage"
+    elif scale_class in {"large", "huge"} and token_status == "good":
+        recommendation = "large input looks healthy; keep the bundle and share the skeleton"
+
+    return {
+        "speed_status": speed_status,
+        "speed_message": speed_message,
+        "token_status": token_status,
+        "token_message": token_message,
+        "recommendation": recommendation,
+        "scale_class": scale_class,
+        "total_files": total_files,
+        "total_ms": total_ms,
+        "estimated_savings_percent": savings_percent,
+    }
+
+
 def _render_context_quick_summary(payload: dict[str, Any]) -> str:
     start = payload.get("start") or {}
     bundle = payload.get("bundle") or {}
@@ -1043,6 +1093,7 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
     handoff = payload.get("handoff") or {}
     open_error = str(payload.get("open_error") or "")
     copy_error = str(payload.get("copy_error") or "")
+    experience = payload.get("experience") or {}
     quick_mode = "fast" if payload.get("fast_path") else "standard"
     scale_profile = start.get("source_scale_profile") or {}
     token_direction = str(metrics.get("estimated_token_direction") or "")
@@ -1092,6 +1143,11 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
         f"- Auto-copy requested: {payload.get('copy_requested', False)}",
         f"- Auto-copy performed: {payload.get('copy_performed', False)}",
         *( [f"- Copy error: {copy_error}"] if copy_error else [] ),
+        "",
+        "Experience:",
+        f"- Speed: {experience.get('speed_status', '')} - {experience.get('speed_message', '')}",
+        f"- Token savings: {experience.get('token_status', '')} - {experience.get('token_message', '')}",
+        f"- Recommendation: {experience.get('recommendation', '')}",
         "",
         "Recommended setup:",
         f"- Mode: {start.get('recommended_mode', '')}",
@@ -1370,8 +1426,9 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
         "start_config_recommend": (start_payload.get("timings_ms") or {}).get("config_recommend", 0.0),
         "start_doctor": (start_payload.get("timings_ms") or {}).get("doctor", 0.0),
         "bundle": bundle_ms,
-        "total": 0.0,
+        "total": _elapsed_ms(total_started),
     }
+    experience = _build_quick_experience_payload(start_payload=start_payload, timings_ms=timings_ms, fast_path=fast_path)
     payload = {
         "status": "ok",
         "entrypoint": "context-quick",
@@ -1394,6 +1451,7 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
         "copy_requested": bool(getattr(args, "copy_command", False)),
         "copy_performed": copy_performed,
         "copy_error": copy_error,
+        "experience": experience,
         "archive_path": bundle_payload.get("archive_path", ""),
         "inspect_command_args": inspect_args,
         "inspect_command_text": _format_cli_command(inspect_args),
@@ -1408,7 +1466,6 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
             "use the restore command if you need to reconstruct the original input later",
         ],
     }
-    payload["timings_ms"]["total"] = _elapsed_ms(total_started)
     payload["speed_tip"] = _build_quick_speed_tip(
         args,
         start_payload=start_payload,
