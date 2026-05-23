@@ -13,6 +13,7 @@
 - added `context demo` / `mcp-skeleton demo` so new users can run a complete sample compression and restore-safety flow without preparing a project
 - added `mcp-skeleton version`, doctor install-path hints, and `install.sh --update/--uninstall` for simpler install lifecycle management
 - improved `context quick` human output with a first-screen result panel, token impact, timing, and copy/paste next command
+- added explicit `context quick` AI/IDE handoff guidance for the skeleton file, bundle folder, and restore manifest
 - hardened dogfood expectations against nested MCP-Skeleton onboarding artifacts created during local self-use
 - added `context doctor --write-report` for Markdown readiness reports
 - added automatic preset/focus/density defaults for common directory, code-file, and prose-file inputs

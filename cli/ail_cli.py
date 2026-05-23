@@ -951,6 +951,21 @@ def _quick_fast_command_text(args: argparse.Namespace) -> str:
     return _format_cli_command(command_args)
 
 
+def _build_quick_handoff_payload(bundle_payload: dict[str, Any], *, bundle_root: str, manifest_file: str) -> dict[str, Any]:
+    files = bundle_payload.get("files") or {}
+    skeleton_file = str(files.get("skeleton_file") or (str(Path(bundle_root) / "context_skeleton.mcp") if bundle_root else ""))
+    inspect_summary = str(files.get("inspect_summary_txt") or (str(Path(bundle_root) / "inspect_summary.txt") if bundle_root else ""))
+    return {
+        "status": "ready" if skeleton_file and manifest_file else "unavailable",
+        "message": "feed the skeleton file to your AI or IDE; keep the bundle folder and manifest for exact restore",
+        "skeleton_file": skeleton_file,
+        "bundle_root": bundle_root,
+        "manifest_file": manifest_file,
+        "inspect_summary": inspect_summary,
+        "restore_package": str(files.get("restore_package") or ""),
+    }
+
+
 def _build_quick_speed_tip(args: argparse.Namespace, *, start_payload: dict[str, Any], timings_ms: dict[str, Any], fast_path: bool) -> dict[str, Any]:
     if fast_path:
         return {}
@@ -980,6 +995,7 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
     restore_safe = "OK" if payload.get("restore_safe") else "BLOCKED"
     metrics = start.get("metrics") or {}
     timings = payload.get("timings_ms") or {}
+    handoff = payload.get("handoff") or {}
     quick_mode = "fast" if payload.get("fast_path") else "standard"
     scale_profile = start.get("source_scale_profile") or {}
     token_direction = str(metrics.get("estimated_token_direction") or "")
@@ -1011,6 +1027,12 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
         f"- Estimated tokens saved: {saved_tokens}",
         f"- Estimated token savings: {savings_percent}%",
         f"- Direction: {token_result}",
+        "",
+        "Give to AI/IDE:",
+        f"- Skeleton file: {handoff.get('skeleton_file', '') or '(not available)'}",
+        f"- Bundle folder to keep: {handoff.get('bundle_root', '') or '(not available)'}",
+        f"- Manifest for restore: {handoff.get('manifest_file', '') or '(not available)'}",
+        f"- Guidance: {handoff.get('message', '') or 'feed the skeleton file to your AI or IDE'}",
         "",
         "Recommended setup:",
         f"- Mode: {start.get('recommended_mode', '')}",
@@ -1094,6 +1116,7 @@ def _quick_output_dir_conflict_payload(output_dir: Path) -> dict[str, Any] | Non
         "bundle": {},
         "bundle_root": "",
         "manifest_file": "",
+        "handoff": {},
         "inspect_command_args": [],
         "inspect_command_text": "",
         "restore_command_args": [],
@@ -1212,6 +1235,7 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
             "bundle": {},
             "bundle_root": "",
             "manifest_file": "",
+            "handoff": {},
             "inspect_command_args": [],
             "inspect_command_text": "",
             "restore_command_args": [],
@@ -1267,6 +1291,7 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
     bundle_ms = _elapsed_ms(bundle_started)
     bundle_root = str(bundle_payload.get("bundle_root") or "")
     manifest_file = str(Path(bundle_root) / "context_manifest.json") if bundle_root else ""
+    handoff = _build_quick_handoff_payload(bundle_payload, bundle_root=bundle_root, manifest_file=manifest_file)
     inspect_args = ["context", "inspect", "--package-file", manifest_file, "--json"] if manifest_file else []
     restore_args = _quick_restore_command_args(bundle_payload) if manifest_file else []
     timings_ms = {
@@ -1289,6 +1314,7 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
         "report_written": bool(start_payload.get("report_written")),
         "bundle_root": bundle_root,
         "manifest_file": manifest_file,
+        "handoff": handoff,
         "archive_path": bundle_payload.get("archive_path", ""),
         "inspect_command_args": inspect_args,
         "inspect_command_text": _format_cli_command(inspect_args),
