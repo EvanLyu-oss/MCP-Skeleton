@@ -695,6 +695,10 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert payload["restore_command_text"].startswith("mcp-skeleton restore")
     assert payload["timings_ms"]["total"] >= payload["timings_ms"]["bundle"] >= 0
     assert payload["timings_ms"]["start"] >= 0
+    assert payload["timings_ms"]["bundle"] < max(1000, payload["timings_ms"]["start"] * 2)
+    assert "_compression_payload" not in payload
+    assert "_compression_payload" not in payload["start"]
+    assert "_compression_payload" not in payload["start"]["doctor"]
     assert "MCP-Skeleton Quick" in payload["summary_text"]
     assert "Bundle:" in payload["summary_text"]
     assert "Source tokens:" in payload["summary_text"]

@@ -583,7 +583,11 @@ def _compare_doctor_restore(package_payload: dict[str, Any], *, output_dir: Path
     }
 
 
-def _build_context_doctor_payload(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+def _build_context_doctor_payload(
+    args: argparse.Namespace,
+    *,
+    include_compression_payload: bool = False,
+) -> tuple[dict[str, Any], int]:
     total_started = time.perf_counter()
     config_file, config_values, context_defaults = _resolve_context_defaults(args)
     compress_started = time.perf_counter()
@@ -696,6 +700,8 @@ def _build_context_doctor_payload(args: argparse.Namespace) -> tuple[dict[str, A
     payload["report_written"] = report_written
     payload["timings_ms"]["total"] = _elapsed_ms(total_started)
     payload["summary_text"] = _render_context_doctor_summary(payload)
+    if include_compression_payload:
+        payload["_compression_payload"] = compression_payload
     return payload, EXIT_OK if not failed_blocks else EXIT_VALIDATION
 
 
@@ -959,8 +965,12 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
 
     start_args = _clone_args(args, context_command="start", output_file=None)
     start_started = time.perf_counter()
-    start_payload, start_exit = _build_context_start_payload(start_args)
+    start_payload, start_exit = _build_context_start_payload(
+        start_args,
+        include_doctor_compression_payload=True,
+    )
     start_ms = _elapsed_ms(start_started)
+    reusable_compression_payload = start_payload.pop("_compression_payload", None)
     restore_safe = bool(start_payload.get("restore_safe"))
     if start_exit != EXIT_OK or not restore_safe:
         payload = {
@@ -1023,6 +1033,7 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
         exclude_patterns=context_defaults["exclude_patterns"],
         config_file=config_file,
         config_values=config_values,
+        compression_payload=reusable_compression_payload if isinstance(reusable_compression_payload, dict) else None,
     )
     bundle_ms = _elapsed_ms(bundle_started)
     bundle_root = str(bundle_payload.get("bundle_root") or "")
@@ -1229,7 +1240,11 @@ def _build_start_next_command_args(args: argparse.Namespace, *, config_path: Pat
     return command_args
 
 
-def _build_context_start_payload(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+def _build_context_start_payload(
+    args: argparse.Namespace,
+    *,
+    include_doctor_compression_payload: bool = False,
+) -> tuple[dict[str, Any], int]:
     total_started = time.perf_counter()
     config_path, report_path = _default_start_output_paths(args)
     source_root = _start_source_root(args)
@@ -1270,8 +1285,12 @@ def _build_context_start_payload(args: argparse.Namespace) -> tuple[dict[str, An
         exclude_patterns=list(recommended_config.get("exclude") or getattr(args, "exclude_patterns", None) or []),
     )
     doctor_started = time.perf_counter()
-    doctor_payload, doctor_exit = _build_context_doctor_payload(doctor_args)
+    doctor_payload, doctor_exit = _build_context_doctor_payload(
+        doctor_args,
+        include_compression_payload=include_doctor_compression_payload,
+    )
     doctor_ms = _elapsed_ms(doctor_started)
+    reusable_compression_payload = doctor_payload.pop("_compression_payload", None)
     metrics = dict(doctor_payload.get("metrics") or {})
     source_tokens = int(metrics.get("estimated_token_count_source") or 0)
     saved_tokens = int(metrics.get("estimated_tokens_saved") or 0)
@@ -1331,6 +1350,8 @@ def _build_context_start_payload(args: argparse.Namespace) -> tuple[dict[str, An
             item["message"] for item in action_plan
         ],
     }
+    if include_doctor_compression_payload and reusable_compression_payload is not None:
+        payload["_compression_payload"] = reusable_compression_payload
     payload["timings_ms"]["total"] = _elapsed_ms(total_started)
     payload["summary_text"] = _render_context_start_summary(payload)
     return payload, doctor_exit

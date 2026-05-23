@@ -432,24 +432,26 @@ def build_context_bundle_payload(
     exclude_patterns: list[str] | None = None,
     config_file: Path | None = None,
     config_values: dict[str, Any] | None = None,
+    compression_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    compression_payload = build_context_compress_payload(
-        inline_text=inline_text,
-        text_file=text_file,
-        input_file=input_file,
-        input_dir=input_dir,
-        preset_id=preset_id,
-        output_dir=None,
-        tokenizer_backend=tokenizer_backend,
-        tokenizer_model=tokenizer_model,
-        incremental=incremental,
-        base_commit=base_commit,
-        focus_mode=focus_mode,
-        skeleton_density=skeleton_density,
-        exclude_patterns=exclude_patterns,
-        config_file=config_file,
-        config_values=config_values,
-    )
+    if compression_payload is None:
+        compression_payload = build_context_compress_payload(
+            inline_text=inline_text,
+            text_file=text_file,
+            input_file=input_file,
+            input_dir=input_dir,
+            preset_id=preset_id,
+            output_dir=None,
+            tokenizer_backend=tokenizer_backend,
+            tokenizer_model=tokenizer_model,
+            incremental=incremental,
+            base_commit=base_commit,
+            focus_mode=focus_mode,
+            skeleton_density=skeleton_density,
+            exclude_patterns=exclude_patterns,
+            config_file=config_file,
+            config_values=config_values,
+        )
     inspect_payload = inspect_context_package(
         compression_payload,
         tokenizer_backend=tokenizer_backend,

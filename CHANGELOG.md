@@ -7,6 +7,7 @@
 - added `context explain` to translate an existing bundle into plain-language safety, compression, and next-step guidance
 - added direct `mcp-skeleton quick/start/doctor/...` top-level aliases and a macOS `install.sh` for lower-friction local installation
 - added quick/start/doctor timing breakdowns and clearer token-impact summaries so users can judge speed and savings immediately
+- made `context quick` reuse the restore-safety compression payload when writing the final bundle, avoiding one repeated compression pass on large inputs
 - hardened dogfood expectations against nested MCP-Skeleton onboarding artifacts created during local self-use
 - added `context doctor --write-report` for Markdown readiness reports
 - added automatic preset/focus/density defaults for common directory, code-file, and prose-file inputs
