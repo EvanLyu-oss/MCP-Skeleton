@@ -1177,6 +1177,87 @@ def _build_context_recent_payload(args: argparse.Namespace) -> tuple[dict[str, A
     return payload, EXIT_OK
 
 
+def _build_reused_quick_payload(args: argparse.Namespace, *, started_at: float) -> dict[str, Any] | None:
+    recent_payload, recent_exit = _build_context_recent_payload(args)
+    if recent_exit != EXIT_OK or recent_payload.get("freshness_status") != "fresh":
+        return None
+    bundle_root = str(recent_payload.get("bundle_root") or "")
+    manifest_file = str(recent_payload.get("manifest_file") or "")
+    skeleton_file = str(recent_payload.get("skeleton_file") or "")
+    if not bundle_root or not manifest_file or not skeleton_file:
+        return None
+    if not Path(bundle_root).exists() or not Path(manifest_file).exists() or not Path(skeleton_file).exists():
+        return None
+
+    try:
+        bundle_payload = load_context_package(Path(manifest_file))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+
+    handoff = {
+        "status": "ready",
+        "message": "feed the skeleton file to your AI or IDE; keep the bundle folder and manifest for exact restore",
+        "skeleton_file": skeleton_file,
+        "bundle_root": bundle_root,
+        "manifest_file": manifest_file,
+        "inspect_summary": str(Path(bundle_root) / "inspect_summary.txt"),
+        "restore_package": str((bundle_payload.get("files") or {}).get("restore_package") or ""),
+    }
+    open_command_text = _quick_open_command_text(bundle_root)
+    open_performed, open_error = _maybe_open_quick_bundle(args, bundle_root=bundle_root)
+    copy_command_text = _quick_copy_command_text(skeleton_file)
+    copy_performed, copy_error = _maybe_copy_quick_skeleton(args, skeleton_file=skeleton_file)
+    inspect_args = ["context", "inspect", "--package-file", manifest_file, "--json"]
+    restore_args = _quick_restore_command_args(bundle_payload)
+    timings_ms = {"start": 0.0, "start_config_recommend": 0.0, "start_doctor": 0.0, "bundle": 0.0, "total": _elapsed_ms(started_at)}
+    payload = {
+        "status": "ok",
+        "entrypoint": "context-quick",
+        "quick_status": "ready",
+        "reuse_status": "reused",
+        "freshness_status": "fresh",
+        "fast_path": bool(getattr(args, "fast", False)),
+        "restore_safe": True,
+        "doctor_readiness_status": "ready",
+        "config_file": "",
+        "config_written": False,
+        "report_file": "",
+        "report_written": False,
+        "bundle_root": bundle_root,
+        "manifest_file": manifest_file,
+        "handoff": handoff,
+        "open_command_text": open_command_text,
+        "open_requested": bool(getattr(args, "open_bundle", False)),
+        "open_performed": open_performed,
+        "open_error": open_error,
+        "copy_command_text": copy_command_text,
+        "copy_requested": bool(getattr(args, "copy_command", False)),
+        "copy_performed": copy_performed,
+        "copy_error": copy_error,
+        "experience": recent_payload.get("experience") or {},
+        "archive_path": "",
+        "inspect_command_args": inspect_args,
+        "inspect_command_text": _format_cli_command(inspect_args),
+        "restore_command_args": restore_args,
+        "restore_command_text": _format_cli_command(restore_args),
+        "start": {"metrics": {
+            "estimated_tokens_saved": recent_payload.get("estimated_tokens_saved", 0),
+            "estimated_savings_percent": recent_payload.get("estimated_savings_percent", 0),
+        }},
+        "bundle": bundle_payload,
+        "timings_ms": timings_ms,
+        "recent_file": recent_payload.get("recent_file", ""),
+        "next_steps": [
+            "reused the previous fresh bundle without recompressing",
+            "share the skeleton file with your AI/IDE",
+            "rerun quick without --reuse-if-fresh when you want to force a new bundle",
+        ],
+    }
+    payload["speed_tip"] = {}
+    payload["summary_text"] = _render_context_quick_summary(payload)
+    return payload
+
+
 def _build_quick_speed_tip(args: argparse.Namespace, *, start_payload: dict[str, Any], timings_ms: dict[str, Any], fast_path: bool) -> dict[str, Any]:
     if fast_path:
         return {}
@@ -1260,7 +1341,7 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
     open_error = str(payload.get("open_error") or "")
     copy_error = str(payload.get("copy_error") or "")
     experience = payload.get("experience") or {}
-    quick_mode = "fast" if payload.get("fast_path") else "standard"
+    quick_mode = "reused" if payload.get("reuse_status") == "reused" else ("fast" if payload.get("fast_path") else "standard")
     scale_profile = start.get("source_scale_profile") or {}
     token_direction = str(metrics.get("estimated_token_direction") or "")
     saved_tokens = int(metrics.get("estimated_tokens_saved") or 0)
@@ -1277,6 +1358,15 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
         f"- Readiness: {payload.get('doctor_readiness_status', '')}",
         f"- Bundle: {payload.get('bundle_root', '') or '(not created)'}",
         f"- Manifest: {payload.get('manifest_file', '') or '(not created)'}",
+    ]
+    if payload.get("reuse_status") == "reused":
+        lines.extend([
+            "",
+            "Reused previous bundle:",
+            "- Project fingerprint is still fresh",
+            "- Skipped recompression and restore recheck",
+        ])
+    lines.extend([
         "",
         "Created:",
         f"- Config: {payload.get('config_file', '') or '(not written)'}",
@@ -1336,7 +1426,7 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
         f"- Restore later: {payload.get('restore_command_text', '') or '(not available)'}",
         "",
         "Next steps:",
-    ]
+    ])
     lines.extend(f"- {item}" for item in payload.get("next_steps") or [])
     if payload.get("fast_path"):
         lines.extend(
@@ -1486,6 +1576,11 @@ def _build_quick_fast_start_payload(args: argparse.Namespace) -> tuple[dict[str,
 
 def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     total_started = time.perf_counter()
+    if bool(getattr(args, "reuse_if_fresh", False)):
+        reused_payload = _build_reused_quick_payload(args, started_at=total_started)
+        if reused_payload is not None:
+            return reused_payload, EXIT_OK
+
     output_dir = _opt_path(args, "output_dir")
     if output_dir is not None:
         conflict_payload = _quick_output_dir_conflict_payload(output_dir)
@@ -2961,6 +3056,7 @@ def _build_parser() -> argparse.ArgumentParser:
     quick.add_argument("--tokenizer-backend", dest="tokenizer_backend", default="auto", choices=["auto", "heuristic", "tiktoken"])
     quick.add_argument("--tokenizer-model", dest="tokenizer_model")
     quick.add_argument("--fast", action="store_true", help="Skip config recommendation/onboarding generation while keeping restore safety checks enabled")
+    quick.add_argument("--reuse-if-fresh", action="store_true", help="Reuse the most recent quick bundle when the project fingerprint is unchanged")
     quick.add_argument("--open", dest="open_bundle", action="store_true", help="Open the created bundle folder in Finder on macOS")
     quick.add_argument("--copy-command", dest="copy_command", action="store_true", help="Copy the generated skeleton text to the macOS clipboard with pbcopy")
     quick.add_argument("--zip", dest="zip_bundle", action="store_true")

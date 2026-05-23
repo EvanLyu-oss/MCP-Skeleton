@@ -190,6 +190,14 @@ mcp-skeleton quick --fast --input-dir .
 `--fast` skips config recommendation/onboarding generation but still runs sandbox restore verification before creating the bundle.
 Standard `quick` will also print a speed tip with a copy/paste `--fast` command when the input is large enough that the faster path is likely to feel better.
 
+If you already created a quick bundle and want to avoid recompressing unchanged projects:
+
+```bash
+mcp-skeleton quick --reuse-if-fresh --input-dir .
+```
+
+When the previous bundle is still fresh, this reuses it immediately and prints the same handoff commands. If the project changed or the bundle files are missing, MCP-Skeleton falls back to a normal quick run.
+
 Generated MCP-Skeleton work artifacts under `.workspace_ail/` are skipped by default so repeated `context quick` or dogfood runs do not pollute later compression or benchmark results.
 
 Explain a bundle in plain language:

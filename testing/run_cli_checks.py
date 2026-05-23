@@ -755,6 +755,29 @@ def _check_context_quick_json(workspace: Path) -> None:
     inspect = _run_cli_json(payload["inspect_command_args"])
     assert inspect["status"] == "ok"
 
+    reused = _run_cli_json(
+        [
+            "context",
+            "quick",
+            "--reuse-if-fresh",
+            "--input-dir",
+            str(project),
+            "--output-dir",
+            str(bundle_dir),
+            "--json",
+        ]
+    )
+    assert reused["status"] == "ok"
+    assert reused["entrypoint"] == "context-quick"
+    assert reused["quick_status"] == "ready"
+    assert reused["reuse_status"] == "reused"
+    assert reused["freshness_status"] == "fresh"
+    assert reused["bundle_root"] == payload["bundle_root"]
+    assert reused["manifest_file"] == payload["manifest_file"]
+    assert reused["handoff"]["skeleton_file"] == payload["handoff"]["skeleton_file"]
+    assert reused["timings_ms"]["bundle"] == 0.0
+    assert "Reused previous bundle:" in reused["summary_text"]
+
 
 def _check_context_recent_json(workspace: Path) -> None:
     project = workspace / "recent_project"
