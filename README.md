@@ -15,6 +15,24 @@ That gives us a practical workflow for large repositories and long documents:
 - patch export and controlled replay
 - incremental compression for git-scoped change surfaces
 
+## Quickstart
+
+For macOS, from a cloned or downloaded checkout:
+
+```bash
+sh install.sh
+mcp-skeleton demo
+mcp-skeleton quick --input-dir .
+mcp-skeleton quick --reuse-if-fresh --input-dir .
+```
+
+What these do:
+
+- `install.sh` installs an isolated local command and prints PATH guidance.
+- `demo` runs a safe sample bundle so you can see the workflow before using your own project.
+- `quick` creates a restore-safe bundle for the current directory and prints the skeleton, manifest, inspect, and restore commands.
+- `quick --reuse-if-fresh` reuses the last unchanged bundle instead of recompressing large projects.
+
 ## What it does
 
 - `context compress`: build one skeleton + restore package from text, file, or directory input
