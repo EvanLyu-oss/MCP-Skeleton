@@ -981,13 +981,22 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
     metrics = start.get("metrics") or {}
     timings = payload.get("timings_ms") or {}
     quick_mode = "fast" if payload.get("fast_path") else "standard"
+    scale_profile = start.get("source_scale_profile") or {}
+    token_direction = str(metrics.get("estimated_token_direction") or "")
+    saved_tokens = int(metrics.get("estimated_tokens_saved") or 0)
+    savings_percent = metrics.get("estimated_savings_percent", 0)
+    token_result = "reduced" if token_direction == "reduced" else "expanded"
+    primary_next = payload.get("inspect_command_text") or payload.get("restore_command_text") or ""
     lines = [
         "MCP-Skeleton Quick",
         "",
-        f"Status: {payload.get('quick_status', '')}",
-        f"Mode: {quick_mode}",
-        f"Restore safety: {restore_safe}",
-        f"Readiness: {payload.get('doctor_readiness_status', '')}",
+        "Result:",
+        f"- Status: {payload.get('quick_status', '')}",
+        f"- Mode: {quick_mode}",
+        f"- Restore safety: {restore_safe}",
+        f"- Readiness: {payload.get('doctor_readiness_status', '')}",
+        f"- Bundle: {payload.get('bundle_root', '') or '(not created)'}",
+        f"- Manifest: {payload.get('manifest_file', '') or '(not created)'}",
         "",
         "Created:",
         f"- Config: {payload.get('config_file', '') or '(not written)'}",
@@ -995,18 +1004,29 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
         f"- Bundle: {payload.get('bundle_root', '') or '(not created)'}",
         f"- Manifest: {payload.get('manifest_file', '') or '(not created)'}",
         "",
-        "Recommended setup:",
-        f"- Mode: {start.get('recommended_mode', '')}",
-        f"- Files included: {(start.get('source_scale_profile') or {}).get('total_files', 0)}",
+        "Token impact:",
+        f"- Files included: {scale_profile.get('total_files', 0)}",
         f"- Source tokens: {metrics.get('estimated_token_count_source', 0)}",
         f"- Skeleton tokens: {metrics.get('estimated_token_count_skeleton', 0)}",
-        f"- Estimated tokens saved: {metrics.get('estimated_tokens_saved', 0)}",
-        f"- Estimated token savings: {(start.get('metrics') or {}).get('estimated_savings_percent', 0)}%",
+        f"- Estimated tokens saved: {saved_tokens}",
+        f"- Estimated token savings: {savings_percent}%",
+        f"- Direction: {token_result}",
+        "",
+        "Recommended setup:",
+        f"- Mode: {start.get('recommended_mode', '')}",
+        f"- Files included: {scale_profile.get('total_files', 0)}",
+        f"- Source tokens: {metrics.get('estimated_token_count_source', 0)}",
+        f"- Skeleton tokens: {metrics.get('estimated_token_count_skeleton', 0)}",
+        f"- Estimated tokens saved: {saved_tokens}",
+        f"- Estimated token savings: {savings_percent}%",
         "",
         "Timing:",
         f"- Total: {timings.get('total', 0)} ms",
         f"- Start/doctor: {timings.get('start', 0)} ms",
         f"- Bundle write: {timings.get('bundle', 0)} ms",
+        "",
+        "Copy/paste next:",
+        primary_next or "(not available)",
         "",
         "Next commands:",
         f"- Inspect bundle: {payload.get('inspect_command_text', '') or '(not available)'}",

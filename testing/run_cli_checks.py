@@ -722,9 +722,12 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert "_compression_payload" not in payload["start"]
     assert "_compression_payload" not in payload["start"]["doctor"]
     assert "MCP-Skeleton Quick" in payload["summary_text"]
+    assert "Result:" in payload["summary_text"]
     assert "Bundle:" in payload["summary_text"]
+    assert "Token impact:" in payload["summary_text"]
     assert "Source tokens:" in payload["summary_text"]
     assert "Timing:" in payload["summary_text"]
+    assert "Copy/paste next:" in payload["summary_text"]
     assert "Next commands:" in payload["summary_text"]
     assert "speed_tip" in payload
     inspect = _run_cli_json(payload["inspect_command_args"])
