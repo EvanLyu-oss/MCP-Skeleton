@@ -81,6 +81,22 @@ That means we can reduce prompt weight without pretending the original source no
 
 ## Install
 
+macOS one-command local install from a cloned or downloaded checkout:
+
+```bash
+sh install.sh
+```
+
+This creates an isolated virtual environment under `~/.mcp-skeleton`, installs tokenizer-backed metrics, and links the `mcp-skeleton` command into `~/.local/bin`.
+
+If `~/.local/bin` is not on your PATH, add:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Python package install:
+
 ```bash
 python3 -m pip install .
 ```
@@ -102,7 +118,7 @@ py -3 -m pip install '.[context-metrics]'
 Zero-learning project setup:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context start --input-dir .
+mcp-skeleton start --input-dir .
 ```
 
 `context start` recommends a config, writes `.mcp-skeleton.json`, writes `mcp-skeleton-onboarding.md`, runs a restore-safety doctor check, and prints a copy/paste-ready command plus plain next steps. JSON output also includes `recommended_command_text` and `action_plan` for wrappers or test machines.
@@ -111,7 +127,7 @@ If you do not pass `--preset`, `--focus-mode`, or `--skeleton-density`, MCP-Skel
 One-command bundle creation:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context quick --input-dir .
+mcp-skeleton quick --input-dir .
 ```
 
 `context quick` runs the zero-friction setup, checks restore safety, writes a full bundle, and prints the bundle path plus inspect/restore commands. Use it when you want the shortest safe path from “I have a project” to “I have a shareable MCP-Skeleton bundle.”
@@ -121,7 +137,7 @@ Generated MCP-Skeleton work artifacts under `.workspace_ail/` are skipped by def
 Explain a bundle in plain language:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context explain \
+mcp-skeleton explain \
   --package-file /absolute/path/to/context-bundle/context_manifest.json
 ```
 
@@ -130,7 +146,7 @@ PYTHONPATH="$PWD" python3 -m cli context explain \
 Compress a directory:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context compress \
+mcp-skeleton compress \
   --preset codebase \
   --input-dir ./cli \
   --exclude "__pycache__/" \
@@ -144,7 +160,7 @@ For repeatable project-level filtering, add a `.mcp-skeletonignore` file at the 
 Compress the same directory with one symbols-focused skeleton:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context compress \
+mcp-skeleton compress \
   --preset codebase \
   --focus-mode symbols \
   --input-dir ./cli \
@@ -156,7 +172,7 @@ Presets do not change restore fidelity, but they do change the AI-facing skeleto
 Compress a long book draft with a tighter skeleton budget:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context compress \
+mcp-skeleton compress \
   --preset writing \
   --skeleton-density compact \
   --text-file /absolute/path/to/book-draft.md \
@@ -166,7 +182,7 @@ PYTHONPATH="$PWD" python3 -m cli context compress \
 Inspect it:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context inspect \
+mcp-skeleton inspect \
   --package-file /absolute/path/to/context-bundle/context_manifest.json \
   --emit-summary
 ```
@@ -174,7 +190,7 @@ PYTHONPATH="$PWD" python3 -m cli context inspect \
 Restore it:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context restore \
+mcp-skeleton restore \
   --package-file /absolute/path/to/context-bundle/context_manifest.json \
   --output-dir /absolute/path/to/restore-root \
   --json
@@ -183,7 +199,7 @@ PYTHONPATH="$PWD" python3 -m cli context restore \
 Create a patch bundle:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context patch \
+mcp-skeleton patch \
   --package-file /absolute/path/to/context-bundle/context_manifest.json \
   --input-dir /absolute/path/to/edited-project \
   --output-dir /absolute/path/to/context-patch \
@@ -193,7 +209,7 @@ PYTHONPATH="$PWD" python3 -m cli context patch \
 Preview replay without writing files:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context patch-apply \
+mcp-skeleton patch-apply \
   --patch-file /absolute/path/to/context-patch/patch_manifest.json \
   --source-package-file /absolute/path/to/context-bundle/context_manifest.json \
   --dry-run \
@@ -205,7 +221,7 @@ PYTHONPATH="$PWD" python3 -m cli context patch-apply \
 Preview one incremental replay with incremental metadata in the dry-run report:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context patch-apply \
+mcp-skeleton patch-apply \
   --patch-file /absolute/path/to/context-incremental-patch/patch_manifest.json \
   --source-package-file /absolute/path/to/context-incremental-bundle/context_manifest.json \
   --dry-run \
@@ -217,7 +233,7 @@ PYTHONPATH="$PWD" python3 -m cli context patch-apply \
 Compress only the git change surface:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context compress \
+mcp-skeleton compress \
   --input-dir ./cli \
   --incremental \
   --base-commit HEAD~1 \
@@ -241,8 +257,8 @@ The dogfood self-check recommends an ignored `.mcp-skeleton.json`, writes an onb
 Readiness doctor for one source:
 
 ```bash
-python3 -m cli context doctor --input-dir . --preset codebase --json
-python3 -m cli context doctor --input-dir . --preset codebase --write-report mcp-skeleton-readiness.md --json
+mcp-skeleton doctor --input-dir . --preset codebase --json
+mcp-skeleton doctor --input-dir . --preset codebase --write-report mcp-skeleton-readiness.md --json
 ```
 
 `context doctor` resolves config defaults, runs compression analysis, emits warnings/recommendations/explanations, restores into a temporary sandbox, and verifies the restored files against the original included hashes. It reports `readiness_status` as `ready`, `watch`, or `blocked`, plus `recommended_command_text` and `action_plan` so users know exactly what to do next.
@@ -250,7 +266,7 @@ python3 -m cli context doctor --input-dir . --preset codebase --write-report mcp
 If something goes wrong:
 
 ```bash
-python3 -m cli context quick --input-dir ./missing --json
+mcp-skeleton quick --input-dir ./missing --json
 ```
 
 Error JSON includes `recovery_steps` and, when MCP-Skeleton can suggest one safely, `fix_command_text`. Human-readable errors print the same recovery hints. `context quick` also refuses to write into a non-empty `--output-dir`, so an existing bundle is not overwritten by accident.
@@ -258,7 +274,7 @@ Error JSON includes `recovery_steps` and, when MCP-Skeleton can suggest one safe
 Validate one edited incremental surface:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context apply-check \
+mcp-skeleton apply-check \
   --package-file /absolute/path/to/context-incremental-bundle/context_manifest.json \
   --input-dir /absolute/path/to/edited-incremental-surface \
   --json
@@ -267,7 +283,7 @@ PYTHONPATH="$PWD" python3 -m cli context apply-check \
 Extract one writing-outline skeleton from long-form text:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context compress \
+mcp-skeleton compress \
   --preset writing \
   --focus-mode writing-outline \
   --text-file /absolute/path/to/book-draft.md \
@@ -277,7 +293,7 @@ PYTHONPATH="$PWD" python3 -m cli context compress \
 Replay one edited incremental surface:
 
 ```bash
-PYTHONPATH="$PWD" python3 -m cli context patch-apply \
+mcp-skeleton patch-apply \
   --patch-file /absolute/path/to/context-incremental-patch/patch_manifest.json \
   --source-package-file /absolute/path/to/context-incremental-bundle/context_manifest.json \
   --output-dir /absolute/path/to/replayed-incremental-surface \
@@ -340,10 +356,10 @@ CLI flags override config values, while config and CLI `--exclude` patterns are 
 Generate or validate a config file from the CLI:
 
 ```bash
-python3 -m cli context config init --json
-python3 -m cli context init --output-file .mcp-skeleton.yaml --json
-python3 -m cli context config --output-file .mcp-skeleton.json --json
-python3 -m cli context config --validate --config .mcp-skeleton.json --json
+mcp-skeleton config init --json
+mcp-skeleton init --output-file .mcp-skeleton.yaml --json
+mcp-skeleton config --output-file .mcp-skeleton.json --json
+mcp-skeleton config --validate --config .mcp-skeleton.json --json
 ```
 
 The config command reports supported presets, focus modes, density modes, and resolved defaults, which makes mis-typed values fail early before a long compression run.
@@ -351,7 +367,7 @@ The config command reports supported presets, focus modes, density modes, and re
 Ask MCP-Skeleton to recommend project defaults from a real input:
 
 ```bash
-python3 -m cli context config --recommend --input-dir . --preset codebase --output-file .mcp-skeleton.json --json
+mcp-skeleton config --recommend --input-dir . --preset codebase --output-file .mcp-skeleton.json --json
 ```
 
 Recommendation mode runs the same compression analysis used by `context compress`, then writes a reusable config with the suggested focus, density, and exclude patterns.
@@ -361,7 +377,7 @@ Add `--output-report-file mcp-skeleton-onboarding.md` to write an audit-friendly
 Install a lightweight git pre-commit hook for local self-use:
 
 ```bash
-python3 -m cli context install-hook --json
+mcp-skeleton install-hook --json
 ```
 
 The hook validates `.mcp-skeleton.json/yaml/yml` if present and runs CLI syntax checks. It does not apply patches, replay changes, or modify source files.

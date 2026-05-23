@@ -49,6 +49,14 @@ def _run_cli_json(args: list[str], *, cwd: Path = ROOT, expect: int = 0) -> dict
         raise SmokeFailure(f"command did not emit JSON: {' '.join(args)}\nSTDOUT:\n{proc.stdout}") from exc
 
 
+def _run_top_level_cli_json(args: list[str], *, cwd: Path = ROOT, expect: int = 0) -> dict[str, Any]:
+    proc = _run([sys.executable, "-m", "cli", *args], cwd=cwd, expect=expect)
+    try:
+        return json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        raise SmokeFailure(f"top-level command did not emit JSON: {' '.join(args)}\nSTDOUT:\n{proc.stdout}") from exc
+
+
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -571,7 +579,7 @@ def _check_context_doctor_json(workspace: Path) -> None:
     assert payload["restore_check"]["missing_count"] == 0
     assert payload["restore_check"]["mismatched_count"] == 0
     assert payload["recommended_command_args"][-1] == "--json"
-    assert payload["recommended_command_text"].startswith("python3 -m cli context compress")
+    assert payload["recommended_command_text"].startswith("mcp-skeleton compress")
     assert payload["action_plan"]
     assert payload["next_steps"] == [item["message"] for item in payload["action_plan"]]
     assert payload["compression_explanations"]
@@ -624,8 +632,8 @@ def _check_context_start_json(workspace: Path) -> None:
     assert payload["recommended_command_args"][:3] == ["context", "compress", "--input-dir"]
     assert "--config" in payload["recommended_command_args"]
     assert payload["recommended_command_args"][-1] == "--json"
-    assert payload["recommended_command_text"].startswith("python3 -m cli context compress")
-    assert payload["next_command"].startswith("python3 -m cli context compress")
+    assert payload["recommended_command_text"].startswith("mcp-skeleton compress")
+    assert payload["next_command"].startswith("mcp-skeleton compress")
     assert "Restore safety: OK" in payload["summary_text"]
     assert "Status:" in payload["summary_text"]
     assert "Copy/paste this command:" in payload["summary_text"]
@@ -676,8 +684,8 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert payload["start"]["entrypoint"] == "context-start"
     assert payload["inspect_command_args"][:3] == ["context", "inspect", "--package-file"]
     assert payload["restore_command_args"][:3] == ["context", "restore", "--package-file"]
-    assert payload["inspect_command_text"].startswith("python3 -m cli context inspect")
-    assert payload["restore_command_text"].startswith("python3 -m cli context restore")
+    assert payload["inspect_command_text"].startswith("mcp-skeleton inspect")
+    assert payload["restore_command_text"].startswith("mcp-skeleton restore")
     assert "MCP-Skeleton Quick" in payload["summary_text"]
     assert "Bundle:" in payload["summary_text"]
     assert "Next commands:" in payload["summary_text"]
@@ -720,11 +728,24 @@ def _check_context_explain_json(workspace: Path) -> None:
     assert payload["inspect"]["source_label"] == project.name
     assert payload["action_plan"]
     assert payload["next_steps"] == [item["message"] for item in payload["action_plan"]]
-    assert any("context restore" in item["message"] for item in payload["action_plan"])
+    assert any("mcp-skeleton restore" in item["message"] for item in payload["action_plan"])
     assert "MCP-Skeleton Explain" in payload["summary_text"]
     assert "What this is:" in payload["summary_text"]
     assert "Why it is useful:" in payload["summary_text"]
     assert "Next steps:" in payload["summary_text"]
+
+
+def _check_top_level_cli_alias_json(workspace: Path) -> None:
+    project = workspace / "alias_project"
+    (project / "src").mkdir(parents=True)
+    (project / "src" / "app.py").write_text("VALUE = 'alias-ready'\n", encoding="utf-8")
+    payload = _run_top_level_cli_json(["quick", "--input-dir", str(project), "--json"])
+    assert payload["status"] == "ok"
+    assert payload["entrypoint"] == "context-quick"
+    assert payload["quick_status"] == "ready"
+    assert payload["inspect_command_text"].startswith("mcp-skeleton inspect")
+    assert payload["restore_command_text"].startswith("mcp-skeleton restore")
+    assert payload["start"]["recommended_command_text"].startswith("mcp-skeleton compress")
 
 
 def _check_context_auto_defaults_json(workspace: Path) -> None:
@@ -1735,7 +1756,7 @@ def _check_error_recovery_guidance_json(workspace: Path) -> None:
     assert conflict["error"]["code"] == "output_dir_not_empty"
     assert conflict["error"]["details"]["recovery_steps"]
     fix_command = conflict["error"]["details"]["fix_command_text"]
-    assert "context quick" in fix_command
+    assert "mcp-skeleton quick" in fix_command
     assert fix_command.count("--output-dir") == 1
     assert f" --output-dir {output_dir} " not in f" {fix_command} "
     assert f"{output_dir}-new" in fix_command
@@ -1886,6 +1907,7 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("context_start_json_ok", _check_context_start_json),
     ("context_quick_json_ok", _check_context_quick_json),
     ("context_explain_json_ok", _check_context_explain_json),
+    ("top_level_cli_alias_json_ok", _check_top_level_cli_alias_json),
     ("context_auto_defaults_json_ok", _check_context_auto_defaults_json),
     ("context_bundle_json_ok", _check_bundle_outputs),
     ("context_compress_incremental_clean_diagnostics_json_ok", _check_clean_incremental_diagnostics),

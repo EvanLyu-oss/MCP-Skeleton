@@ -5,6 +5,7 @@
 - added `context start` as a zero-friction onboarding command that writes config/report files, runs doctor, and prints the next compression command
 - added `context quick` as a one-command start + restore-safety check + bundle workflow for zero-learning bundle creation
 - added `context explain` to translate an existing bundle into plain-language safety, compression, and next-step guidance
+- added direct `mcp-skeleton quick/start/doctor/...` top-level aliases and a macOS `install.sh` for lower-friction local installation
 - added `context doctor --write-report` for Markdown readiness reports
 - added automatic preset/focus/density defaults for common directory, code-file, and prose-file inputs
 - hardened dogfood, smoke, and release readiness checks against local `context start` onboarding artifacts in the repository root

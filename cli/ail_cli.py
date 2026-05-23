@@ -52,6 +52,23 @@ CONTEXT_CONFIG_TEMPLATE = {
 }
 CONTEXT_CONFIG_FILENAMES = [".mcp-skeleton.json", ".mcp-skeleton.yaml", ".mcp-skeleton.yml"]
 IGNORE_CWD_CONFIG_ENV = "MCP_SKELETON_IGNORE_CWD_CONFIG"
+CONTEXT_SUBCOMMANDS = {
+    "compress",
+    "restore",
+    "inspect",
+    "explain",
+    "apply-check",
+    "preset",
+    "config",
+    "init",
+    "install-hook",
+    "doctor",
+    "start",
+    "quick",
+    "bundle",
+    "patch",
+    "patch-apply",
+}
 CODELIKE_EXTENSIONS = {
     ".py", ".js", ".ts", ".tsx", ".jsx", ".go", ".rs", ".java", ".c", ".cpp", ".h", ".hpp",
     ".css", ".scss", ".html", ".vue", ".sql", ".sh", ".rb", ".php", ".swift", ".kt",
@@ -128,9 +145,9 @@ def _build_error_guidance(code: str, message: str) -> dict[str, Any]:
     elif "requires exactly one input source" in lower or "did not receive a usable input source" in lower:
         recovery_steps = [
             "provide exactly one source: --input-dir, --input-file, --text-file, or --text",
-            "for the current repository, try: python3 -m cli context quick --input-dir .",
+            "for the current repository, try: mcp-skeleton quick --input-dir .",
         ]
-        fix_command_text = "python3 -m cli context quick --input-dir ."
+        fix_command_text = "mcp-skeleton quick --input-dir ."
     elif "requires --output-dir" in lower:
         recovery_steps = [
             "add --output-dir with a safe empty directory for restored or replayed files",
@@ -426,8 +443,17 @@ def _write_text_report_file(output_file: Path | None, report_text: str, *, force
 def _format_cli_command(command_args: list[Any]) -> str:
     if not command_args:
         return ""
-    quoted = " ".join(shlex.quote(str(item)) for item in command_args)
-    return f"python3 -m cli {quoted}"
+    normalized = list(command_args)
+    if normalized and normalized[0] == "context" and len(normalized) > 1 and normalized[1] in CONTEXT_SUBCOMMANDS:
+        normalized = normalized[1:]
+    quoted = " ".join(shlex.quote(str(item)) for item in normalized)
+    return f"mcp-skeleton {quoted}"
+
+
+def _normalize_top_level_context_aliases(argv: list[str]) -> list[str]:
+    if argv and argv[0] in CONTEXT_SUBCOMMANDS:
+        return ["context", *argv]
+    return argv
 
 
 def _build_readiness_action_plan(
@@ -1304,8 +1330,8 @@ def _render_context_config_recommend_report(payload: dict[str, Any]) -> str:
             "",
             "## Next Steps",
             "1. Review the generated `.mcp-skeleton.json` before committing it.",
-            "2. Run `python3 -m cli context config --validate --config .mcp-skeleton.json --json`.",
-            "3. Reuse `recommended_command_args` for a direct trial compression, or run `python3 -m cli context compress --input-dir . --json` and confirm the reported config file is used.",
+            "2. Run `mcp-skeleton config --validate --config .mcp-skeleton.json --json`.",
+            "3. Reuse `recommended_command_args` for a direct trial compression, or run `mcp-skeleton compress --input-dir . --json` and confirm the reported config file is used.",
             "",
         ]
     )
@@ -1578,7 +1604,8 @@ def _build_context_config_payload(args: argparse.Namespace) -> tuple[dict[str, A
 
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
-    args = parser.parse_args(argv)
+    normalized_argv = _normalize_top_level_context_aliases(list(sys.argv[1:] if argv is None else argv))
+    args = parser.parse_args(normalized_argv)
     if not getattr(args, "command", None):
         parser.print_help()
         return EXIT_USAGE
@@ -1596,7 +1623,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def cmd_context(args: argparse.Namespace) -> int:
     command = getattr(args, "context_command", None)
-    supported = {"compress", "restore", "inspect", "explain", "apply-check", "preset", "config", "init", "install-hook", "doctor", "start", "quick", "bundle", "patch", "patch-apply"}
+    supported = CONTEXT_SUBCOMMANDS
     if command not in supported:
         return _emit_command_error(args, EXIT_USAGE, "invalid_usage", "supported context subcommands: compress, restore, inspect, explain, apply-check, preset, config, init, install-hook, doctor, start, quick, bundle, patch, patch-apply")
 
@@ -1909,7 +1936,16 @@ def _render_simple_summary(payload: dict[str, Any], keys: list[str]) -> str:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="mcp-skeleton", description="MCP-Skeleton: lossless context compression, exact restore, patch, and replay workflows")
+    parser = argparse.ArgumentParser(
+        prog="mcp-skeleton",
+        description="MCP-Skeleton: lossless context compression, exact restore, patch, and replay workflows",
+        epilog=(
+            "Common shortcuts: mcp-skeleton quick --input-dir . | "
+            "mcp-skeleton start --input-dir . | "
+            "mcp-skeleton doctor --input-dir . | "
+            "mcp-skeleton explain --package-file context_manifest.json"
+        ),
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     context_parser = subparsers.add_parser("context", help="Compress long code or text context into an MCP skeleton and restore it later")
