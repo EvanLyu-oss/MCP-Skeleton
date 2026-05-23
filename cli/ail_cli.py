@@ -1358,6 +1358,12 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
         f"- Readiness: {payload.get('doctor_readiness_status', '')}",
         f"- Bundle: {payload.get('bundle_root', '') or '(not created)'}",
         f"- Manifest: {payload.get('manifest_file', '') or '(not created)'}",
+        "",
+        "Use this now:",
+        f"- Give this skeleton to AI/IDE: {handoff.get('skeleton_file', '') or '(not available)'}",
+        f"- Estimated savings: {saved_tokens} tokens ({savings_percent}%)",
+        f"- Restore command: {payload.get('restore_command_text', '') or '(not available)'}",
+        f"- Inspect command: {payload.get('inspect_command_text', '') or '(not available)'}",
     ]
     if payload.get("reuse_status") == "reused":
         lines.extend([

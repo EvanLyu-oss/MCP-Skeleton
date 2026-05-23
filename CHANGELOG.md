@@ -15,6 +15,7 @@
 - added `context demo` / `mcp-skeleton demo` so new users can run a complete sample compression and restore-safety flow without preparing a project
 - added `mcp-skeleton version`, doctor install-path hints, and `install.sh --update/--uninstall` for simpler install lifecycle management
 - improved `context quick` human output with a first-screen result panel, token impact, timing, and copy/paste next command
+- improved `context quick` first-screen handoff with the skeleton file, estimated savings, restore command, and inspect command
 - added explicit `context quick` AI/IDE handoff guidance for the skeleton file, bundle folder, and restore manifest
 - added `context quick --open` plus copy/paste `open <bundle>` guidance for locating generated bundles on macOS
 - added `context quick --copy-command` plus copy/paste `cat context_skeleton.mcp | pbcopy` guidance for handing skeletons to AI/IDE tools
