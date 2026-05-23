@@ -580,6 +580,9 @@ def _check_context_doctor_json(workspace: Path) -> None:
     assert payload["restore_check"]["mismatched_count"] == 0
     assert payload["recommended_command_args"][-1] == "--json"
     assert payload["recommended_command_text"].startswith("mcp-skeleton compress")
+    assert payload["timings_ms"]["total"] >= payload["timings_ms"]["compress"] >= 0
+    assert payload["timings_ms"]["restore_check"] >= 0
+    assert "Total time:" in payload["summary_text"]
     assert payload["action_plan"]
     assert payload["next_steps"] == [item["message"] for item in payload["action_plan"]]
     assert payload["compression_explanations"]
@@ -634,8 +637,12 @@ def _check_context_start_json(workspace: Path) -> None:
     assert payload["recommended_command_args"][-1] == "--json"
     assert payload["recommended_command_text"].startswith("mcp-skeleton compress")
     assert payload["next_command"].startswith("mcp-skeleton compress")
+    assert payload["timings_ms"]["total"] >= payload["timings_ms"]["config_recommend"] >= 0
+    assert payload["timings_ms"]["doctor"] >= 0
     assert "Restore safety: OK" in payload["summary_text"]
     assert "Status:" in payload["summary_text"]
+    assert "Source tokens:" in payload["summary_text"]
+    assert "Timing:" in payload["summary_text"]
     assert "Copy/paste this command:" in payload["summary_text"]
     assert payload["action_plan"]
     assert payload["next_steps"] == [item["message"] for item in payload["action_plan"]]
@@ -686,8 +693,12 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert payload["restore_command_args"][:3] == ["context", "restore", "--package-file"]
     assert payload["inspect_command_text"].startswith("mcp-skeleton inspect")
     assert payload["restore_command_text"].startswith("mcp-skeleton restore")
+    assert payload["timings_ms"]["total"] >= payload["timings_ms"]["bundle"] >= 0
+    assert payload["timings_ms"]["start"] >= 0
     assert "MCP-Skeleton Quick" in payload["summary_text"]
     assert "Bundle:" in payload["summary_text"]
+    assert "Source tokens:" in payload["summary_text"]
+    assert "Timing:" in payload["summary_text"]
     assert "Next commands:" in payload["summary_text"]
     inspect = _run_cli_json(payload["inspect_command_args"])
     assert inspect["status"] == "ok"

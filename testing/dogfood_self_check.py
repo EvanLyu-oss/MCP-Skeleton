@@ -59,6 +59,8 @@ def _expected_files(source_root: Path) -> list[str]:
         current_path = Path(current_root)
         dirnames[:] = [name for name in dirnames if name not in SKIP_DIR_NAMES]
         for filename in sorted(filenames):
+            if filename in DOGFOOD_LOCAL_ARTIFACTS:
+                continue
             source_path = current_path / filename
             rel_path = source_path.relative_to(source_root).as_posix()
             if any(rel_path == prefix or rel_path.startswith(f"{prefix}/") for prefix in EXCLUDED_PREFIXES):

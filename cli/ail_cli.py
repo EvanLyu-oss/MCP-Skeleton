@@ -7,6 +7,7 @@ import os
 import shlex
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -456,6 +457,10 @@ def _normalize_top_level_context_aliases(argv: list[str]) -> list[str]:
     return argv
 
 
+def _elapsed_ms(started_at: float) -> float:
+    return round((time.perf_counter() - started_at) * 1000.0, 2)
+
+
 def _build_readiness_action_plan(
     *,
     readiness_status: str,
@@ -579,7 +584,9 @@ def _compare_doctor_restore(package_payload: dict[str, Any], *, output_dir: Path
 
 
 def _build_context_doctor_payload(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    total_started = time.perf_counter()
     config_file, config_values, context_defaults = _resolve_context_defaults(args)
+    compress_started = time.perf_counter()
     compression_payload = build_context_compress_payload(
         inline_text=_inline_text(args),
         text_file=_opt_path(args, "text_file"),
@@ -596,8 +603,11 @@ def _build_context_doctor_payload(args: argparse.Namespace) -> tuple[dict[str, A
         config_file=config_file,
         config_values=config_values,
     )
+    compress_ms = _elapsed_ms(compress_started)
+    restore_started = time.perf_counter()
     with tempfile.TemporaryDirectory(prefix="mcp_skeleton_doctor.") as tmp:
         restore_check = _compare_doctor_restore(compression_payload, output_dir=Path(tmp))
+    restore_check_ms = _elapsed_ms(restore_started)
 
     warnings = list(compression_payload.get("compression_warnings") or [])
     recommendations = list(compression_payload.get("compression_recommendations") or [])
@@ -666,6 +676,11 @@ def _build_context_doctor_payload(args: argparse.Namespace) -> tuple[dict[str, A
         "recommended_command_args": recommended_command_args,
         "recommended_command_text": _format_cli_command(recommended_command_args),
         "restore_check": restore_check,
+        "timings_ms": {
+            "compress": compress_ms,
+            "restore_check": restore_check_ms,
+            "total": 0.0,
+        },
         "checks": blocking_checks + watch_checks,
         "action_plan": action_plan,
         "next_steps": [
@@ -679,6 +694,8 @@ def _build_context_doctor_payload(args: argparse.Namespace) -> tuple[dict[str, A
     )
     payload["report_file"] = report_path
     payload["report_written"] = report_written
+    payload["timings_ms"]["total"] = _elapsed_ms(total_started)
+    payload["summary_text"] = _render_context_doctor_summary(payload)
     return payload, EXIT_OK if not failed_blocks else EXIT_VALIDATION
 
 
@@ -755,6 +772,8 @@ def _render_context_doctor_report(payload: dict[str, Any]) -> str:
 def _render_context_doctor_summary(payload: dict[str, Any]) -> str:
     restore_check = payload.get("restore_check") or {}
     action_plan = list(payload.get("action_plan") or [])
+    timings = payload.get("timings_ms") or {}
+    metrics = payload.get("metrics") or {}
     lines = [
         "MCP-Skeleton Doctor",
         "",
@@ -762,6 +781,8 @@ def _render_context_doctor_summary(payload: dict[str, Any]) -> str:
         f"Restore status: {restore_check.get('status', '')}",
         f"Missing files: {restore_check.get('missing_count', 0)}",
         f"Mismatched files: {restore_check.get('mismatched_count', 0)}",
+        f"Estimated token savings: {metrics.get('estimated_tokens_saved', '')}",
+        f"Total time: {timings.get('total', '')} ms",
         f"Recommended command: {payload.get('recommended_command_text', '') or '(not available)'}",
         "",
         "Next steps:",
@@ -783,6 +804,7 @@ def _render_context_start_summary(payload: dict[str, Any]) -> str:
     config_state = "written" if payload.get("config_written") else "already exists"
     report_state = "written" if payload.get("report_written") else "already exists"
     scale_profile = payload.get("source_scale_profile") or {}
+    timings = payload.get("timings_ms") or {}
     lines = [
         "MCP-Skeleton Start",
         "",
@@ -797,7 +819,15 @@ def _render_context_start_summary(payload: dict[str, Any]) -> str:
         "Recommended setup:",
         f"- Mode: {payload.get('recommended_mode', '')}",
         f"- Files included: {scale_profile.get('total_files', 0)}",
+        f"- Source tokens: {metrics.get('estimated_token_count_source', 0)}",
+        f"- Skeleton tokens: {metrics.get('estimated_token_count_skeleton', 0)}",
+        f"- Estimated tokens saved: {metrics.get('estimated_tokens_saved', 0)}",
         f"- Estimated token savings: {metrics.get('estimated_savings_percent', 0)}%",
+        "",
+        "Timing:",
+        f"- Total: {timings.get('total', 0)} ms",
+        f"- Recommend config: {timings.get('config_recommend', 0)} ms",
+        f"- Restore safety check: {timings.get('doctor', 0)} ms",
         "",
         "Copy/paste this command:",
         command or "(not available)",
@@ -831,6 +861,8 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
     start = payload.get("start") or {}
     bundle = payload.get("bundle") or {}
     restore_safe = "OK" if payload.get("restore_safe") else "BLOCKED"
+    metrics = start.get("metrics") or {}
+    timings = payload.get("timings_ms") or {}
     lines = [
         "MCP-Skeleton Quick",
         "",
@@ -847,7 +879,15 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
         "Recommended setup:",
         f"- Mode: {start.get('recommended_mode', '')}",
         f"- Files included: {(start.get('source_scale_profile') or {}).get('total_files', 0)}",
+        f"- Source tokens: {metrics.get('estimated_token_count_source', 0)}",
+        f"- Skeleton tokens: {metrics.get('estimated_token_count_skeleton', 0)}",
+        f"- Estimated tokens saved: {metrics.get('estimated_tokens_saved', 0)}",
         f"- Estimated token savings: {(start.get('metrics') or {}).get('estimated_savings_percent', 0)}%",
+        "",
+        "Timing:",
+        f"- Total: {timings.get('total', 0)} ms",
+        f"- Start/doctor: {timings.get('start', 0)} ms",
+        f"- Bundle write: {timings.get('bundle', 0)} ms",
         "",
         "Next commands:",
         f"- Inspect bundle: {payload.get('inspect_command_text', '') or '(not available)'}",
@@ -910,6 +950,7 @@ def _quick_output_dir_conflict_payload(output_dir: Path) -> dict[str, Any] | Non
 
 
 def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    total_started = time.perf_counter()
     output_dir = _opt_path(args, "output_dir")
     if output_dir is not None:
         conflict_payload = _quick_output_dir_conflict_payload(output_dir)
@@ -917,7 +958,9 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
             return conflict_payload, EXIT_USAGE
 
     start_args = _clone_args(args, context_command="start", output_file=None)
+    start_started = time.perf_counter()
     start_payload, start_exit = _build_context_start_payload(start_args)
+    start_ms = _elapsed_ms(start_started)
     restore_safe = bool(start_payload.get("restore_safe"))
     if start_exit != EXIT_OK or not restore_safe:
         payload = {
@@ -934,6 +977,11 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
             "inspect_command_text": "",
             "restore_command_args": [],
             "restore_command_text": "",
+            "timings_ms": {
+                "start": start_ms,
+                "bundle": 0.0,
+                "total": _elapsed_ms(total_started),
+            },
             "next_steps": [
                 "quick stopped before creating a bundle because restore safety is not ok",
                 "review start.doctor.restore_check and rerun context quick after fixing the input/config",
@@ -953,6 +1001,7 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
         output_file=None,
     )
     config_file, config_values, context_defaults = _resolve_context_defaults(bundle_args)
+    bundle_started = time.perf_counter()
     bundle_payload = build_context_bundle_payload(
         inline_text=_inline_text(bundle_args),
         text_file=_opt_path(bundle_args, "text_file"),
@@ -975,6 +1024,7 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
         config_file=config_file,
         config_values=config_values,
     )
+    bundle_ms = _elapsed_ms(bundle_started)
     bundle_root = str(bundle_payload.get("bundle_root") or "")
     manifest_file = str(Path(bundle_root) / "context_manifest.json") if bundle_root else ""
     inspect_args = ["context", "inspect", "--package-file", manifest_file, "--json"] if manifest_file else []
@@ -998,12 +1048,20 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
         "restore_command_text": _format_cli_command(restore_args),
         "start": start_payload,
         "bundle": bundle_payload,
+        "timings_ms": {
+            "start": start_ms,
+            "start_config_recommend": (start_payload.get("timings_ms") or {}).get("config_recommend", 0.0),
+            "start_doctor": (start_payload.get("timings_ms") or {}).get("doctor", 0.0),
+            "bundle": bundle_ms,
+            "total": 0.0,
+        },
         "next_steps": [
             "share the bundle directory or zip with the downstream AI/IDE",
             "keep the manifest file so exact restore remains available",
             "use the restore command if you need to reconstruct the original input later",
         ],
     }
+    payload["timings_ms"]["total"] = _elapsed_ms(total_started)
     payload["summary_text"] = _render_context_quick_summary(payload)
     return payload, EXIT_OK
 
@@ -1172,6 +1230,7 @@ def _build_start_next_command_args(args: argparse.Namespace, *, config_path: Pat
 
 
 def _build_context_start_payload(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    total_started = time.perf_counter()
     config_path, report_path = _default_start_output_paths(args)
     source_root = _start_source_root(args)
     force = bool(getattr(args, "force", False))
@@ -1186,7 +1245,9 @@ def _build_context_start_payload(args: argparse.Namespace) -> tuple[dict[str, An
         output_file=config_path if write_config else None,
         output_report_file=report_path if write_report else None,
     )
+    recommend_started = time.perf_counter()
     recommend_payload, _recommend_exit = _build_context_config_payload(recommend_args)
+    recommend_ms = _elapsed_ms(recommend_started)
     recommended_config = dict(recommend_payload.get("config") or {})
     self_excludes = [
         _relative_start_exclude(config_path, source_root=source_root),
@@ -1208,7 +1269,9 @@ def _build_context_start_payload(args: argparse.Namespace) -> tuple[dict[str, An
         skeleton_density=recommended_config.get("skeleton_density") or getattr(args, "skeleton_density", None),
         exclude_patterns=list(recommended_config.get("exclude") or getattr(args, "exclude_patterns", None) or []),
     )
+    doctor_started = time.perf_counter()
     doctor_payload, doctor_exit = _build_context_doctor_payload(doctor_args)
+    doctor_ms = _elapsed_ms(doctor_started)
     metrics = dict(doctor_payload.get("metrics") or {})
     source_tokens = int(metrics.get("estimated_token_count_source") or 0)
     saved_tokens = int(metrics.get("estimated_tokens_saved") or 0)
@@ -1256,11 +1319,19 @@ def _build_context_start_payload(args: argparse.Namespace) -> tuple[dict[str, An
         "explanations": list(doctor_payload.get("compression_explanations") or []),
         "recommendation": recommend_payload,
         "doctor": doctor_payload,
+        "timings_ms": {
+            "config_recommend": recommend_ms,
+            "doctor": doctor_ms,
+            "doctor_compress": (doctor_payload.get("timings_ms") or {}).get("compress", 0.0),
+            "doctor_restore_check": (doctor_payload.get("timings_ms") or {}).get("restore_check", 0.0),
+            "total": 0.0,
+        },
         "action_plan": action_plan,
         "next_steps": [
             item["message"] for item in action_plan
         ],
     }
+    payload["timings_ms"]["total"] = _elapsed_ms(total_started)
     payload["summary_text"] = _render_context_start_summary(payload)
     return payload, doctor_exit
 
