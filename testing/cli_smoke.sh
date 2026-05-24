@@ -303,7 +303,25 @@ compress = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 restore = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
 original = Path(sys.argv[3])
 restored = Path(sys.argv[4])
-skip_names = {".git", "__pycache__", ".pytest_cache", ".workspace_ail"}
+skip_names = {
+    ".cache",
+    ".git",
+    ".mypy_cache",
+    ".next",
+    ".nuxt",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    ".turbo",
+    ".venv",
+    ".workspace_ail",
+    "__pycache__",
+    "build",
+    "coverage",
+    "dist",
+    "node_modules",
+    "venv",
+}
 
 assert compress["status"] == "ok"
 assert restore["status"] == "ok"
@@ -421,10 +439,11 @@ restored = Path(sys.argv[2])
 summary = payload["source_summary"]
 assert payload["status"] == "ok"
 assert summary["filter_patterns"] == ["logs/", "node_modules/", "*.tmp", "dist/", "*.map"]
-assert summary["filtered_dir_count"] == 3
+assert summary["filtered_dir_count"] == 1
 assert summary["filtered_file_count"] == 2
-assert summary["filtered_path_count"] == 5
-for rel in ["logs", "node_modules", "dist", "src/app.py.map", "tmp/cache.tmp"]:
+assert summary["filtered_path_count"] == 3
+assert {"node_modules", "dist"}.issubset(set(summary["skipped_dirs"]))
+for rel in ["logs", "src/app.py.map", "tmp/cache.tmp"]:
     assert rel in summary["filtered_paths_preview"]
 blob = payload["restore_package"]
 decoded = json.loads(zlib.decompress(base64.b64decode(blob["payload"])).decode("utf-8"))

@@ -9,8 +9,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from cli.context_compression import SKIP_DIR_NAMES  # noqa: E402
+
 RESULTS_DIR = ROOT / "testing" / "results"
 DOGFOOD_ROOT = RESULTS_DIR / "dogfood-self-check"
 BUNDLE_DIR = DOGFOOD_ROOT / "context-bundle"
@@ -20,7 +23,6 @@ SUMMARY_JSON = DOGFOOD_ROOT / "dogfood_self_check.json"
 CONFIG_FILE = DOGFOOD_ROOT / ".mcp-skeleton.json"
 ONBOARDING_REPORT = DOGFOOD_ROOT / "mcp-skeleton-onboarding.md"
 
-SKIP_DIR_NAMES = {".git", "__pycache__", ".pytest_cache", ".workspace_ail"}
 DOGFOOD_LOCAL_ARTIFACTS = {
     ".mcp-skeleton.json",
     ".mcp-skeleton.yaml",

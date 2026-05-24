@@ -18,7 +18,25 @@ from typing import Any
 
 MANIFEST_VERSION = "mcp_context_bundle.v1"
 SKELETON_LANGUAGE = "MCP-SKL.v1"
-SKIP_DIR_NAMES = {".git", "__pycache__", ".pytest_cache", ".workspace_ail"}
+SKIP_DIR_NAMES = {
+    ".git",
+    "__pycache__",
+    ".pytest_cache",
+    ".workspace_ail",
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+    ".next",
+    ".nuxt",
+    ".venv",
+    "venv",
+    ".tox",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".turbo",
+    ".cache",
+}
 CODE_EXTENSIONS = {
     ".py", ".js", ".ts", ".tsx", ".jsx", ".vue", ".go", ".rs", ".java", ".c", ".cpp", ".h", ".hpp",
     ".css", ".scss", ".html", ".json", ".yaml", ".yml", ".toml", ".sh", ".bash", ".zsh", ".rb", ".php",
@@ -1470,6 +1488,12 @@ def _build_directory_source(
         "filtered_file_count": len(filtered_files),
         "filtered_path_count": len(filtered_dirs) + len(filtered_files),
         "filtered_paths_preview": sorted(filtered_dirs + filtered_files)[:80],
+        "default_noise_protection": {
+            "status": "active",
+            "skipped_dir_names": sorted(SKIP_DIR_NAMES),
+            "skipped_dir_count": len(skipped_dirs),
+            "skipped_dirs_preview": sorted(skipped_dirs)[:80],
+        },
         "total_bytes": total_bytes,
         "total_chars": total_chars,
         "tree": [entry["relative_path"] for entry in sorted(skeleton_entries, key=lambda item: item["relative_path"])],
@@ -2265,6 +2289,9 @@ def _build_context_compress_summary_text(payload: dict[str, Any]) -> str:
     if explanations:
         lines.append(f"compression_explanation_count: {len(explanations)}")
         lines.append(f"first_compression_explanation: {explanations[0].get('message', '')}")
+        noise = next((item for item in explanations if item.get("code") == "default_noise_protection"), None)
+        if noise:
+            lines.append(f"default_noise_protection: {noise.get('message', '')}")
     recommended_command_args = list(payload.get("recommended_command_args") or [])
     if recommended_command_args:
         lines.append(f"recommended_command_arg_count: {len(recommended_command_args)}")
@@ -3858,6 +3885,17 @@ def _build_compression_advice(
                     "code": "exclude_rationale",
                     "message": "recommended excludes target dependency, build, cache, virtualenv, and generated artifact paths before compression",
                     "suggested_excludes": preset_excludes,
+                }
+            )
+        skipped_dir_count = int(source_summary.get("skipped_dir_count", 0) or 0)
+        if skipped_dir_count:
+            explanations.append(
+                {
+                    "code": "default_noise_protection",
+                    "message": f"default noise protection skipped {skipped_dir_count} dependency, build, cache, or VCS directories before compression",
+                    "skipped_dir_count": skipped_dir_count,
+                    "skipped_dirs_preview": list(source_summary.get("skipped_dirs") or [])[:20],
+                    "skipped_dir_names": list(source_summary.get("skip_dir_names") or []),
                 }
             )
         if suggested_focus != focus_mode or suggested_density != skeleton_density:

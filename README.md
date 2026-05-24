@@ -68,7 +68,7 @@ Stable in `0.1.x`:
 
 - compressing text, one file, or one directory into `MCP-SKL.v1` plus an exact restore package
 - inspecting and restoring text, file, directory, and incremental directory bundles
-- full directory restore reconstructs every file, symlink, and empty directory included in the restore package; by default directory compression skips `.git`, `__pycache__`, and `.pytest_cache`
+- full directory restore reconstructs every file, symlink, and empty directory included in the restore package; by default directory compression skips common VCS, dependency, build, virtualenv, and cache directories such as `.git`, `node_modules`, `dist`, `build`, `.next`, `.venv`, `__pycache__`, and `.pytest_cache`
 - non-UTF-8 and UTF-16/BOM text inputs keep original bytes for restore while using best-effort decode fallback for skeleton structure
 - `apply-check` structural drift gates for text, files, directories, and incremental directory surfaces
 - patch export and patch replay for text, files, directories, and incremental bundles
@@ -284,7 +284,9 @@ mcp-skeleton compress \
   --json
 ```
 
-For repeatable project-level filtering, add a `.mcp-skeletonignore` file at the input directory root. Blank lines and `#` comments are ignored; simple relative paths and globs such as `dist/`, `node_modules/`, `*.map`, and `generated/*.json` are supported.
+For speed and lower token noise, directory compression has default noise protection for common VCS, dependency, build, virtualenv, and cache directories: `.git`, `node_modules`, `dist`, `build`, `coverage`, `.next`, `.nuxt`, `.venv`, `venv`, `.tox`, `.mypy_cache`, `.ruff_cache`, `.turbo`, `.cache`, `__pycache__`, `.pytest_cache`, and `.workspace_ail`. These skipped directories are reported in `source_summary.skipped_dirs` and explained in `compression_explanations`.
+
+For repeatable project-level filtering beyond those defaults, add a `.mcp-skeletonignore` file at the input directory root. Blank lines and `#` comments are ignored; simple relative paths and globs such as `logs/`, `*.map`, and `generated/*.json` are supported.
 
 Compress the same directory with one symbols-focused skeleton:
 

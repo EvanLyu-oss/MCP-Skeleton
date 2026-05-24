@@ -1392,6 +1392,28 @@ def _check_apply_check_drift(workspace: Path) -> None:
 
 
 def _check_directory_filtering(workspace: Path) -> None:
+    noisy_project = workspace / "default_noise_project"
+    (noisy_project / "src").mkdir(parents=True)
+    (noisy_project / "node_modules" / "pkg").mkdir(parents=True)
+    (noisy_project / "dist").mkdir()
+    (noisy_project / ".next" / "cache").mkdir(parents=True)
+    (noisy_project / ".venv" / "lib").mkdir(parents=True)
+    (noisy_project / "src" / "app.py").write_text("def keep() -> str:\n    return 'source'\n", encoding="utf-8")
+    (noisy_project / "node_modules" / "pkg" / "index.js").write_text("dependency\n", encoding="utf-8")
+    (noisy_project / "dist" / "bundle.js").write_text("build artifact\n", encoding="utf-8")
+    (noisy_project / ".next" / "cache" / "page.js").write_text("next cache\n", encoding="utf-8")
+    (noisy_project / ".venv" / "lib" / "site.py").write_text("venv artifact\n", encoding="utf-8")
+    default_noise = _run_cli_json(["context", "compress", "--input-dir", str(noisy_project), "--json"])
+    default_paths = {item["relative_path"] for item in default_noise["source_summary"]["entries"]}
+    assert "src/app.py" in default_paths
+    assert "node_modules/pkg/index.js" not in default_paths
+    assert "dist/bundle.js" not in default_paths
+    assert ".next/cache/page.js" not in default_paths
+    assert ".venv/lib/site.py" not in default_paths
+    assert {"node_modules", "dist", ".next", ".venv"}.issubset(set(default_noise["source_summary"]["skipped_dirs"]))
+    assert any(item["code"] == "default_noise_protection" for item in default_noise["compression_explanations"])
+    assert "default noise protection" in default_noise["summary_text"]
+
     project = workspace / "filter_project"
     (project / "src").mkdir(parents=True)
     (project / "logs").mkdir()
@@ -1424,7 +1446,8 @@ def _check_directory_filtering(workspace: Path) -> None:
     )
     assert payload["status"] == "ok"
     summary = payload["source_summary"]
-    assert summary["filtered_path_count"] >= 5
+    assert summary["filtered_path_count"] >= 3
+    assert {"node_modules", "dist"}.issubset(set(summary["skipped_dirs"]))
     paths = {item["relative_path"] for item in summary["entries"]}
     assert "README.md" in paths
     assert "src/app.py" in paths

@@ -15,6 +15,7 @@
 - added `AI_HANDOFF.md` bundle guides plus `--copy` as a shorter macOS clipboard alias for first-run AI/IDE handoff
 - updated installer and version guidance to recommend `mcp-skeleton handoff --input-dir .` as the first real project command
 - improved fresh-bundle reuse guidance so `handoff` users see `mcp-skeleton handoff --reuse-if-fresh` and an explicit saved-work summary
+- added default directory noise protection for common dependency, build, virtualenv, VCS, and cache folders, with visible compression explanations
 - added `context quick` as a one-command start + restore-safety check + bundle workflow for zero-learning bundle creation
 - added `context explain` to translate an existing bundle into plain-language safety, compression, and next-step guidance
 - added direct `mcp-skeleton quick/start/doctor/...` top-level aliases and a macOS `install.sh` for lower-friction local installation
