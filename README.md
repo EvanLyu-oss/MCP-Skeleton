@@ -33,7 +33,7 @@ What these do:
 - `quick` creates a restore-safe bundle for the current directory and prints the skeleton, manifest, inspect, and restore commands.
 - `quick --reuse-if-fresh` reuses the last unchanged bundle instead of recompressing large projects.
 
-The human output for `quick`, `doctor`, and `recent` starts with an `At a glance` card so first-time users can immediately see status, restore safety, token savings, speed/freshness, and the next command to copy. `quick` also explains the slowest visible phase and suggests the best next command (`--fast` or `--reuse-if-fresh`) for large or slower runs.
+The human output for `quick`, `doctor`, and `recent` starts with an `At a glance` card so first-time users can immediately see status, restore safety, token savings, speed/freshness, and the next command to copy. `quick` also explains the slowest visible phase, suggests the best next command (`--fast` or `--reuse-if-fresh`) for large or slower runs, and explains why tiny projects may expand instead of saving tokens.
 
 ## What it does
 

@@ -1358,12 +1358,27 @@ def _build_quick_experience_payload(*, start_payload: dict[str, Any], timings_ms
     if token_direction == "reduced" and savings_percent >= 30:
         token_status = "good"
         token_message = "token savings look meaningful for AI/IDE handoff"
+        first_run_guidance = {
+            "status": "ok",
+            "message": "this input is large enough to show the token advantage",
+            "try_next_command_text": "mcp-skeleton quick --reuse-if-fresh --input-dir .",
+        }
     elif token_direction == "reduced":
         token_status = "watch"
         token_message = "token savings exist, but review whether the skeleton is compact enough"
+        first_run_guidance = {
+            "status": "notice",
+            "message": "savings are modest on this input; larger projects and long documents usually show clearer benefits",
+            "try_next_command_text": "mcp-skeleton quick --fast --input-dir .",
+        }
     else:
         token_status = "expanded"
         token_message = "this input is very small; compression can expand tiny projects"
+        first_run_guidance = {
+            "status": "notice",
+            "message": "tiny input detected; expansion here is not a failure, it just means the project is too small to show the token advantage",
+            "try_next_command_text": "mcp-skeleton demo",
+        }
 
     recommendation = "use this bundle as the AI/IDE handoff"
     if speed_status == "slow" and not fast_path:
@@ -1379,6 +1394,7 @@ def _build_quick_experience_payload(*, start_payload: dict[str, Any], timings_ms
         "token_status": token_status,
         "token_message": token_message,
         "recommendation": recommendation,
+        "first_run_guidance": first_run_guidance,
         "scale_class": scale_class,
         "total_files": total_files,
         "total_ms": total_ms,
@@ -1590,6 +1606,8 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
         "Experience:",
         f"- Speed: {experience.get('speed_status', '')} - {experience.get('speed_message', '')}",
         f"- Token savings: {experience.get('token_status', '')} - {experience.get('token_message', '')}",
+        f"- First-run guidance: {(experience.get('first_run_guidance') or {}).get('message', '')}",
+        f"- Try next: {(experience.get('first_run_guidance') or {}).get('try_next_command_text', '') or '(not available)'}",
         f"- Recommendation: {experience.get('recommendation', '')}",
         "",
         "Performance advice:",

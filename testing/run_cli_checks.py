@@ -732,6 +732,12 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert payload["experience"]["speed_status"] in {"fast", "ok", "slow"}
     assert payload["experience"]["token_status"] in {"good", "watch", "expanded"}
     assert payload["experience"]["recommendation"]
+    assert payload["experience"]["first_run_guidance"]["status"] in {"ok", "notice"}
+    assert payload["experience"]["first_run_guidance"]["message"]
+    if payload["experience"]["token_status"] == "expanded":
+        assert payload["experience"]["first_run_guidance"]["status"] == "notice"
+        assert "tiny input" in payload["experience"]["first_run_guidance"]["message"]
+        assert "mcp-skeleton demo" in payload["experience"]["first_run_guidance"]["try_next_command_text"]
     assert payload["performance_advice"]["speed_status"] in {"fast", "ok", "slow"}
     assert payload["performance_advice"]["reuse_command_text"].startswith("mcp-skeleton quick --reuse-if-fresh")
     assert "Performance advice:" in payload["summary_text"]
@@ -766,6 +772,7 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert "Open bundle folder:" in payload["summary_text"]
     assert "Copy skeleton to clipboard:" in payload["summary_text"]
     assert "Experience:" in payload["summary_text"]
+    assert "First-run guidance:" in payload["summary_text"]
     assert "Speed:" in payload["summary_text"]
     assert "Token savings:" in payload["summary_text"]
     assert "Source tokens:" in payload["summary_text"]
