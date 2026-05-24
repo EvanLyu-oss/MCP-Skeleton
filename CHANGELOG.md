@@ -9,6 +9,7 @@
 - added direct `mcp-skeleton quick/start/doctor/...` top-level aliases and a macOS `install.sh` for lower-friction local installation
 - improved `install.sh` completion output with command verification, PATH status, and copy/paste next-step commands
 - added quick/start/doctor timing breakdowns and clearer token-impact summaries so users can judge speed and savings immediately
+- added quick/preview performance advice with fast/ok/slow status plus copy/paste `--fast` and `--reuse-if-fresh` commands
 - made `context quick` reuse the restore-safety compression payload when writing the final bundle, avoiding one repeated compression pass on large inputs
 - added `context quick --preview` to show restore safety, token estimates, output paths, and the real run command without writing a bundle
 - added `context quick --fast` for large inputs that need the fastest safe bundle path without config recommendation/onboarding generation

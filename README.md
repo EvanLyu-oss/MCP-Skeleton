@@ -179,6 +179,7 @@ mcp-skeleton quick --input-dir .
 
 `context quick` runs the zero-friction setup, checks restore safety, writes a full bundle, and prints the bundle path plus inspect/restore commands. It also points out the exact `context_skeleton.mcp` file to give to an AI or IDE, the bundle folder to keep, and a copy/paste `open <bundle>` command for locating the generated files on macOS.
 The first screen includes a `Use this now` section with the skeleton file, estimated token savings, restore command, and inspect command.
+It also prints performance advice with `fast / ok / slow` status and copy/paste `--fast` / `--reuse-if-fresh` commands when those paths improve the experience.
 
 To preview the plan without writing a bundle:
 
@@ -186,7 +187,7 @@ To preview the plan without writing a bundle:
 mcp-skeleton quick --preview --input-dir .
 ```
 
-`--preview` checks restore safety, estimates token savings, shows the planned bundle/manifest paths, and prints the exact command to run for real.
+`--preview` checks restore safety, estimates token savings, shows the planned bundle/manifest paths, prints performance advice, and gives the exact command to run for real.
 
 To open the bundle folder automatically on macOS after creation:
 

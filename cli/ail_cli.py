@@ -1355,12 +1355,50 @@ def _build_quick_experience_payload(*, start_payload: dict[str, Any], timings_ms
     }
 
 
+def _build_quick_performance_advice(args: argparse.Namespace, *, start_payload: dict[str, Any], timings_ms: dict[str, Any], fast_path: bool) -> dict[str, Any]:
+    total_ms = float(timings_ms.get("total") or 0.0)
+    if total_ms < 500:
+        speed_status = "fast"
+        speed_message = "fast: under 500 ms"
+    elif total_ms < 2500:
+        speed_status = "ok"
+        speed_message = "ok: under 2500 ms"
+    else:
+        speed_status = "slow"
+        speed_message = "slow: over 2500 ms"
+
+    fast_command_text = _quick_fast_command_text(args)
+    reuse_args = _clone_args(args, reuse_if_fresh=True, preview=False)
+    reuse_command_text = _quick_run_command_text(reuse_args)
+    if fast_path:
+        recommendation = "you are already using --fast; use --reuse-if-fresh after the first bundle when the project has not changed"
+    elif speed_status == "slow":
+        recommendation = "use --fast for the first run, then --reuse-if-fresh for unchanged follow-up runs"
+    else:
+        recommendation = "after this bundle, use --reuse-if-fresh to avoid recompressing unchanged projects"
+    return {
+        "speed_status": speed_status,
+        "speed_message": speed_message,
+        "observed_total_ms": total_ms,
+        "fast_command_text": fast_command_text,
+        "reuse_command_text": reuse_command_text,
+        "recommendation": recommendation,
+        "thresholds_ms": {
+            "fast_under": 500,
+            "ok_under": 2500,
+            "slow_at_or_above": 2500,
+        },
+        "total_files": int((start_payload.get("source_scale_profile") or {}).get("total_files") or 0),
+    }
+
+
 def _render_context_quick_summary(payload: dict[str, Any]) -> str:
     if payload.get("preview"):
         start = payload.get("start") or {}
         metrics = start.get("metrics") or {}
         scale_profile = start.get("source_scale_profile") or {}
         timings = payload.get("timings_ms") or {}
+        performance_advice = payload.get("performance_advice") or {}
         lines = [
             "MCP-Skeleton Quick Preview",
             "",
@@ -1382,6 +1420,12 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
             "",
             "Timing:",
             f"- Preview: {timings.get('total', 0)} ms",
+            "",
+            "Performance advice:",
+            f"- Speed: {performance_advice.get('speed_status', '')} - {performance_advice.get('speed_message', '')}",
+            f"- Faster first run: {performance_advice.get('fast_command_text', '') or '(not available)'}",
+            f"- Reuse unchanged bundle: {performance_advice.get('reuse_command_text', '') or '(not available)'}",
+            f"- Recommendation: {performance_advice.get('recommendation', '')}",
         ]
         return "\n".join(lines)
 
@@ -1394,6 +1438,7 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
     open_error = str(payload.get("open_error") or "")
     copy_error = str(payload.get("copy_error") or "")
     experience = payload.get("experience") or {}
+    performance_advice = payload.get("performance_advice") or {}
     quick_mode = "reused" if payload.get("reuse_status") == "reused" else ("fast" if payload.get("fast_path") else "standard")
     scale_profile = start.get("source_scale_profile") or {}
     token_direction = str(metrics.get("estimated_token_direction") or "")
@@ -1463,6 +1508,12 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
         f"- Speed: {experience.get('speed_status', '')} - {experience.get('speed_message', '')}",
         f"- Token savings: {experience.get('token_status', '')} - {experience.get('token_message', '')}",
         f"- Recommendation: {experience.get('recommendation', '')}",
+        "",
+        "Performance advice:",
+        f"- Speed: {performance_advice.get('speed_status', '')} - {performance_advice.get('speed_message', '')}",
+        f"- Faster first run: {performance_advice.get('fast_command_text', '') or '(not available)'}",
+        f"- Reuse unchanged bundle: {performance_advice.get('reuse_command_text', '') or '(not available)'}",
+        f"- Recommendation: {performance_advice.get('recommendation', '')}",
         "",
         "Recommended setup:",
         f"- Mode: {start.get('recommended_mode', '')}",
@@ -1727,6 +1778,12 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
             "start": start_payload,
             "bundle": {},
             "timings_ms": timings_ms,
+            "performance_advice": _build_quick_performance_advice(
+                args,
+                start_payload=start_payload,
+                timings_ms=timings_ms,
+                fast_path=fast_path,
+            ),
             "next_steps": [
                 "review the estimated savings and output path",
                 "run the suggested command without --preview to create the bundle",
@@ -1811,6 +1868,12 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
         "copy_performed": copy_performed,
         "copy_error": copy_error,
         "experience": experience,
+        "performance_advice": _build_quick_performance_advice(
+            args,
+            start_payload=start_payload,
+            timings_ms=timings_ms,
+            fast_path=fast_path,
+        ),
         "archive_path": bundle_payload.get("archive_path", ""),
         "inspect_command_args": inspect_args,
         "inspect_command_text": _format_cli_command(inspect_args),

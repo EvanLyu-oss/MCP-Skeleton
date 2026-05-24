@@ -725,6 +725,10 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert payload["experience"]["speed_status"] in {"fast", "ok", "slow"}
     assert payload["experience"]["token_status"] in {"good", "watch", "expanded"}
     assert payload["experience"]["recommendation"]
+    assert payload["performance_advice"]["speed_status"] in {"fast", "ok", "slow"}
+    assert payload["performance_advice"]["reuse_command_text"].startswith("mcp-skeleton quick --reuse-if-fresh")
+    assert "Performance advice:" in payload["summary_text"]
+    assert "--reuse-if-fresh" in payload["summary_text"]
     assert Path(payload["recent_file"]).exists()
     assert payload["inspect_command_args"][:3] == ["context", "inspect", "--package-file"]
     assert payload["restore_command_args"][:3] == ["context", "restore", "--package-file"]
@@ -810,6 +814,10 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert Path(preview["bundle_root"]) == preview_dir.resolve()
     assert preview["manifest_file"].endswith("context_manifest.json")
     assert preview["write_performed"] is False
+    assert preview["performance_advice"]["speed_status"] in {"fast", "ok", "slow"}
+    assert preview["performance_advice"]["fast_command_text"].startswith("mcp-skeleton quick --fast")
+    assert "Performance advice:" in preview["summary_text"]
+    assert "--fast" in preview["summary_text"]
     assert not preview_dir.exists()
     assert not Path(preview["recent_file"]).exists()
     assert preview["run_command_text"].startswith("mcp-skeleton quick --input-dir")
