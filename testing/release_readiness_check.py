@@ -67,11 +67,13 @@ def build_release_readiness_payload() -> dict[str, Any]:
             str(ROOT / "cli" / "context_compression.py"),
             str(ROOT / "testing" / "context_scale_benchmark.py"),
             str(ROOT / "testing" / "run_cli_checks.py"),
+            str(ROOT / "testing" / "quickstart_check.py"),
             str(ROOT / "testing" / "dogfood_self_check.py"),
             str(ROOT / "testing" / "release_readiness_check.py"),
         ]
     )
     python_smoke = _run([sys.executable, str(ROOT / "testing" / "run_cli_checks.py")])
+    quickstart = _run([sys.executable, str(ROOT / "testing" / "quickstart_check.py")])
     dogfood = _run([sys.executable, str(ROOT / "testing" / "dogfood_self_check.py")])
     doctor = _run(
         [
@@ -128,6 +130,7 @@ def build_release_readiness_payload() -> dict[str, Any]:
     checks = {
         "py_compile": _compact_result(py_compile, include_stdout_json=False),
         "python_smoke": _compact_result(python_smoke),
+        "quickstart_check": _compact_result(quickstart),
         "dogfood_self_check": _compact_result(dogfood),
         "context_doctor": _compact_result(doctor),
         "quick_benchmark": _compact_result(quick_benchmark),

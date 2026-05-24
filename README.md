@@ -423,6 +423,12 @@ Cross-platform smoke checks, including Windows environments without Bash:
 python3 testing/run_cli_checks.py
 ```
 
+Quickstart drift check for the README install/demo/quick/reuse path:
+
+```bash
+python3 testing/quickstart_check.py
+```
+
 Release readiness check before tagging:
 
 ```bash

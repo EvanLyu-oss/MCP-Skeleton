@@ -96,6 +96,7 @@ def _check_py_compile(workspace: Path) -> None:
             str(ROOT / "cli" / "context_compression.py"),
             str(ROOT / "testing" / "context_scale_benchmark.py"),
             str(ROOT / "testing" / "dogfood_self_check.py"),
+            str(ROOT / "testing" / "quickstart_check.py"),
             str(ROOT / "testing" / "release_readiness_check.py"),
         ]
     )
