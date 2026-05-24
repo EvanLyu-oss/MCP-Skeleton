@@ -840,6 +840,7 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert "At a glance:" in reused["summary_text"]
     assert "- Status:" in reused["summary_text"]
     assert "- Next command:" in reused["summary_text"]
+    assert "Performance advice:" not in reused["summary_text"]
 
     preview_project = workspace / "quick_preview_project"
     (preview_project / "src").mkdir(parents=True)
@@ -1081,6 +1082,28 @@ def _check_installer_lifecycle_json(workspace: Path) -> None:
     assert "mcp-skeleton version" in install.stdout
     assert "mcp-skeleton handoff --input-dir ." in install.stdout
     assert "mcp-skeleton quick --input-dir ." in install.stdout
+
+    shell_home = workspace / "installer_shell_home"
+    shell_home.mkdir()
+    shell_env = env.copy()
+    shell_env["HOME"] = str(shell_home)
+    shell_env["MCP_SKELETON_HOME"] = str(shell_home / ".mcp-skeleton")
+    shell_env["PATH"] = os.environ.get("PATH", "")
+    shell_install = subprocess.run(
+        ["sh", str(ROOT / "install.sh"), "--setup-shell"],
+        cwd=str(ROOT),
+        env=shell_env,
+        text=True,
+        capture_output=True,
+    )
+    assert shell_install.returncode == 0, shell_install.stderr + shell_install.stdout
+    shell_profile = shell_home / ".zshrc"
+    assert shell_profile.exists()
+    shell_profile_text = shell_profile.read_text(encoding="utf-8")
+    assert "mcp-skeleton PATH" in shell_profile_text
+    assert "export PATH=" in shell_profile_text
+    assert "Shell profile: updated" in shell_install.stdout
+    assert "Restart your terminal" in shell_install.stdout
 
     update = subprocess.run(
         ["sh", str(ROOT / "install.sh"), "--update"],

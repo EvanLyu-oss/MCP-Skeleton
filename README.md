@@ -116,6 +116,14 @@ sh install.sh
 This creates an isolated virtual environment under `~/.mcp-skeleton`, installs tokenizer-backed metrics, and links the `mcp-skeleton` command into `~/.local/bin`.
 The installer finishes with a command check, PATH status, a first-run self-check, and a copy/paste `handoff` command so you can give the current project to an AI/IDE immediately.
 
+If you want the installer to add `~/.local/bin` to future zsh terminals for you, run:
+
+```bash
+sh install.sh --setup-shell
+```
+
+This appends one managed `mcp-skeleton PATH` block to `~/.zshrc`. It does not rewrite the rest of your shell profile; restart the terminal afterwards, or run the printed `export PATH=...` command for the current shell.
+
 Check the installed command:
 
 ```bash

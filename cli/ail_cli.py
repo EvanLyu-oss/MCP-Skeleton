@@ -1808,16 +1808,19 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
         f"- First-run guidance: {(experience.get('first_run_guidance') or {}).get('message', '')}",
         f"- Try next: {(experience.get('first_run_guidance') or {}).get('try_next_command_text', '') or '(not available)'}",
         f"- Recommendation: {experience.get('recommendation', '')}",
-        "",
-        "Performance advice:",
-        f"- Speed: {performance_advice.get('speed_status', '')} - {performance_advice.get('speed_message', '')}",
-        f"- Why it may feel slow: {performance_advice.get('why_it_may_feel_slow', '')}",
-        f"- Slowest visible step: {performance_advice.get('dominant_phase', '')} ({performance_advice.get('dominant_phase_ms', 0)} ms)",
-        f"- Best next command: {performance_advice.get('next_best_command_text', '') or '(not available)'}",
-        f"- Faster first run: {performance_advice.get('fast_command_text', '') or '(not available)'}",
-        f"- Reuse unchanged bundle: {performance_advice.get('reuse_command_text', '') or '(not available)'}",
-        f"- Recommendation: {performance_advice.get('recommendation', '')}",
     ])
+    if performance_advice.get("speed_status"):
+        lines.extend([
+            "",
+            "Performance advice:",
+            f"- Speed: {performance_advice.get('speed_status', '')} - {performance_advice.get('speed_message', '')}",
+            f"- Why it may feel slow: {performance_advice.get('why_it_may_feel_slow', '')}",
+            f"- Slowest visible step: {performance_advice.get('dominant_phase', '')} ({performance_advice.get('dominant_phase_ms', 0)} ms)",
+            f"- Best next command: {performance_advice.get('next_best_command_text', '') or '(not available)'}",
+            f"- Faster first run: {performance_advice.get('fast_command_text', '') or '(not available)'}",
+            f"- Reuse unchanged bundle: {performance_advice.get('reuse_command_text', '') or '(not available)'}",
+            f"- Recommendation: {performance_advice.get('recommendation', '')}",
+        ])
     if performance_profile.get("status") == "available":
         lines.extend([
             "",

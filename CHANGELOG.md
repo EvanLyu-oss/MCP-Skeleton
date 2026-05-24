@@ -10,6 +10,7 @@
 - added `context quick` performance breakdown guidance that names the slowest visible phase and the best next command for large or slower runs
 - added a `context quick` performance profile that reports phase timing, default noise protection, and next-run reuse/fast commands
 - added install readiness fields to `mcp-skeleton version` and a first-run self-check panel to `install.sh`
+- added `install.sh --setup-shell` to safely append one managed PATH block to `~/.zshrc` for future macOS terminals
 - added first-run guidance to `context quick` so tiny projects explain token expansion as expected behavior instead of looking like a failed compression
 - added clearer `context quick` AI handoff guidance that separates the skeleton file to share from bundle/manifest/restore files to keep locally
 - added `mcp-skeleton handoff` as a short top-level alias for the restore-safe quick AI/IDE handoff workflow

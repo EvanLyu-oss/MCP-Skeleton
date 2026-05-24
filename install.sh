@@ -8,32 +8,37 @@ BIN_DIR="$HOME/.local/bin"
 COMMAND_PATH="$BIN_DIR/mcp-skeleton"
 MARKER_FILE="$INSTALL_DIR/.mcp-skeleton-install"
 MODE="install"
+SETUP_SHELL=0
 
-case "${1:-}" in
-  "")
-    MODE="install"
-    ;;
-  --update)
-    MODE="update"
-    ;;
-  --uninstall)
-    MODE="uninstall"
-    ;;
-  -h|--help)
-    echo "MCP-Skeleton macOS installer"
-    echo ""
-    echo "Usage:"
-    echo "  sh install.sh             install MCP-Skeleton"
-    echo "  sh install.sh --update    refresh the installed command from this checkout"
-    echo "  sh install.sh --uninstall remove the installed command and managed venv"
-    exit 0
-    ;;
-  *)
-    echo "error: unknown installer option: $1" >&2
-    echo "try: sh install.sh --help" >&2
-    exit 2
-    ;;
-esac
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --update)
+      MODE="update"
+      ;;
+    --uninstall)
+      MODE="uninstall"
+      ;;
+    --setup-shell)
+      SETUP_SHELL=1
+      ;;
+    -h|--help)
+      echo "MCP-Skeleton macOS installer"
+      echo ""
+      echo "Usage:"
+      echo "  sh install.sh                 install MCP-Skeleton"
+      echo "  sh install.sh --setup-shell   install and add ~/.local/bin to ~/.zshrc for future terminals"
+      echo "  sh install.sh --update        refresh the installed command from this checkout"
+      echo "  sh install.sh --uninstall     remove the installed command and managed venv"
+      exit 0
+      ;;
+    *)
+      echo "error: unknown installer option: $1" >&2
+      echo "try: sh install.sh --help" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 if [ "$MODE" = "uninstall" ]; then
   echo "MCP-Skeleton uninstaller"
@@ -123,6 +128,26 @@ fi
 printf '%s\n' "managed-by=mcp-skeleton" "source=$ROOT_DIR" > "$MARKER_FILE"
 ln -sf "$VENV_DIR/bin/mcp-skeleton" "$COMMAND_PATH"
 
+SHELL_PROFILE="$HOME/.zshrc"
+SHELL_PROFILE_STATUS="not requested"
+if [ "$SETUP_SHELL" = "1" ]; then
+  mkdir -p "$(dirname "$SHELL_PROFILE")"
+  touch "$SHELL_PROFILE"
+  if grep -q "mcp-skeleton PATH" "$SHELL_PROFILE"; then
+    SHELL_PROFILE_STATUS="already configured"
+  else
+    {
+      echo ""
+      echo "# >>> mcp-skeleton PATH >>>"
+      echo "export PATH=\"$BIN_DIR:\$PATH\""
+      echo "# <<< mcp-skeleton PATH <<<"
+    } >> "$SHELL_PROFILE"
+    SHELL_PROFILE_STATUS="updated"
+  fi
+  PATH="$BIN_DIR:$PATH"
+  export PATH
+fi
+
 echo ""
 if [ "$MODE" = "update" ]; then
   echo "Updated successfully."
@@ -148,6 +173,11 @@ else
   QUICK_COMMAND="$COMMAND_PATH quick --input-dir ."
   VERSION_COMMAND="$COMMAND_PATH version"
 fi
+echo "Shell profile: $SHELL_PROFILE_STATUS"
+if [ "$SETUP_SHELL" = "1" ]; then
+  echo "Shell profile file: $SHELL_PROFILE"
+  echo "Restart your terminal or run: export PATH=\"$BIN_DIR:\$PATH\""
+fi
 echo ""
 echo "Copy/paste next:"
 echo "  $HANDOFF_COMMAND"
@@ -165,6 +195,8 @@ echo "  $COMMAND_PATH doctor --input-dir ."
 echo ""
 if ! printf '%s' "$PATH" | grep -q "$BIN_DIR"; then
   echo "Note: $BIN_DIR is not currently in PATH."
+  echo "One-command future shell setup:"
+  echo "  sh install.sh --setup-shell"
   echo "Add this to your shell profile:"
   echo "  export PATH=\"$BIN_DIR:\$PATH\""
 fi
