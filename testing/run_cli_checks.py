@@ -1003,7 +1003,17 @@ def _check_top_level_version_json(workspace: Path) -> None:
     assert payload["version"]
     assert payload["python_version"]
     assert payload["executable"]
+    assert payload["install_readiness_status"] in {"ready", "watch"}
+    assert payload["python_check"] in {"ok", "blocked"}
+    assert payload["install_command_text"] == "sh install.sh"
+    assert "quick --input-dir ." in payload["recommended_first_command_text"]
+    assert "doctor --input-dir ." in payload["doctor_command_text"]
     assert "mcp-skeleton version" in payload["summary_text"]
+    assert "Install readiness:" in payload["summary_text"]
+    assert "Python check:" in payload["summary_text"]
+    assert "Command check:" in payload["summary_text"]
+    assert "Install command:" in payload["summary_text"]
+    assert "First run command:" in payload["summary_text"]
 
 
 def _check_installer_lifecycle_json(workspace: Path) -> None:
@@ -1027,7 +1037,9 @@ def _check_installer_lifecycle_json(workspace: Path) -> None:
     assert "MCP-Skeleton Install Ready" in install.stdout
     assert "PATH status:" in install.stdout
     assert "Command check:" in install.stdout
+    assert "First run self-check:" in install.stdout
     assert "Copy/paste next:" in install.stdout
+    assert "mcp-skeleton version" in install.stdout
     assert "mcp-skeleton quick --input-dir ." in install.stdout
 
     update = subprocess.run(

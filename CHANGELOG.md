@@ -8,6 +8,7 @@
 - added a compact `executive_summary` to the release readiness runner so humans and test machines can read pass/fail, dogfood, doctor, and benchmark status without parsing full logs
 - added consistent `At a glance` status cards to `context quick`, `context quick --preview`, `context doctor`, and `context recent` human output
 - added `context quick` performance breakdown guidance that names the slowest visible phase and the best next command for large or slower runs
+- added install readiness fields to `mcp-skeleton version` and a first-run self-check panel to `install.sh`
 - added `context quick` as a one-command start + restore-safety check + bundle workflow for zero-learning bundle creation
 - added `context explain` to translate an existing bundle into plain-language safety, compression, and next-step guidance
 - added direct `mcp-skeleton quick/start/doctor/...` top-level aliases and a macOS `install.sh` for lower-friction local installation
