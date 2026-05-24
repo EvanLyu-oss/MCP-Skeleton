@@ -56,6 +56,64 @@ def _compact_result(result: dict[str, Any], *, include_stdout_json: bool = True)
     return compact
 
 
+def _count_summary(stdout_json: dict[str, Any]) -> str:
+    passed = stdout_json.get("passed")
+    total = stdout_json.get("check_count") or stdout_json.get("total")
+    if isinstance(passed, int) and isinstance(total, int):
+        return f"{passed}/{total}"
+    return "unknown"
+
+
+def build_executive_summary(checks: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    passed_count = sum(1 for item in checks.values() if item.get("passed"))
+    failed_count = sum(1 for item in checks.values() if not item.get("passed"))
+    python_smoke = checks.get("python_smoke", {}).get("stdout_json") or {}
+    quickstart = checks.get("quickstart_check", {}).get("stdout_json") or {}
+    dogfood = checks.get("dogfood_self_check", {}).get("stdout_json") or {}
+    doctor = checks.get("context_doctor", {}).get("stdout_json") or {}
+    benchmark = checks.get("quick_benchmark", {}).get("stdout_json") or {}
+    benchmark_summary = benchmark.get("executive_summary") or {}
+    expected_files = dogfood.get("expected_file_count")
+    included_files = dogfood.get("included_file_count")
+    dogfood_files = (
+        f"{included_files}/{expected_files}"
+        if isinstance(included_files, int) and isinstance(expected_files, int)
+        else "unknown"
+    )
+    restore_check = doctor.get("restore_check") or {}
+    status = "ok" if failed_count == 0 else "error"
+    blocking = [name for name, item in checks.items() if not item.get("passed")]
+    benchmark_status = str(benchmark_summary.get("overall_status") or "unknown")
+    scale_health = str(benchmark_summary.get("scale_health") or "unknown")
+    if blocking:
+        next_action = f"fix failing checks: {', '.join(blocking)}"
+    elif benchmark_status in {"watch", "blocked"} or scale_health in {"warn", "fail"}:
+        next_action = str(benchmark_summary.get("next_action") or "review benchmark watch items")
+    else:
+        next_action = "ready for release"
+    return {
+        "status": status,
+        "passed": passed_count,
+        "failed": failed_count,
+        "python_smoke": _count_summary(python_smoke),
+        "quickstart": _count_summary(quickstart),
+        "dogfood_restore_status": dogfood.get("restore_status", "unknown"),
+        "dogfood_files": dogfood_files,
+        "dogfood_missing_count": dogfood.get("missing_count", "unknown"),
+        "dogfood_mismatched_count": dogfood.get("mismatched_count", "unknown"),
+        "doctor_readiness": doctor.get("readiness_status", "unknown"),
+        "doctor_restore_status": restore_check.get("status", "unknown"),
+        "benchmark_overall_status": benchmark_summary.get("overall_status", "unknown"),
+        "benchmark_release_readiness": benchmark_summary.get("release_readiness", "unknown"),
+        "benchmark_scale_health": benchmark_summary.get("scale_health", "unknown"),
+        "benchmark_restore_verified": benchmark_summary.get("restore_verified", "unknown"),
+        "best_large_directory_savings_percent": benchmark_summary.get("best_large_directory_savings_percent", "unknown"),
+        "best_long_text_savings_percent": benchmark_summary.get("best_long_text_savings_percent", "unknown"),
+        "blocking_checks": blocking,
+        "next_action": next_action,
+    }
+
+
 def build_release_readiness_payload() -> dict[str, Any]:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     py_compile = _run(
@@ -137,6 +195,7 @@ def build_release_readiness_payload() -> dict[str, Any]:
         "bash_smoke": _compact_result(bash_smoke),
     }
     passed = all(item["passed"] for item in checks.values())
+    executive_summary = build_executive_summary(checks)
     payload = {
         "status": "ok" if passed else "error",
         "entrypoint": "release-readiness-check",
@@ -145,6 +204,7 @@ def build_release_readiness_payload() -> dict[str, Any]:
         "check_count": len(checks),
         "passed": sum(1 for item in checks.values() if item["passed"]),
         "failed": sum(1 for item in checks.values() if not item["passed"]),
+        "executive_summary": executive_summary,
         "checks": checks,
         "artifacts": {
             "results_json": str(DEFAULT_RESULTS_JSON),

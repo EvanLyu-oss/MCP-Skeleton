@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import shutil
@@ -1065,6 +1066,79 @@ def _check_context_explain_json(workspace: Path) -> None:
     assert "What this is:" in payload["summary_text"]
     assert "Why it is useful:" in payload["summary_text"]
     assert "Next steps:" in payload["summary_text"]
+
+
+def _check_release_readiness_summary_json(workspace: Path) -> None:
+    del workspace
+    spec = importlib.util.spec_from_file_location(
+        "mcp_skeleton_release_readiness_check",
+        ROOT / "testing" / "release_readiness_check.py",
+    )
+    if spec is None or spec.loader is None:
+        raise SmokeFailure("could not load release_readiness_check.py")
+    release_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(release_module)
+
+    checks = {
+        "py_compile": {"passed": True},
+        "python_smoke": {
+            "passed": True,
+            "stdout_json": {"passed": 44, "check_count": 44, "failed": 0},
+        },
+        "quickstart_check": {
+            "passed": True,
+            "stdout_json": {"passed": 4, "check_count": 4, "failed": 0},
+        },
+        "dogfood_self_check": {
+            "passed": True,
+            "stdout_json": {
+                "restore_status": "ok",
+                "included_file_count": 46,
+                "expected_file_count": 46,
+                "missing_count": 0,
+                "mismatched_count": 0,
+            },
+        },
+        "context_doctor": {
+            "passed": True,
+            "stdout_json": {
+                "readiness_status": "ready",
+                "restore_check": {"status": "ok", "missing_count": 0, "mismatched_count": 0},
+            },
+        },
+        "quick_benchmark": {
+            "passed": True,
+            "stdout_json": {
+                "executive_summary": {
+                    "overall_status": "ready",
+                    "release_readiness": "ready",
+                    "scale_health": "ok",
+                    "restore_verified": "93/93",
+                    "best_large_directory_savings_percent": 92.5,
+                    "best_long_text_savings_percent": 54.1,
+                    "next_action": "use this run as release baseline",
+                }
+            },
+        },
+        "bash_smoke": {"passed": True, "stdout_json": {"status": "skipped"}},
+    }
+    summary = release_module.build_executive_summary(checks)
+    assert summary["status"] == "ok"
+    assert summary["passed"] == 7
+    assert summary["failed"] == 0
+    assert summary["python_smoke"] == "44/44"
+    assert summary["quickstart"] == "4/4"
+    assert summary["dogfood_restore_status"] == "ok"
+    assert summary["dogfood_files"] == "46/46"
+    assert summary["doctor_readiness"] == "ready"
+    assert summary["doctor_restore_status"] == "ok"
+    assert summary["benchmark_overall_status"] == "ready"
+    assert summary["benchmark_release_readiness"] == "ready"
+    assert summary["benchmark_scale_health"] == "ok"
+    assert summary["benchmark_restore_verified"] == "93/93"
+    assert summary["best_large_directory_savings_percent"] == 92.5
+    assert summary["best_long_text_savings_percent"] == 54.1
+    assert summary["next_action"] == "ready for release"
 
 
 def _check_top_level_cli_alias_json(workspace: Path) -> None:
@@ -2245,6 +2319,7 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("top_level_version_json_ok", _check_top_level_version_json),
     ("installer_lifecycle_json_ok", _check_installer_lifecycle_json),
     ("context_explain_json_ok", _check_context_explain_json),
+    ("release_readiness_summary_json_ok", _check_release_readiness_summary_json),
     ("top_level_cli_alias_json_ok", _check_top_level_cli_alias_json),
     ("context_auto_defaults_json_ok", _check_context_auto_defaults_json),
     ("context_bundle_json_ok", _check_bundle_outputs),
