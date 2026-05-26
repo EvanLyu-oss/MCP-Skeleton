@@ -38,7 +38,7 @@ What these do:
 - `quick` creates a restore-safe bundle for the current directory and prints the skeleton, manifest, inspect, and restore commands.
 - `recent` shows the latest bundle, skeleton, manifest, restore command, and freshness status for the current directory.
 
-The human output for `quick`, `handoff`, `doctor`, and `recent` starts with an `At a glance` card so first-time users can immediately see status, restore safety, token savings, speed/freshness, and the next command to copy. `quick` / `handoff` also write `AI_HANDOFF.md` beside the bundle, separate the skeleton file to share with AI/IDE tools from the bundle, manifest, and restore files to keep locally, explain the slowest visible phase, show a `Performance profile` with phase timing and default noise protection, suggest the best next command (`--fast` or `--reuse-if-fresh`) for large or slower runs, and explain why tiny projects may expand instead of saving tokens.
+The human output for `quick`, `handoff`, `doctor`, and `recent` starts with an `At a glance` card so first-time users can immediately see status, restore safety, token savings, speed/freshness, and the next command to copy. `handoff` also includes a `Daily handoff` panel that says whether it created or reused a bundle, why, and whether the skeleton was copied automatically or needs the shown manual copy command. `quick` / `handoff` also write `AI_HANDOFF.md` beside the bundle, separate the skeleton file to share with AI/IDE tools from the bundle, manifest, and restore files to keep locally, explain the slowest visible phase, show a `Performance profile` with phase timing and default noise protection, suggest the best next command (`--fast` or `--reuse-if-fresh`) for large or slower runs, and explain why tiny projects may expand instead of saving tokens.
 
 ## What it does
 
@@ -195,7 +195,7 @@ mcp-skeleton handoff
 ```
 
 `handoff` is a top-level shortcut for the restore-safe quick workflow. It defaults to the current directory, creates `context_skeleton.mcp` for AI/IDE context, writes `AI_HANDOFF.md` with plain-language instructions, and keeps `context_manifest.json` plus the restore package available for exact reconstruction.
-Run the same command again during day-to-day work; when the project fingerprint is unchanged, MCP-Skeleton automatically reuses the previous fresh bundle instead of recompressing.
+Run the same command again during day-to-day work; when the project fingerprint is unchanged, MCP-Skeleton automatically reuses the previous fresh bundle instead of recompressing. The `Daily handoff` panel tells you whether this run created a fresh bundle or reused the last one, why that happened, and whether clipboard copy was automatic or manual.
 
 On macOS, use:
 

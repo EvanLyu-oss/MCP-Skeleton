@@ -1143,6 +1143,41 @@ def _maybe_copy_quick_skeleton(args: argparse.Namespace, *, skeleton_file: str) 
     return True, ""
 
 
+def _build_daily_handoff_payload(payload: dict[str, Any], *, reason_code: str, reason: str) -> dict[str, Any]:
+    copy_requested = bool(payload.get("copy_requested"))
+    copy_performed = bool(payload.get("copy_performed"))
+    copy_error = str(payload.get("copy_error") or "")
+    if copy_performed:
+        copy_status = "copied"
+        copy_message = "copied the skeleton to the macOS clipboard"
+    elif copy_requested and copy_error:
+        copy_status = "failed"
+        copy_message = copy_error
+    elif copy_requested:
+        copy_status = "unavailable"
+        copy_message = "copy was requested but did not complete"
+    else:
+        copy_status = "manual"
+        copy_message = "copy manually with the command below"
+    return {
+        "status": "reused" if payload.get("reuse_status") == "reused" else "created",
+        "reason_code": reason_code,
+        "reason": reason,
+        "skeleton_file": (payload.get("handoff") or {}).get("skeleton_file", ""),
+        "bundle_root": payload.get("bundle_root", ""),
+        "manifest_file": payload.get("manifest_file", ""),
+        "next_command_text": payload.get("inspect_command_text") or payload.get("restore_command_text") or "",
+        "clipboard": {
+            "status": copy_status,
+            "message": copy_message,
+            "requested": copy_requested,
+            "performed": copy_performed,
+            "error": copy_error,
+            "command_text": payload.get("copy_command_text", ""),
+        },
+    }
+
+
 def _recent_root_from_args(args: argparse.Namespace) -> Path:
     input_dir = _opt_path(args, "input_dir")
     if input_dir is not None:
@@ -1540,6 +1575,11 @@ def _build_reused_quick_payload(args: argparse.Namespace, *, started_at: float) 
         ],
     }
     _write_quick_ai_handoff_guide(payload)
+    payload["daily_handoff"] = _build_daily_handoff_payload(
+        payload,
+        reason_code="fresh_bundle_reused",
+        reason="reused the last fresh bundle because the project fingerprint has not changed",
+    )
     payload["speed_tip"] = {}
     payload["summary_text"] = _render_context_quick_summary(payload)
     return payload
@@ -1868,6 +1908,19 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
         f"- Speed: {experience.get('speed_status', '')} - {experience.get('speed_message', '')}",
         f"- Bundle: {payload.get('bundle_root', '') or '(not created)'}",
         f"- Next command: {primary_next or '(not available)'}",
+    ]
+    daily_handoff = payload.get("daily_handoff") or {}
+    if daily_handoff:
+        clipboard = daily_handoff.get("clipboard") or {}
+        lines.extend([
+            "",
+            "Daily handoff:",
+            f"- What happened: {daily_handoff.get('status', '')}",
+            f"- Why: {daily_handoff.get('reason', '')}",
+            f"- Copy status: {clipboard.get('status', '')} - {clipboard.get('message', '')}",
+            f"- Copy command: {clipboard.get('command_text', '') or '(not available)'}",
+        ])
+    lines.extend([
         "",
         "Result:",
         f"- Status: {payload.get('quick_status', '')}",
@@ -1893,7 +1946,7 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
         f"- Manifest: {(handoff.get('restore_keep_files') or {}).get('manifest_file', '') or handoff.get('manifest_file', '') or '(not available)'}",
         f"- Restore package: {(handoff.get('restore_keep_files') or {}).get('restore_package', '') or handoff.get('restore_package', '') or '(not available)'}",
         "- Do not paste restore package contents into AI unless you intentionally want to share raw source bytes",
-    ]
+    ])
     if payload.get("reuse_status") == "reused":
         reuse_guidance = payload.get("reuse_guidance") or {}
         lines.extend([
@@ -2376,6 +2429,11 @@ def _build_context_quick_payload(args: argparse.Namespace) -> tuple[dict[str, An
         fast_path=fast_path,
     )
     _write_quick_ai_handoff_guide(payload)
+    payload["daily_handoff"] = _build_daily_handoff_payload(
+        payload,
+        reason_code="fresh_bundle_created",
+        reason="created a fresh bundle after restore safety verification",
+    )
     payload["speed_tip"] = _build_quick_speed_tip(
         args,
         start_payload=start_payload,

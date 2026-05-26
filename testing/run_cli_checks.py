@@ -1380,6 +1380,40 @@ def _check_handoff_auto_reuse_json(workspace: Path) -> None:
     assert Path(forced["handoff"]["skeleton_file"]).exists()
 
 
+def _check_handoff_daily_output_json(workspace: Path) -> None:
+    project = workspace / "handoff_daily_project"
+    (project / "src").mkdir(parents=True)
+    (project / "src" / "app.py").write_text(
+        "def run() -> str:\n"
+        "    return 'handoff-daily'\n",
+        encoding="utf-8",
+    )
+
+    first = _run_top_level_cli_json(["handoff", "--json"], cwd=project)
+    assert first["status"] == "ok"
+    assert first["entrypoint"] == "context-quick"
+    assert first["daily_handoff"]["status"] == "created"
+    assert first["daily_handoff"]["reason_code"] == "fresh_bundle_created"
+    assert "fresh bundle" in first["daily_handoff"]["reason"]
+    assert first["daily_handoff"]["clipboard"]["status"] == "manual"
+    assert first["daily_handoff"]["clipboard"]["command_text"].startswith("cat ")
+    assert first["daily_handoff"]["clipboard"]["requested"] is False
+    assert first["daily_handoff"]["next_command_text"].startswith("mcp-skeleton inspect")
+    assert "Daily handoff:" in first["summary_text"]
+    assert "- What happened:" in first["summary_text"]
+    assert "- Why:" in first["summary_text"]
+    assert "- Copy status:" in first["summary_text"]
+
+    second = _run_top_level_cli_json(["handoff", "--json"], cwd=project)
+    assert second["status"] == "ok"
+    assert second["daily_handoff"]["status"] == "reused"
+    assert second["daily_handoff"]["reason_code"] == "fresh_bundle_reused"
+    assert "fingerprint" in second["daily_handoff"]["reason"]
+    assert second["daily_handoff"]["clipboard"]["status"] == "manual"
+    assert "Daily handoff:" in second["summary_text"]
+    assert "reused the last fresh bundle" in second["summary_text"]
+
+
 def _check_context_auto_defaults_json(workspace: Path) -> None:
     project = workspace / "auto_defaults_project"
     (project / "src").mkdir(parents=True)
@@ -2616,6 +2650,7 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("top_level_cli_alias_json_ok", _check_top_level_cli_alias_json),
     ("zero_learning_defaults_json_ok", _check_zero_learning_defaults_json),
     ("handoff_auto_reuse_json_ok", _check_handoff_auto_reuse_json),
+    ("handoff_daily_output_json_ok", _check_handoff_daily_output_json),
     ("context_auto_defaults_json_ok", _check_context_auto_defaults_json),
     ("context_bundle_json_ok", _check_bundle_outputs),
     ("context_compress_incremental_clean_diagnostics_json_ok", _check_clean_incremental_diagnostics),
