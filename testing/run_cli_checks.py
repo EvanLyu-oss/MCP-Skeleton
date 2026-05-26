@@ -642,6 +642,29 @@ def _check_context_doctor_json(workspace: Path) -> None:
     assert "## Next Steps" in report_text
 
 
+def _check_context_doctor_install_json(workspace: Path) -> None:
+    del workspace
+    payload = _run_cli_json(["context", "doctor", "--install", "--json"])
+    assert payload["status"] == "ok"
+    assert payload["entrypoint"] == "context-install-doctor"
+    assert payload["install_doctor_status"] in {"ready", "watch", "blocked"}
+    assert payload["install"]["entrypoint"] == "mcp-skeleton-version"
+    assert payload["install"]["install_command_text"] == "sh install.sh"
+    assert payload["checks"]
+    check_names = {item["name"] for item in payload["checks"]}
+    assert {"python_version_supported", "command_available", "readiness_manifest_available"}.issubset(check_names)
+    assert payload["recommended_fix_command_text"]
+    assert payload["first_run_command_text"].endswith("handoff")
+    assert payload["self_check_command_text"].endswith(" version")
+    assert payload["action_plan"]
+    assert payload["next_steps"] == [item["message"] for item in payload["action_plan"]]
+    assert "MCP-Skeleton Install Doctor" in payload["summary_text"]
+    assert "Copy/paste fix:" in payload["summary_text"]
+    assert "First run:" in payload["summary_text"]
+    alias_payload = _run_top_level_cli_json(["doctor", "--install", "--json"])
+    assert alias_payload["entrypoint"] == "context-install-doctor"
+
+
 def _check_context_start_json(workspace: Path) -> None:
     project = workspace / "start_project"
     (project / "src").mkdir(parents=True)
@@ -766,6 +789,9 @@ def _check_context_quick_json(workspace: Path) -> None:
     assert payload["performance_summary"]["token_impact"]["estimated_source_tokens"] >= 0
     assert payload["performance_summary"]["token_impact"]["estimated_skeleton_tokens"] >= 0
     assert payload["performance_summary"]["noise_protection"]["status"] in {"active", "disabled"}
+    assert payload["performance_summary"]["speed_diagnostic"]["dominant_phase"] in {"setup_and_doctor", "config_recommendation", "restore_safety_check", "bundle_write", "quick_total", "start_and_doctor"}
+    assert payload["performance_summary"]["speed_diagnostic"]["why_it_may_feel_slow"]
+    assert payload["performance_summary"]["speed_diagnostic"]["best_next_command_text"].startswith("mcp-skeleton quick")
     assert payload["user_outcome"]["status"] == "ready_to_share"
     assert payload["user_outcome"]["primary_file"] == payload["handoff"]["skeleton_file"]
     assert payload["user_outcome"]["share_action"] == "give_skeleton_to_ai"
@@ -1066,6 +1092,8 @@ def _check_context_quick_speed_tip_json(workspace: Path) -> None:
     assert payload["performance_advice"]["dominant_phase"] in {"setup_and_doctor", "config_recommendation", "restore_safety_check", "bundle_write", "quick_total"}
     assert payload["performance_advice"]["why_it_may_feel_slow"]
     assert payload["performance_advice"]["next_best_command_text"].startswith("mcp-skeleton quick")
+    assert payload["performance_summary"]["speed_diagnostic"]["dominant_phase"] == payload["performance_advice"]["dominant_phase"]
+    assert payload["performance_summary"]["speed_diagnostic"]["best_next_command_text"] == payload["performance_advice"]["next_best_command_text"]
     assert "Speed tip:" in payload["summary_text"]
     assert "--fast" in payload["summary_text"]
     assert "Why it may feel slow:" in payload["summary_text"]
@@ -1105,8 +1133,15 @@ def _check_context_safety_json(workspace: Path) -> None:
     assert payload["restore_package"]["share_with_ai_default"] == "no"
     assert payload["patch_replay"]["recommended_first_mode"] == "dry-run"
     assert ".workspace_ail" in payload["default_noise_protection"]["skipped_dir_names"]
+    assert payload["common_questions"]["what_to_share_with_ai"]["answer"].startswith("Share context_skeleton.mcp")
+    assert payload["common_questions"]["what_to_keep_local"]["answer"]
+    assert payload["common_questions"]["safe_patch_apply"]["first_command"].startswith("mcp-skeleton patch-apply --dry-run")
+    assert payload["emergency_recovery"]["lost_manifest"]["status"] == "blocked"
+    assert payload["emergency_recovery"]["project_changed"]["next_command_text"].startswith("mcp-skeleton handoff --force-refresh")
     assert "MCP-Skeleton Safety" in payload["summary_text"]
     assert "Do not paste restore packages into AI" in payload["summary_text"]
+    assert "Common questions:" in payload["summary_text"]
+    assert "Emergency recovery:" in payload["summary_text"]
     alias_payload = _run_top_level_cli_json(["safety", "--json"])
     assert alias_payload["status"] == "ok"
     assert alias_payload["entrypoint"] == "context-safety"
@@ -1167,8 +1202,10 @@ def _check_installer_lifecycle_json(workspace: Path) -> None:
     assert "If command is not found later:" in install.stdout
     assert "PATH fix command:" in install.stdout
     assert "Self-check command:" in install.stdout
+    assert "Install doctor:" in install.stdout
     assert "Copy/paste next:" in install.stdout
     assert "mcp-skeleton version" in install.stdout
+    assert "mcp-skeleton doctor --install" in install.stdout
     assert "mcp-skeleton handoff" in install.stdout
     assert "mcp-skeleton quick" in install.stdout
     assert "mcp-skeleton handoff --input-dir ." not in install.stdout
@@ -1182,6 +1219,7 @@ def _check_installer_lifecycle_json(workspace: Path) -> None:
     assert readiness["path_status"] in {"ready", "needs_shell_setup"}
     assert readiness["recommended_first_command_text"].endswith("handoff")
     assert readiness["doctor_command_text"].endswith("doctor")
+    assert readiness["install_doctor_command_text"].endswith("doctor --install")
     assert readiness["path_export_command_text"].startswith("export PATH=")
     assert readiness["path_setup_command_text"] == "sh install.sh --setup-shell"
     assert "Install readiness file:" in install.stdout
@@ -1360,6 +1398,11 @@ def _check_release_readiness_summary_json(workspace: Path) -> None:
     assert summary["benchmark_restore_verified"] == "93/93"
     assert summary["best_large_directory_savings_percent"] == 92.5
     assert summary["best_long_text_savings_percent"] == 54.1
+    assert summary["v1_beta_readiness"]["status"] == "ready"
+    assert summary["v1_beta_readiness"]["recommendation"] == "recommend macOS beta install/use"
+    assert summary["v1_beta_readiness"]["install_path"] == "ready"
+    assert summary["v1_beta_readiness"]["handoff_path"] == "ready"
+    assert summary["v1_beta_readiness"]["performance_path"] == "ready"
     assert summary["next_action"] == "ready for release"
 
 
@@ -1525,8 +1568,16 @@ def _check_handoff_ai_prompt_json(workspace: Path) -> None:
     assert metadata["skeleton_file"] == handoff["skeleton_file"]
     assert metadata["manifest_file"] == handoff["manifest_file"]
     assert metadata["restore_command_text"] == payload["restore_command_text"]
+    assert metadata["handoff_status"] == "ready_to_share"
+    assert metadata["share_with_ai"]["file"] == handoff["skeleton_file"]
+    assert metadata["share_with_ai"]["default_prompt"] == prompt
+    assert metadata["keep_local"]["manifest_file"] == handoff["manifest_file"]
+    assert metadata["keep_local"]["restore_package"] == handoff["restore_package"]
+    assert metadata["safety_boundary"]["restore_package_share_default"] == "keep_local"
     assert metadata_payload["recommended_prompt"] == prompt
     assert metadata_payload["skeleton_file"] == handoff["skeleton_file"]
+    assert metadata_payload["share_with_ai"]["file"] == handoff["skeleton_file"]
+    assert "Ready to share:" in guide_text
     assert "Recommended prompt:" in guide_text
     assert "IDE metadata:" in guide_text
     assert "Recommended prompt:" in payload["summary_text"]
@@ -2760,6 +2811,7 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("context_install_hook_json_ok", _check_context_install_hook_json),
     ("context_config_recommend_json_ok", _check_context_config_recommend_json),
     ("context_doctor_json_ok", _check_context_doctor_json),
+    ("context_doctor_install_json_ok", _check_context_doctor_install_json),
     ("context_start_json_ok", _check_context_start_json),
     ("context_quick_json_ok", _check_context_quick_json),
     ("context_recent_json_ok", _check_context_recent_json),

@@ -64,6 +64,59 @@ def _count_summary(stdout_json: dict[str, Any]) -> str:
     return "unknown"
 
 
+def _build_v1_beta_readiness(
+    *,
+    failed_count: int,
+    python_smoke: dict[str, Any],
+    quickstart: dict[str, Any],
+    dogfood: dict[str, Any],
+    doctor: dict[str, Any],
+    benchmark_summary: dict[str, Any],
+) -> dict[str, Any]:
+    install_ready = _count_summary(quickstart) == "5/5"
+    handoff_ready = (
+        dogfood.get("restore_status") == "ok"
+        and dogfood.get("missing_count", 1) == 0
+        and dogfood.get("mismatched_count", 1) == 0
+    )
+    safety_ready = _count_summary(python_smoke) != "unknown" and int(python_smoke.get("failed") or 0) == 0
+    doctor_ready = doctor.get("readiness_status") == "ready" and (doctor.get("restore_check") or {}).get("status") == "ok"
+    benchmark_ready = (
+        benchmark_summary.get("overall_status") == "ready"
+        and benchmark_summary.get("release_readiness") == "ready"
+        and benchmark_summary.get("scale_health") == "ok"
+    )
+    large_savings = float(benchmark_summary.get("best_large_directory_savings_percent") or 0.0)
+    long_text_savings = float(benchmark_summary.get("best_long_text_savings_percent") or 0.0)
+    performance_ready = benchmark_ready and large_savings >= 30.0 and long_text_savings >= 10.0
+    blockers = []
+    if failed_count:
+        blockers.append("release_checks_failed")
+    if not install_ready:
+        blockers.append("install_path_not_ready")
+    if not handoff_ready:
+        blockers.append("handoff_restore_not_ready")
+    if not safety_ready:
+        blockers.append("safety_or_smoke_not_ready")
+    if not doctor_ready:
+        blockers.append("doctor_not_ready")
+    if not performance_ready:
+        blockers.append("performance_not_ready")
+    status = "ready" if not blockers else "blocked"
+    return {
+        "status": status,
+        "recommendation": "recommend macOS beta install/use" if status == "ready" else "do not recommend external beta use yet",
+        "install_path": "ready" if install_ready else "blocked",
+        "handoff_path": "ready" if handoff_ready else "blocked",
+        "safety_path": "ready" if safety_ready else "blocked",
+        "doctor_path": "ready" if doctor_ready else "blocked",
+        "performance_path": "ready" if performance_ready else "blocked",
+        "large_directory_savings_floor_percent": 30.0,
+        "long_text_savings_floor_percent": 10.0,
+        "blockers": blockers,
+    }
+
+
 def build_executive_summary(checks: dict[str, dict[str, Any]]) -> dict[str, Any]:
     passed_count = sum(1 for item in checks.values() if item.get("passed"))
     failed_count = sum(1 for item in checks.values() if not item.get("passed"))
@@ -91,6 +144,14 @@ def build_executive_summary(checks: dict[str, dict[str, Any]]) -> dict[str, Any]
         next_action = str(benchmark_summary.get("next_action") or "review benchmark watch items")
     else:
         next_action = "ready for release"
+    v1_beta_readiness = _build_v1_beta_readiness(
+        failed_count=failed_count,
+        python_smoke=python_smoke,
+        quickstart=quickstart,
+        dogfood=dogfood,
+        doctor=doctor,
+        benchmark_summary=benchmark_summary,
+    )
     return {
         "status": status,
         "passed": passed_count,
@@ -109,6 +170,7 @@ def build_executive_summary(checks: dict[str, dict[str, Any]]) -> dict[str, Any]
         "benchmark_restore_verified": benchmark_summary.get("restore_verified", "unknown"),
         "best_large_directory_savings_percent": benchmark_summary.get("best_large_directory_savings_percent", "unknown"),
         "best_long_text_savings_percent": benchmark_summary.get("best_long_text_savings_percent", "unknown"),
+        "v1_beta_readiness": v1_beta_readiness,
         "blocking_checks": blocking,
         "next_action": next_action,
     }

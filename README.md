@@ -127,14 +127,17 @@ Check the installed command:
 
 ```bash
 mcp-skeleton version
+mcp-skeleton doctor --install
 ```
 
 `mcp-skeleton version` reports install readiness, Python status, command availability, whether `handoff` is directly runnable from PATH, and the first `handoff` / `doctor` commands to run. If PATH is not ready, it prints both the persistent setup command and the temporary `export PATH=...` command. JSON output also includes `install_readiness_file` and `install_readiness_manifest` for IDE/plugin integration.
+`mcp-skeleton doctor --install` is the first-run self-check: it reports Python support, command availability, installer readiness manifest status, the copy/paste repair command, and the first `handoff` command to run.
 
 Current v1.0 readiness contract:
 
 - `sh install.sh` should leave a usable `mcp-skeleton` command or print exact PATH recovery commands.
 - `mcp-skeleton version --json` should expose machine-readable install readiness.
+- `mcp-skeleton doctor --install --json` should expose machine-readable first-run install diagnostics.
 - `mcp-skeleton handoff` should create or reuse a restore-safe skeleton bundle for the current directory without extra flags.
 - `mcp-skeleton safety` should make the “share skeleton, keep restore package local” boundary explicit.
 - `testing/release_readiness_check.py` is the release gate for smoke, quickstart, dogfood, doctor, benchmark, and installer readiness.
@@ -205,6 +208,7 @@ mcp-skeleton handoff
 `handoff` is a top-level shortcut for the restore-safe quick workflow. It defaults to the current directory, creates `context_skeleton.mcp` for AI/IDE context, writes `AI_HANDOFF.md` with plain-language instructions, writes `handoff.json` for future IDE/plugin automation, and keeps `context_manifest.json` plus the restore package available for exact reconstruction.
 Run the same command again during day-to-day work; when the project fingerprint is unchanged, MCP-Skeleton automatically reuses the previous fresh bundle instead of recompressing. The `Daily handoff` panel tells you whether this run created a fresh bundle or reused the last one, why that happened, and whether clipboard copy was automatic or manual.
 The generated handoff guide includes a recommended prompt you can paste into Cursor, VS Code agents, Claude, ChatGPT, Codex, or similar tools along with `context_skeleton.mcp`.
+`handoff.json` is the machine-readable contract for IDEs and wrappers: it exposes `handoff_status`, `share_with_ai`, `keep_local`, `safety_boundary`, inspect/restore/copy commands, and the recommended prompt.
 
 On macOS, use:
 
@@ -232,6 +236,7 @@ mcp-skeleton quick
 The first screen includes a `Use this now` section with the skeleton file, estimated token savings, restore command, and inspect command.
 It also prints performance advice with `fast / ok / slow` status and copy/paste `--fast` / `--reuse-if-fresh` commands when those paths improve the experience.
 The JSON output also includes `performance_summary`, a stable field intended for IDE/plugin integrations and simple dashboards. It reports speed status, slowest measured phase, estimated source/skeleton tokens, estimated tokens saved, default noise-protection impact, and the recommended next command.
+`performance_summary.speed_diagnostic` adds the user-facing reason a run may feel slow and the best next command, so wrappers do not need to parse the longer performance profile.
 
 To preview the plan without writing a bundle:
 
@@ -298,6 +303,7 @@ mcp-skeleton safety
 ```
 
 `context safety` explains the core contract in plain language: `context_skeleton.mcp` is the AI-facing file, restore packages preserve raw source bytes and should stay local by default, restore never overwrites your source tree unless you choose an output target, and patch replay should start with `--dry-run --write-dry-run-report`. JSON output exposes the same guarantees for IDEs and wrappers.
+It also includes common questions and emergency recovery guidance for changed projects, lost manifests, and safe patch replay.
 
 Compress a directory:
 
@@ -501,6 +507,7 @@ python3 testing/release_readiness_check.py
 ```
 
 The release readiness JSON includes a top-level `executive_summary` with the quick answer: total passed/failed checks, smoke and quickstart counts, dogfood restore status, doctor readiness, benchmark health, restore coverage, and the next action.
+The same summary includes `v1_beta_readiness`, which is the macOS beta gate for install path, handoff path, safety/smoke path, doctor path, and performance path. When it reports `ready`, the project is suitable for local macOS beta use before broader Windows compatibility regression.
 The dogfood self-check JSON also includes `performance_record`, which captures the tool compressing this repository itself: elapsed time, bundle size, included file count, source/skeleton token estimates, estimated token savings, and whether restore remained byte-exact.
 
 For repeatable test-machine prompts, stress benchmark commands, and result reporting templates, see [CROSS_PLATFORM_TESTING.md](CROSS_PLATFORM_TESTING.md).

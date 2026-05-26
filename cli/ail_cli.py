@@ -187,6 +187,139 @@ def _build_version_payload() -> dict[str, Any]:
     return payload
 
 
+def _build_install_doctor_action_plan(
+    *,
+    install_doctor_status: str,
+    install: dict[str, Any],
+    recommended_fix_command_text: str,
+) -> list[dict[str, str]]:
+    if install_doctor_status == "ready":
+        return [
+            {
+                "step": "run_first_handoff",
+                "status": "ready",
+                "message": f"run {install.get('recommended_first_command_text', 'mcp-skeleton handoff')} in your project",
+            },
+            {
+                "step": "verify_safety",
+                "status": "ready",
+                "message": "use mcp-skeleton safety if you are unsure which generated files are safe to share",
+            },
+        ]
+    if install.get("python_check") == "blocked":
+        return [
+            {
+                "step": "upgrade_python",
+                "status": "blocked",
+                "message": "install Python 3.10+ or rerun the installer with PYTHON=/path/to/python3.11",
+            },
+            {
+                "step": "rerun_installer",
+                "status": "next",
+                "message": recommended_fix_command_text,
+            },
+        ]
+    return [
+        {
+            "step": "repair_path_or_install",
+            "status": "watch",
+            "message": recommended_fix_command_text,
+        },
+        {
+            "step": "self_check",
+            "status": "next",
+            "message": install.get("self_check_command_text", "mcp-skeleton version"),
+        },
+    ]
+
+
+def _render_context_install_doctor_summary(payload: dict[str, Any]) -> str:
+    install = payload.get("install") or {}
+    checks = list(payload.get("checks") or [])
+    lines = [
+        "MCP-Skeleton Install Doctor",
+        "",
+        f"Status: {payload.get('install_doctor_status', '')}",
+        f"Python: {install.get('python_check', '')} - {install.get('python_version', '')}",
+        f"Command: {install.get('command_check', '')} - {install.get('command_path', '') or '(not found on PATH)'}",
+        f"Readiness file: {install.get('install_readiness_manifest', {}).get('status', 'unknown')}",
+        "",
+        "Checks:",
+    ]
+    for item in checks:
+        label = "ok" if item.get("passed") else item.get("severity", "watch")
+        lines.append(f"- {item.get('name', '')}: {label} ({item.get('observed', '')})")
+    lines.extend(
+        [
+            "",
+            f"Copy/paste fix: {payload.get('recommended_fix_command_text', '')}",
+            f"Self-check: {payload.get('self_check_command_text', '')}",
+            f"First run: {payload.get('first_run_command_text', '')}",
+            "",
+            "Next steps:",
+        ]
+    )
+    for item in payload.get("action_plan") or []:
+        lines.append(f"- {item.get('message', '')}")
+    return "\n".join(lines)
+
+
+def _build_context_install_doctor_payload(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    del args
+    install = _build_version_payload()
+    manifest_status = str((install.get("install_readiness_manifest") or {}).get("status") or "missing")
+    checks = [
+        {
+            "name": "python_version_supported",
+            "passed": install.get("python_check") == "ok",
+            "severity": "block",
+            "observed": install.get("python_version", ""),
+        },
+        {
+            "name": "command_available",
+            "passed": install.get("command_check") == "ok",
+            "severity": "watch",
+            "observed": install.get("command_path") or "(not found on PATH)",
+        },
+        {
+            "name": "readiness_manifest_available",
+            "passed": manifest_status == "ready",
+            "severity": "watch",
+            "observed": manifest_status,
+        },
+    ]
+    failed_blocks = [item for item in checks if item["severity"] == "block" and not item["passed"]]
+    failed_watches = [item for item in checks if item["severity"] == "watch" and not item["passed"]]
+    install_doctor_status = "blocked" if failed_blocks else "watch" if failed_watches else "ready"
+    if failed_blocks:
+        recommended_fix_command_text = "PYTHON=/path/to/python3.11 sh install.sh --setup-shell"
+    elif install.get("command_check") != "ok":
+        recommended_fix_command_text = str(install.get("path_setup_command_text") or "sh install.sh --setup-shell")
+    elif manifest_status != "ready":
+        recommended_fix_command_text = str(install.get("install_command_text") or "sh install.sh")
+    else:
+        recommended_fix_command_text = str(install.get("recommended_first_command_text") or "mcp-skeleton handoff")
+    action_plan = _build_install_doctor_action_plan(
+        install_doctor_status=install_doctor_status,
+        install=install,
+        recommended_fix_command_text=recommended_fix_command_text,
+    )
+    payload = {
+        "status": "ok",
+        "entrypoint": "context-install-doctor",
+        "install_doctor_status": install_doctor_status,
+        "install": install,
+        "checks": checks,
+        "recommended_fix_command_text": recommended_fix_command_text,
+        "self_check_command_text": str(install.get("self_check_command_text") or "mcp-skeleton version"),
+        "first_run_command_text": str(install.get("recommended_first_command_text") or "mcp-skeleton handoff"),
+        "action_plan": action_plan,
+        "next_steps": [item["message"] for item in action_plan],
+    }
+    payload["summary_text"] = _render_context_install_doctor_summary(payload)
+    return payload, EXIT_OK
+
+
 def _emit_version_result(args: argparse.Namespace) -> int:
     payload = _build_version_payload()
     if bool(getattr(args, "json", False)):
@@ -1102,16 +1235,39 @@ def _build_ai_handoff_prompt(*, skeleton_file: str, manifest_file: str) -> str:
 
 def _build_ai_handoff_metadata(payload: dict[str, Any]) -> dict[str, Any]:
     handoff = payload.get("handoff") or {}
+    user_outcome = payload.get("user_outcome") or {}
+    skeleton_file = str(handoff.get("skeleton_file", ""))
+    manifest_file = str(handoff.get("manifest_file", ""))
+    restore_package = str(handoff.get("restore_package", ""))
+    recommended_prompt = str(handoff.get("recommended_prompt", ""))
     return {
         "schema": "mcp-skeleton.handoff.v1",
-        "skeleton_file": handoff.get("skeleton_file", ""),
-        "manifest_file": handoff.get("manifest_file", ""),
+        "handoff_status": "ready_to_share" if skeleton_file and manifest_file else "unavailable",
+        "skeleton_file": skeleton_file,
+        "manifest_file": manifest_file,
         "bundle_root": handoff.get("bundle_root", ""),
-        "restore_package": handoff.get("restore_package", ""),
+        "restore_package": restore_package,
         "inspect_command_text": payload.get("inspect_command_text", ""),
         "restore_command_text": payload.get("restore_command_text", ""),
         "copy_command_text": payload.get("copy_command_text", ""),
-        "recommended_prompt": handoff.get("recommended_prompt", ""),
+        "recommended_prompt": recommended_prompt,
+        "share_with_ai": {
+            "file": skeleton_file,
+            "label": "context_skeleton.mcp",
+            "default_prompt": recommended_prompt,
+            "action": user_outcome.get("share_action", "give_skeleton_to_ai"),
+        },
+        "keep_local": {
+            "bundle_root": handoff.get("bundle_root", ""),
+            "manifest_file": manifest_file,
+            "restore_package": restore_package,
+            "ai_handoff_file": handoff.get("ai_handoff_file", ""),
+        },
+        "safety_boundary": {
+            "skeleton_share_default": "share_with_ai",
+            "restore_package_share_default": "keep_local",
+            "reason": "restore packages preserve raw source bytes for exact reconstruction",
+        },
     }
 
 
@@ -1120,6 +1276,11 @@ def _render_quick_ai_handoff_guide(payload: dict[str, Any]) -> str:
     keep_files = handoff.get("restore_keep_files") or {}
     return "\n".join([
         "# MCP-Skeleton AI Handoff",
+        "",
+        "Ready to share:",
+        f"- Status: {(payload.get('user_outcome') or {}).get('status', 'ready_to_share')}",
+        f"- Share file: {handoff.get('ai_file') or handoff.get('skeleton_file') or '(not available)'}",
+        "- Keep restore packages local unless you intentionally want to share raw source bytes.",
         "",
         "Give this to AI/IDE:",
         f"- Skeleton file: {handoff.get('ai_file') or handoff.get('skeleton_file') or '(not available)'}",
@@ -2060,6 +2221,13 @@ def _build_quick_performance_summary(
             "strategy": strategy,
             "command_text": command_text,
             "reason": reason,
+        },
+        "speed_diagnostic": {
+            "dominant_phase": str(performance_advice.get("dominant_phase") or dominant_phase.get("name") or "quick_total"),
+            "dominant_phase_label": str(dominant_phase.get("label") or dominant_phase.get("name") or "Quick total"),
+            "dominant_phase_ms": float(performance_advice.get("dominant_phase_ms") or dominant_phase.get("duration_ms") or 0.0),
+            "why_it_may_feel_slow": str(performance_advice.get("why_it_may_feel_slow") or "quick completed without a single dominant measured phase"),
+            "best_next_command_text": str(performance_advice.get("next_best_command_text") or command_text),
         },
         "token_impact": {
             "estimated_source_tokens": source_tokens,
@@ -3040,6 +3208,8 @@ def _render_context_safety_summary(payload: dict[str, Any]) -> str:
     restore_package = payload.get("restore_package") or {}
     patch_replay = payload.get("patch_replay") or {}
     noise = payload.get("default_noise_protection") or {}
+    common_questions = payload.get("common_questions") or {}
+    emergency_recovery = payload.get("emergency_recovery") or {}
     return "\n".join([
         "MCP-Skeleton Safety",
         "",
@@ -3061,6 +3231,15 @@ def _render_context_safety_summary(payload: dict[str, Any]) -> str:
         "Default noise protection:",
         f"- Status: {noise.get('status', '')}",
         f"- Skipped dirs: {', '.join(list(noise.get('skipped_dir_names') or [])[:12])}",
+        "",
+        "Common questions:",
+        f"- What can I share with AI? {(common_questions.get('what_to_share_with_ai') or {}).get('answer', '')}",
+        f"- What should stay local? {(common_questions.get('what_to_keep_local') or {}).get('answer', '')}",
+        f"- How do I apply patches safely? {(common_questions.get('safe_patch_apply') or {}).get('answer', '')}",
+        "",
+        "Emergency recovery:",
+        f"- Lost manifest: {(emergency_recovery.get('lost_manifest') or {}).get('message', '')}",
+        f"- Project changed: {(emergency_recovery.get('project_changed') or {}).get('next_command_text', '')}",
     ])
 
 
@@ -3091,6 +3270,31 @@ def _build_context_safety_payload(args: argparse.Namespace) -> tuple[dict[str, A
             "status": "active",
             "skipped_dir_names": sorted(SKIP_DIR_NAMES),
             "disable_flag": "--include-default-skips",
+        },
+        "common_questions": {
+            "what_to_share_with_ai": {
+                "answer": "Share context_skeleton.mcp plus the recommended prompt; this is the AI-facing compressed context.",
+                "safe_file_label": "context_skeleton.mcp",
+            },
+            "what_to_keep_local": {
+                "answer": "Keep context_manifest.json, context_restore_package.*, AI_HANDOFF.md, and handoff.json locally for exact restore and future reuse.",
+                "reason": "restore packages preserve raw source bytes",
+            },
+            "safe_patch_apply": {
+                "answer": "Start with a dry run and inspect the report before writing any output.",
+                "first_command": "mcp-skeleton patch-apply --dry-run --write-dry-run-report patch-dry-run.json --json",
+            },
+        },
+        "emergency_recovery": {
+            "lost_manifest": {
+                "status": "blocked",
+                "message": "exact restore needs the manifest and restore package; regenerate a fresh handoff if the original project is still available",
+            },
+            "project_changed": {
+                "status": "refresh",
+                "next_command_text": "mcp-skeleton handoff --force-refresh",
+                "message": "refresh the bundle before sharing context from a changed project",
+            },
         },
         "recommended_first_commands": ["mcp-skeleton handoff", "mcp-skeleton recent", "mcp-skeleton doctor"],
     }
@@ -3709,6 +3913,9 @@ def cmd_context(args: argparse.Namespace) -> int:
         return exit_code
 
     if command == "doctor":
+        if bool(getattr(args, "install_check", False)):
+            payload, exit_code = _build_context_install_doctor_payload(args)
+            return _emit_simple_result(args, payload, text=str(payload.get("summary_text", "")), exit_code=exit_code)
         _apply_current_dir_default(args)
         payload, exit_code = _build_context_doctor_payload(args)
         return _emit_simple_result(args, payload, text=_render_context_doctor_summary(payload), exit_code=exit_code)
@@ -4140,6 +4347,7 @@ def _build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--tokenizer-backend", dest="tokenizer_backend", default="auto", choices=["auto", "heuristic", "tiktoken"])
     doctor.add_argument("--tokenizer-model", dest="tokenizer_model")
     doctor.add_argument("--write-report", dest="output_report_file", help="Write a Markdown readiness report")
+    doctor.add_argument("--install", dest="install_check", action="store_true", help="Check local install readiness without scanning a project")
     doctor.add_argument("--force", action="store_true", help="Overwrite --write-report if it already exists")
     doctor.add_argument("--json", action="store_true")
 

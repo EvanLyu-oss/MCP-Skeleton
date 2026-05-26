@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- added `mcp-skeleton doctor --install` for first-run install diagnostics, PATH/Python/readiness checks, and copy/paste repair commands
+- added `install_doctor_command_text` to the installer readiness manifest and installer completion output
+- expanded `handoff.json` with a stable AI/IDE handoff contract covering ready-to-share status, share-with-AI file, keep-local restore files, and safety boundary metadata
+- added stable `performance_summary.speed_diagnostic` fields so wrappers can show why a quick/handoff run felt slow and which command to use next
+- expanded `mcp-skeleton safety` with common questions and emergency recovery guidance for lost manifests, changed projects, and dry-run-first patch replay
+- added `v1_beta_readiness` to release readiness summaries so macOS beta install/use readiness is visible without reading every check
 - added `context safety` / `mcp-skeleton safety` to explain the restore-package sharing boundary, dry-run-first patch replay, and default noise protection in both human and JSON output
 - added stable `user_outcome` fields to quick, handoff, and recent JSON so IDEs can tell users exactly which skeleton file is ready to share, whether the bundle was reused, and what command to run next
 - expanded default-noise explanations with estimated skipped file and byte counts so large-project users can see why compression is faster and smaller before disabling the defaults

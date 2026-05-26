@@ -169,12 +169,14 @@ if command -v mcp-skeleton >/dev/null 2>&1; then
   HANDOFF_COMMAND="mcp-skeleton handoff"
   QUICK_COMMAND="mcp-skeleton quick"
   VERSION_COMMAND="mcp-skeleton version"
+  INSTALL_DOCTOR_COMMAND="mcp-skeleton doctor --install"
 else
   echo "PATH status: needs shell setup - $BIN_DIR is not currently on PATH"
   PATH_STATUS="needs_shell_setup"
   HANDOFF_COMMAND="$COMMAND_PATH handoff"
   QUICK_COMMAND="$COMMAND_PATH quick"
   VERSION_COMMAND="$COMMAND_PATH version"
+  INSTALL_DOCTOR_COMMAND="$COMMAND_PATH doctor --install"
 fi
 echo "Shell profile: $SHELL_PROFILE_STATUS"
 if [ "$SETUP_SHELL" = "1" ]; then
@@ -182,7 +184,7 @@ if [ "$SETUP_SHELL" = "1" ]; then
   echo "Restart your terminal or run: export PATH=\"$BIN_DIR:\$PATH\""
 fi
 
-"$VENV_DIR/bin/python" - "$READINESS_FILE" "$COMMAND_PATH" "$INSTALL_DIR" "$BIN_DIR" "$PATH_STATUS" "$SHELL_PROFILE_STATUS" "$HANDOFF_COMMAND" "$QUICK_COMMAND" "$VERSION_COMMAND" "$SHELL_PROFILE" <<'PY'
+"$VENV_DIR/bin/python" - "$READINESS_FILE" "$COMMAND_PATH" "$INSTALL_DIR" "$BIN_DIR" "$PATH_STATUS" "$SHELL_PROFILE_STATUS" "$HANDOFF_COMMAND" "$QUICK_COMMAND" "$VERSION_COMMAND" "$INSTALL_DOCTOR_COMMAND" "$SHELL_PROFILE" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -197,8 +199,9 @@ from pathlib import Path
     handoff_command,
     quick_command,
     version_command,
+    install_doctor_command,
     shell_profile,
-) = sys.argv[1:11]
+) = sys.argv[1:12]
 
 payload = {
     "schema": "mcp-skeleton.install-readiness.v1",
@@ -213,6 +216,7 @@ payload = {
     "recommended_first_command_text": handoff_command,
     "quick_command_text": quick_command,
     "doctor_command_text": f"{command_path} doctor",
+    "install_doctor_command_text": install_doctor_command,
     "self_check_command_text": version_command,
     "path_setup_command_text": "sh install.sh --setup-shell",
     "path_export_command_text": f"export PATH=\"{bin_dir}:$PATH\"",
@@ -229,7 +233,11 @@ echo "  $QUICK_COMMAND"
 echo ""
 echo "First run self-check:"
 echo "  $VERSION_COMMAND"
+echo "  $INSTALL_DOCTOR_COMMAND"
 echo "  $COMMAND_PATH doctor"
+echo ""
+echo "Install doctor:"
+echo "  $INSTALL_DOCTOR_COMMAND"
 echo ""
 echo "Self-check command:"
 echo "  $VERSION_COMMAND"
@@ -242,6 +250,7 @@ echo "  sh install.sh --setup-shell"
 echo ""
 echo "Useful checks:"
 echo "  $VERSION_COMMAND"
+echo "  $INSTALL_DOCTOR_COMMAND"
 echo "  $COMMAND_PATH doctor"
 echo ""
 if ! printf '%s' "$PATH" | grep -q "$BIN_DIR"; then
