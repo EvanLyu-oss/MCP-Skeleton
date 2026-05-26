@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- improved installer and `mcp-skeleton version` guidance with explicit PATH fix, temporary export, self-check, and first-run handoff commands
 - added a daily handoff summary to `mcp-skeleton handoff` that explains whether the bundle was created or reused, why that happened, and how clipboard copy was handled
 - expanded default noise protection to skip common generated test results, restore outputs, and Python package metadata such as `testing/results`, `test-results`, `mcp-skeleton-restore`, and `*.egg-info`
 - added bundle lifecycle fields to `mcp-skeleton recent`, including created time, bundle size, restore package path, and file-existence checks

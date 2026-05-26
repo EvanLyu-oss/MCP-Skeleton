@@ -116,8 +116,13 @@ def _build_version_payload() -> dict[str, Any]:
     executable = command_path or sys.executable
     python_check = "ok" if sys.version_info >= (3, 10) else "blocked"
     install_home = os.environ.get("MCP_SKELETON_HOME", str(Path.home() / ".mcp-skeleton"))
+    bin_dir = str(Path.home() / ".local" / "bin")
     install_readiness_status = "ready" if command_path and python_check == "ok" else "watch"
     command_prefix = "mcp-skeleton" if command_path else f"{shlex.quote(sys.executable)} -m cli"
+    can_run_handoff = command_path != "" and python_check == "ok"
+    path_setup_command_text = "sh install.sh --setup-shell"
+    path_export_command_text = f"export PATH={shlex.quote(bin_dir)}:$PATH"
+    self_check_command_text = f"{command_prefix} version"
     payload = {
         "status": "ok",
         "entrypoint": "mcp-skeleton-version",
@@ -133,6 +138,10 @@ def _build_version_payload() -> dict[str, Any]:
         "python_check": python_check,
         "command_check": "ok" if command_path else "watch",
         "install_command_text": "sh install.sh",
+        "path_setup_command_text": path_setup_command_text,
+        "path_export_command_text": path_export_command_text,
+        "self_check_command_text": self_check_command_text,
+        "can_run_handoff": can_run_handoff,
         "recommended_first_command_text": f"{command_prefix} handoff",
         "doctor_command_text": f"{command_prefix} doctor",
         "path_hint": "ok" if command_path else "mcp-skeleton command was not found on PATH; use python3 -m cli or run sh install.sh",
@@ -145,6 +154,10 @@ def _build_version_payload() -> dict[str, Any]:
             f"Python check: {payload['python_check']} - {payload['python_version']} ({payload['python_executable']})",
             f"Command check: {payload['command_check']} - {payload['command_path'] or '(not found on PATH)'}",
             f"Install command: {payload['install_command_text']}",
+            f"Can run handoff: {'yes' if payload['can_run_handoff'] else 'not from PATH yet'}",
+            f"PATH fix command: {payload['path_setup_command_text']}",
+            f"Temporary PATH command: {payload['path_export_command_text']}",
+            f"Self-check command: {payload['self_check_command_text']}",
             f"First run command: {payload['recommended_first_command_text']}",
             f"Doctor command: {payload['doctor_command_text']}",
             "",

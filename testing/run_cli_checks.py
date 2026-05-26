@@ -1073,9 +1073,15 @@ def _check_top_level_version_json(workspace: Path) -> None:
     assert payload["install_readiness_status"] in {"ready", "watch"}
     assert payload["python_check"] in {"ok", "blocked"}
     assert payload["install_command_text"] == "sh install.sh"
+    assert payload["path_setup_command_text"]
+    assert payload["path_export_command_text"].startswith("export PATH=")
+    assert payload["self_check_command_text"].endswith(" version")
     assert payload["recommended_first_command_text"].endswith("handoff")
     assert payload["doctor_command_text"].endswith("doctor")
     assert "mcp-skeleton version" in payload["summary_text"]
+    assert "Can run handoff:" in payload["summary_text"]
+    assert "PATH fix command:" in payload["summary_text"]
+    assert "Self-check command:" in payload["summary_text"]
     assert "Install readiness:" in payload["summary_text"]
     assert "Python check:" in payload["summary_text"]
     assert "Command check:" in payload["summary_text"]
@@ -1105,6 +1111,9 @@ def _check_installer_lifecycle_json(workspace: Path) -> None:
     assert "PATH status:" in install.stdout
     assert "Command check:" in install.stdout
     assert "First run self-check:" in install.stdout
+    assert "If command is not found later:" in install.stdout
+    assert "PATH fix command:" in install.stdout
+    assert "Self-check command:" in install.stdout
     assert "Copy/paste next:" in install.stdout
     assert "mcp-skeleton version" in install.stdout
     assert "mcp-skeleton handoff" in install.stdout
