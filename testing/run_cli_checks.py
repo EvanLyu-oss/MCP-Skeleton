@@ -914,6 +914,8 @@ def _check_context_recent_json(workspace: Path) -> None:
     assert recent["skeleton_exists"] is True
     assert recent["restore_package_exists"] is True
     assert recent["restore_package"]
+    assert "Use the attached context_skeleton.mcp" in recent["recommended_prompt"]
+    assert recent["metadata_file"].endswith("handoff.json")
     assert recent["open_command_text"].startswith("open ")
     assert "| pbcopy" in recent["copy_command_text"]
     assert recent["inspect_command_text"].startswith("mcp-skeleton inspect")
@@ -927,6 +929,7 @@ def _check_context_recent_json(workspace: Path) -> None:
     assert "Last bundle:" in recent["summary_text"]
     assert "Bundle size:" in recent["summary_text"]
     assert "Created:" in recent["summary_text"]
+    assert "Recommended prompt:" in recent["summary_text"]
     assert "Copy skeleton:" in recent["summary_text"]
 
     (project / "src" / "app.py").write_text(
@@ -1421,6 +1424,34 @@ def _check_handoff_daily_output_json(workspace: Path) -> None:
     assert second["daily_handoff"]["clipboard"]["status"] == "manual"
     assert "Daily handoff:" in second["summary_text"]
     assert "reused the last fresh bundle" in second["summary_text"]
+
+
+def _check_handoff_ai_prompt_json(workspace: Path) -> None:
+    project = workspace / "handoff_ai_prompt_project"
+    (project / "src").mkdir(parents=True)
+    (project / "src" / "app.py").write_text(
+        "def run() -> str:\n"
+        "    return 'handoff-ai-prompt'\n",
+        encoding="utf-8",
+    )
+
+    payload = _run_top_level_cli_json(["handoff", "--json"], cwd=project)
+    handoff = payload["handoff"]
+    prompt = handoff["recommended_prompt"]
+    metadata = handoff["metadata"]
+    guide_text = Path(handoff["ai_handoff_file"]).read_text(encoding="utf-8")
+    metadata_payload = json.loads(Path(handoff["metadata_file"]).read_text(encoding="utf-8"))
+
+    assert "Use the attached context_skeleton.mcp" in prompt
+    assert "Do not ask me to paste the restore package" in prompt
+    assert metadata["skeleton_file"] == handoff["skeleton_file"]
+    assert metadata["manifest_file"] == handoff["manifest_file"]
+    assert metadata["restore_command_text"] == payload["restore_command_text"]
+    assert metadata_payload["recommended_prompt"] == prompt
+    assert metadata_payload["skeleton_file"] == handoff["skeleton_file"]
+    assert "Recommended prompt:" in guide_text
+    assert "IDE metadata:" in guide_text
+    assert "Recommended prompt:" in payload["summary_text"]
 
 
 def _check_context_auto_defaults_json(workspace: Path) -> None:
@@ -2660,6 +2691,7 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("zero_learning_defaults_json_ok", _check_zero_learning_defaults_json),
     ("handoff_auto_reuse_json_ok", _check_handoff_auto_reuse_json),
     ("handoff_daily_output_json_ok", _check_handoff_daily_output_json),
+    ("handoff_ai_prompt_json_ok", _check_handoff_ai_prompt_json),
     ("context_auto_defaults_json_ok", _check_context_auto_defaults_json),
     ("context_bundle_json_ok", _check_bundle_outputs),
     ("context_compress_incremental_clean_diagnostics_json_ok", _check_clean_incremental_diagnostics),

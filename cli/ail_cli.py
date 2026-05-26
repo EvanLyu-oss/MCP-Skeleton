@@ -1054,12 +1054,14 @@ def _build_quick_handoff_payload(bundle_payload: dict[str, Any], *, bundle_root:
     skeleton_file = str(files.get("skeleton_file") or (str(Path(bundle_root) / "context_skeleton.mcp") if bundle_root else ""))
     inspect_summary = str(files.get("inspect_summary_txt") or (str(Path(bundle_root) / "inspect_summary.txt") if bundle_root else ""))
     restore_package = str(files.get("restore_package") or files.get("restore_file") or "")
+    recommended_prompt = _build_ai_handoff_prompt(skeleton_file=skeleton_file, manifest_file=manifest_file)
     return {
         "status": "ready" if skeleton_file and manifest_file else "unavailable",
         "message": "feed the skeleton file to your AI or IDE; keep the bundle folder and manifest for exact restore; only share restore packages intentionally",
         "ai_file": skeleton_file,
         "skeleton_file": skeleton_file,
         "ai_guidance": "paste or attach this skeleton file when asking an AI/IDE to understand the project context",
+        "recommended_prompt": recommended_prompt,
         "bundle_root": bundle_root,
         "manifest_file": manifest_file,
         "inspect_summary": inspect_summary,
@@ -1073,6 +1075,31 @@ def _build_quick_handoff_payload(bundle_payload: dict[str, Any], *, bundle_root:
     }
 
 
+def _build_ai_handoff_prompt(*, skeleton_file: str, manifest_file: str) -> str:
+    return (
+        "Use the attached context_skeleton.mcp as compressed project context. "
+        "Treat it as a lossless MCP-Skeleton summary, not as a replacement for the restore package. "
+        "Do not ask me to paste the restore package unless I explicitly want to share raw source bytes. "
+        f"If exact reconstruction is needed later, use the manifest at {manifest_file or 'context_manifest.json'}. "
+        f"The skeleton file is {skeleton_file or 'context_skeleton.mcp'}."
+    )
+
+
+def _build_ai_handoff_metadata(payload: dict[str, Any]) -> dict[str, Any]:
+    handoff = payload.get("handoff") or {}
+    return {
+        "schema": "mcp-skeleton.handoff.v1",
+        "skeleton_file": handoff.get("skeleton_file", ""),
+        "manifest_file": handoff.get("manifest_file", ""),
+        "bundle_root": handoff.get("bundle_root", ""),
+        "restore_package": handoff.get("restore_package", ""),
+        "inspect_command_text": payload.get("inspect_command_text", ""),
+        "restore_command_text": payload.get("restore_command_text", ""),
+        "copy_command_text": payload.get("copy_command_text", ""),
+        "recommended_prompt": handoff.get("recommended_prompt", ""),
+    }
+
+
 def _render_quick_ai_handoff_guide(payload: dict[str, Any]) -> str:
     handoff = payload.get("handoff") or {}
     keep_files = handoff.get("restore_keep_files") or {}
@@ -1082,6 +1109,12 @@ def _render_quick_ai_handoff_guide(payload: dict[str, Any]) -> str:
         "Give this to AI/IDE:",
         f"- Skeleton file: {handoff.get('ai_file') or handoff.get('skeleton_file') or '(not available)'}",
         "- This is the compressed context file intended for chat, IDE agents, and AI review.",
+        "",
+        "Recommended prompt:",
+        handoff.get("recommended_prompt") or "(not available)",
+        "",
+        "IDE metadata:",
+        f"- Metadata file: {handoff.get('metadata_file') or '(not available)'}",
         "",
         "Keep these for restore:",
         f"- Bundle folder: {keep_files.get('bundle_root') or handoff.get('bundle_root') or '(not available)'}",
@@ -1105,9 +1138,14 @@ def _write_quick_ai_handoff_guide(payload: dict[str, Any]) -> str:
     bundle_root = str(payload.get("bundle_root") or "")
     if not bundle_root:
         return ""
+    handoff = payload.setdefault("handoff", {})
+    metadata_file = Path(bundle_root) / "handoff.json"
+    metadata = _build_ai_handoff_metadata(payload)
+    metadata_file.write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    handoff["metadata_file"] = str(metadata_file)
+    handoff["metadata"] = metadata
     guide_file = Path(bundle_root) / "AI_HANDOFF.md"
     guide_file.write_text(_render_quick_ai_handoff_guide(payload), encoding="utf-8")
-    handoff = payload.setdefault("handoff", {})
     handoff["ai_handoff_file"] = str(guide_file)
     return str(guide_file)
 
@@ -1278,6 +1316,8 @@ def _build_recent_record(args: argparse.Namespace, payload: dict[str, Any]) -> d
         "manifest_file": manifest_file,
         "skeleton_file": skeleton_file,
         "restore_package": restore_package,
+        "metadata_file": str(handoff.get("metadata_file", "")),
+        "recommended_prompt": str(handoff.get("recommended_prompt", "")),
         "bundle_size_bytes": _path_size_bytes(Path(bundle_root)) if bundle_root else 0,
         "inspect_command_text": payload.get("inspect_command_text", ""),
         "restore_command_text": payload.get("restore_command_text", ""),
@@ -1321,6 +1361,8 @@ def _render_context_recent_summary(payload: dict[str, Any]) -> str:
         f"- Estimated tokens saved: {payload.get('estimated_tokens_saved', 0)}",
         f"- Estimated token savings: {payload.get('estimated_savings_percent', 0)}%",
         f"- Freshness: {payload.get('freshness_status', 'unknown')}",
+        f"- Metadata: {payload.get('metadata_file', '') or '(not available)'}",
+        f"- Recommended prompt: {payload.get('recommended_prompt', '') or '(not available)'}",
     ]
     if payload.get("freshness_status") == "stale":
         lines.extend([
@@ -1481,6 +1523,8 @@ def _build_context_recent_payload(args: argparse.Namespace) -> tuple[dict[str, A
             "manifest_file",
             "skeleton_file",
             "restore_package",
+            "metadata_file",
+            "recommended_prompt",
             "inspect_command_text",
             "restore_command_text",
             "open_command_text",
@@ -1518,6 +1562,8 @@ def _build_reused_quick_payload(args: argparse.Namespace, *, started_at: float) 
         "message": "feed the skeleton file to your AI or IDE; keep the bundle folder and manifest for exact restore",
         "ai_file": skeleton_file,
         "skeleton_file": skeleton_file,
+        "ai_guidance": "paste or attach this skeleton file when asking an AI/IDE to understand the project context",
+        "recommended_prompt": _build_ai_handoff_prompt(skeleton_file=skeleton_file, manifest_file=manifest_file),
         "bundle_root": bundle_root,
         "manifest_file": manifest_file,
         "inspect_summary": str(Path(bundle_root) / "inspect_summary.txt"),
@@ -1952,6 +1998,8 @@ def _render_context_quick_summary(payload: dict[str, Any]) -> str:
         "AI handoff:",
         f"- Give AI this file: {handoff.get('ai_file', '') or handoff.get('skeleton_file', '') or '(not available)'}",
         f"- AI handoff guide: {handoff.get('ai_handoff_file', '') or '(not available)'}",
+        f"- IDE metadata: {handoff.get('metadata_file', '') or '(not available)'}",
+        f"- Recommended prompt: {handoff.get('recommended_prompt', '') or '(not available)'}",
         f"- Guidance: {handoff.get('ai_guidance', '') or 'paste or attach the skeleton file only'}",
         "",
         "Keep for restore:",
