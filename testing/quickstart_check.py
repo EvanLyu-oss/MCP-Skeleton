@@ -106,6 +106,14 @@ def build_quickstart_check_payload() -> dict[str, Any]:
         )
 
         install_passed = bool(install["passed"] and command_path.exists() and "MCP-Skeleton Install Ready" in install["stdout_tail"])
+        readiness_file = home / ".mcp-skeleton" / "install-readiness.json"
+        readiness_json = json.loads(readiness_file.read_text(encoding="utf-8")) if readiness_file.exists() else {}
+        readiness_passed = bool(
+            readiness_json.get("schema") == "mcp-skeleton.install-readiness.v1"
+            and readiness_json.get("status") == "ready"
+            and readiness_json.get("command_path") == str(command_path)
+            and str(readiness_json.get("recommended_first_command_text") or "").endswith("handoff")
+        )
         demo_passed = bool(demo["passed"] and demo_json.get("demo_status") == "ready" and (demo_json.get("quick") or {}).get("restore_safe"))
         handoff_passed = bool(
             handoff["passed"]
@@ -128,10 +136,13 @@ def build_quickstart_check_payload() -> dict[str, Any]:
         checks = {
             "install_sh": {
                 **install,
-                "passed": install_passed,
+                "passed": install_passed and readiness_passed,
                 "command_exists": command_path.exists(),
                 "has_ready_panel": "MCP-Skeleton Install Ready" in install["stdout_tail"],
                 "shell_profile_updated": "Shell profile:" in install["stdout_tail"],
+                "readiness_file_exists": readiness_file.exists(),
+                "readiness_status": readiness_json.get("status", ""),
+                "readiness_recommended_first_command": readiness_json.get("recommended_first_command_text", ""),
             },
             "mcp_skeleton_demo": {
                 **demo,

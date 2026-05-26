@@ -113,7 +113,7 @@ sh install.sh
 ```
 
 This creates an isolated virtual environment under `~/.mcp-skeleton`, installs tokenizer-backed metrics, and links the `mcp-skeleton` command into `~/.local/bin`.
-The installer finishes with a command check, PATH status, a first-run self-check, a copy/paste `handoff` command, and explicit PATH recovery commands so you can give the current project to an AI/IDE immediately.
+The installer finishes with a command check, PATH status, a first-run self-check, a copy/paste `handoff` command, explicit PATH recovery commands, and `~/.mcp-skeleton/install-readiness.json` so IDEs or automated test machines can confirm the install without parsing terminal text.
 
 If you want the installer to add `~/.local/bin` to future zsh terminals for you, run:
 
@@ -129,7 +129,7 @@ Check the installed command:
 mcp-skeleton version
 ```
 
-`mcp-skeleton version` reports install readiness, Python status, command availability, whether `handoff` is directly runnable from PATH, and the first `handoff` / `doctor` commands to run. If PATH is not ready, it prints both the persistent setup command and the temporary `export PATH=...` command.
+`mcp-skeleton version` reports install readiness, Python status, command availability, whether `handoff` is directly runnable from PATH, and the first `handoff` / `doctor` commands to run. If PATH is not ready, it prints both the persistent setup command and the temporary `export PATH=...` command. JSON output also includes `install_readiness_file` and `install_readiness_manifest` for IDE/plugin integration.
 
 Update from a newer downloaded checkout:
 

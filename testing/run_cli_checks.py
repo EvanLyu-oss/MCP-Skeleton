@@ -1093,6 +1093,8 @@ def _check_top_level_version_json(workspace: Path) -> None:
     assert payload["install_command_text"] == "sh install.sh"
     assert payload["path_setup_command_text"]
     assert payload["path_export_command_text"].startswith("export PATH=")
+    assert payload["install_readiness_file"].endswith("install-readiness.json")
+    assert payload["install_readiness_manifest"]["status"] in {"ready", "missing"}
     assert payload["self_check_command_text"].endswith(" version")
     assert payload["recommended_first_command_text"].endswith("handoff")
     assert payload["doctor_command_text"].endswith("doctor")
@@ -1137,6 +1139,31 @@ def _check_installer_lifecycle_json(workspace: Path) -> None:
     assert "mcp-skeleton handoff" in install.stdout
     assert "mcp-skeleton quick" in install.stdout
     assert "mcp-skeleton handoff --input-dir ." not in install.stdout
+    readiness_file = home / ".mcp-skeleton" / "install-readiness.json"
+    assert readiness_file.exists()
+    readiness = json.loads(readiness_file.read_text(encoding="utf-8"))
+    assert readiness["schema"] == "mcp-skeleton.install-readiness.v1"
+    assert readiness["status"] == "ready"
+    assert readiness["command_path"] == str(command)
+    assert readiness["command_check"] == "ok"
+    assert readiness["path_status"] in {"ready", "needs_shell_setup"}
+    assert readiness["recommended_first_command_text"].endswith("handoff")
+    assert readiness["doctor_command_text"].endswith("doctor")
+    assert readiness["path_export_command_text"].startswith("export PATH=")
+    assert readiness["path_setup_command_text"] == "sh install.sh --setup-shell"
+    assert "Install readiness file:" in install.stdout
+    version_proc = subprocess.run(
+        [str(command), "version", "--json"],
+        cwd=str(ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+    assert version_proc.returncode == 0, version_proc.stderr + version_proc.stdout
+    version_payload = json.loads(version_proc.stdout)
+    assert version_payload["install_readiness_file"] == str(readiness_file)
+    assert version_payload["install_readiness_manifest"]["schema"] == "mcp-skeleton.install-readiness.v1"
+    assert version_payload["install_readiness_manifest"]["recommended_first_command_text"].endswith("handoff")
 
     shell_home = workspace / "installer_shell_home"
     shell_home.mkdir()
@@ -1159,6 +1186,9 @@ def _check_installer_lifecycle_json(workspace: Path) -> None:
     assert "export PATH=" in shell_profile_text
     assert "Shell profile: updated" in shell_install.stdout
     assert "Restart your terminal" in shell_install.stdout
+    shell_readiness = json.loads((shell_home / ".mcp-skeleton" / "install-readiness.json").read_text(encoding="utf-8"))
+    assert shell_readiness["shell_profile_status"] == "updated"
+    assert shell_readiness["path_status"] == "ready"
 
     update = subprocess.run(
         ["sh", str(ROOT / "install.sh"), "--update"],

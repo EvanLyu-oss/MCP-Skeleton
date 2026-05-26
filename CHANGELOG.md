@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- added an installer readiness manifest at `~/.mcp-skeleton/install-readiness.json`, and exposed it through `mcp-skeleton version --json` for IDEs, test machines, and first-run automation
 - added a stable `performance_summary` to `context quick` / `mcp-skeleton handoff` JSON and human output, with speed status, slowest phase, token impact, noise-protection impact, and the recommended next run
 - expanded dogfood self-check output with a real performance record covering elapsed time, bundle size, included files, source/skeleton tokens, estimated savings, and exact-restore status
 - fixed reused quick/handoff restore command text so it keeps the full manifest path instead of falling back to `context_manifest.json`

@@ -116,6 +116,16 @@ def _build_version_payload() -> dict[str, Any]:
     executable = command_path or sys.executable
     python_check = "ok" if sys.version_info >= (3, 10) else "blocked"
     install_home = os.environ.get("MCP_SKELETON_HOME", str(Path.home() / ".mcp-skeleton"))
+    install_readiness_file = str(Path(install_home) / "install-readiness.json")
+    install_readiness_manifest: dict[str, Any] = {"status": "missing"}
+    try:
+        manifest_path = Path(install_readiness_file)
+        if manifest_path.exists():
+            loaded_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if isinstance(loaded_manifest, dict):
+                install_readiness_manifest = loaded_manifest
+    except (OSError, json.JSONDecodeError):
+        install_readiness_manifest = {"status": "unreadable"}
     bin_dir = str(Path.home() / ".local" / "bin")
     install_readiness_status = "ready" if command_path and python_check == "ok" else "watch"
     command_prefix = "mcp-skeleton" if command_path else f"{shlex.quote(sys.executable)} -m cli"
@@ -134,6 +144,8 @@ def _build_version_payload() -> dict[str, Any]:
         "command_path": command_path,
         "project_root": str(_project_root()),
         "install_home": install_home,
+        "install_readiness_file": install_readiness_file,
+        "install_readiness_manifest": install_readiness_manifest,
         "install_readiness_status": install_readiness_status,
         "python_check": python_check,
         "command_check": "ok" if command_path else "watch",
@@ -165,6 +177,7 @@ def _build_version_payload() -> dict[str, Any]:
             f"Python: {payload['python_version']} ({payload['python_executable']})",
             f"Command: {payload['command_path'] or '(not found on PATH)'}",
             f"Install home: {payload['install_home']}",
+            f"Install readiness file: {payload['install_readiness_file']} ({payload['install_readiness_manifest'].get('status', 'unknown')})",
             f"Project root: {payload['project_root']}",
             f"PATH status: {payload['path_hint']}",
         ]

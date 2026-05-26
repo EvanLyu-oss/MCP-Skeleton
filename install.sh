@@ -7,6 +7,7 @@ VENV_DIR="$INSTALL_DIR/venv"
 BIN_DIR="$HOME/.local/bin"
 COMMAND_PATH="$BIN_DIR/mcp-skeleton"
 MARKER_FILE="$INSTALL_DIR/.mcp-skeleton-install"
+READINESS_FILE="$INSTALL_DIR/install-readiness.json"
 MODE="install"
 SETUP_SHELL=0
 
@@ -164,11 +165,13 @@ else
 fi
 if command -v mcp-skeleton >/dev/null 2>&1; then
   echo "PATH status: ready - mcp-skeleton is available on PATH"
+  PATH_STATUS="ready"
   HANDOFF_COMMAND="mcp-skeleton handoff"
   QUICK_COMMAND="mcp-skeleton quick"
   VERSION_COMMAND="mcp-skeleton version"
 else
   echo "PATH status: needs shell setup - $BIN_DIR is not currently on PATH"
+  PATH_STATUS="needs_shell_setup"
   HANDOFF_COMMAND="$COMMAND_PATH handoff"
   QUICK_COMMAND="$COMMAND_PATH quick"
   VERSION_COMMAND="$COMMAND_PATH version"
@@ -178,6 +181,45 @@ if [ "$SETUP_SHELL" = "1" ]; then
   echo "Shell profile file: $SHELL_PROFILE"
   echo "Restart your terminal or run: export PATH=\"$BIN_DIR:\$PATH\""
 fi
+
+"$VENV_DIR/bin/python" - "$READINESS_FILE" "$COMMAND_PATH" "$INSTALL_DIR" "$BIN_DIR" "$PATH_STATUS" "$SHELL_PROFILE_STATUS" "$HANDOFF_COMMAND" "$QUICK_COMMAND" "$VERSION_COMMAND" "$SHELL_PROFILE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+(
+    readiness_file,
+    command_path,
+    install_dir,
+    bin_dir,
+    path_status,
+    shell_profile_status,
+    handoff_command,
+    quick_command,
+    version_command,
+    shell_profile,
+) = sys.argv[1:11]
+
+payload = {
+    "schema": "mcp-skeleton.install-readiness.v1",
+    "status": "ready",
+    "command_path": command_path,
+    "install_dir": install_dir,
+    "bin_dir": bin_dir,
+    "command_check": "ok",
+    "path_status": path_status,
+    "shell_profile_status": shell_profile_status,
+    "shell_profile": shell_profile,
+    "recommended_first_command_text": handoff_command,
+    "quick_command_text": quick_command,
+    "doctor_command_text": f"{command_path} doctor",
+    "self_check_command_text": version_command,
+    "path_setup_command_text": "sh install.sh --setup-shell",
+    "path_export_command_text": f"export PATH=\"{bin_dir}:$PATH\"",
+}
+Path(readiness_file).write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+PY
+echo "Install readiness file: $READINESS_FILE"
 echo ""
 echo "Copy/paste next:"
 echo "  $HANDOFF_COMMAND"
