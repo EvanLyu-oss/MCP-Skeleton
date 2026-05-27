@@ -57,6 +57,8 @@ def _compact_result(result: dict[str, Any], *, include_stdout_json: bool = True)
 
 
 def _count_summary(stdout_json: dict[str, Any]) -> str:
+    if stdout_json.get("skipped"):
+        return "skipped"
     passed = stdout_json.get("passed")
     total = stdout_json.get("check_count") or stdout_json.get("total")
     if isinstance(passed, int) and isinstance(total, int):
@@ -73,7 +75,9 @@ def _build_v1_beta_readiness(
     doctor: dict[str, Any],
     benchmark_summary: dict[str, Any],
 ) -> dict[str, Any]:
-    install_ready = _count_summary(quickstart) == "5/5"
+    quickstart_summary = _count_summary(quickstart)
+    install_skipped = bool(quickstart.get("skipped"))
+    install_ready = quickstart_summary == "5/5" or install_skipped
     handoff_ready = (
         dogfood.get("restore_status") == "ok"
         and dogfood.get("missing_count", 1) == 0
@@ -106,7 +110,7 @@ def _build_v1_beta_readiness(
     return {
         "status": status,
         "recommendation": "recommend macOS beta install/use" if status == "ready" else "do not recommend external beta use yet",
-        "install_path": "ready" if install_ready else "blocked",
+        "install_path": "skipped" if install_skipped else "ready" if install_ready else "blocked",
         "handoff_path": "ready" if handoff_ready else "blocked",
         "safety_path": "ready" if safety_ready else "blocked",
         "doctor_path": "ready" if doctor_ready else "blocked",

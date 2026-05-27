@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- made Windows regression runs skip macOS `sh install.sh` quickstart/installer lifecycle checks instead of failing when `sh` is unavailable, while preserving macOS coverage
+- improved Python smoke failure reporting with full tracebacks so cross-platform assertion failures identify the exact failing line
 - added `mcp-skeleton doctor --install` for first-run install diagnostics, PATH/Python/readiness checks, and copy/paste repair commands
 - added `install_doctor_command_text` to the installer readiness manifest and installer completion output
 - expanded `handoff.json` with a stable AI/IDE handoff contract covering ready-to-share status, share-with-AI file, keep-local restore files, and safety boundary metadata

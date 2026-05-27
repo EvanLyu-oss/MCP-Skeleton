@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -58,6 +59,22 @@ def _json_from_command(args: list[str], *, cwd: Path, env: dict[str, str]) -> tu
 
 def build_quickstart_check_payload() -> dict[str, Any]:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    if shutil.which("sh") is None:
+        payload = {
+            "status": "ok",
+            "entrypoint": "quickstart-check",
+            "runner": "python",
+            "platform": sys.platform,
+            "check_count": 0,
+            "passed": 0,
+            "failed": 0,
+            "skipped": True,
+            "skip_reason": "sh is not available; macOS installer quickstart is skipped on this platform",
+            "checks": {},
+            "artifacts": {"results_json": str(DEFAULT_RESULTS_JSON)},
+        }
+        DEFAULT_RESULTS_JSON.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        return payload
     with tempfile.TemporaryDirectory(prefix="mcp_skeleton_quickstart.") as tmp:
         workspace = Path(tmp)
         home = workspace / "home"

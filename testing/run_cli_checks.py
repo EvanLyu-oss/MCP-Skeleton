@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import traceback
 from pathlib import Path
 from typing import Any, Callable
 
@@ -1178,6 +1179,8 @@ def _check_top_level_version_json(workspace: Path) -> None:
 
 
 def _check_installer_lifecycle_json(workspace: Path) -> None:
+    if shutil.which("sh") is None:
+        return
     home = workspace / "installer_home"
     home.mkdir()
     env = os.environ.copy()
@@ -1404,6 +1407,19 @@ def _check_release_readiness_summary_json(workspace: Path) -> None:
     assert summary["v1_beta_readiness"]["handoff_path"] == "ready"
     assert summary["v1_beta_readiness"]["performance_path"] == "ready"
     assert summary["next_action"] == "ready for release"
+
+    skipped_checks = {
+        **checks,
+        "quickstart_check": {
+            "passed": True,
+            "stdout_json": {"status": "ok", "skipped": True, "check_count": 0, "passed": 0, "failed": 0},
+        },
+    }
+    skipped_summary = release_module.build_executive_summary(skipped_checks)
+    assert skipped_summary["quickstart"] == "skipped"
+    assert skipped_summary["v1_beta_readiness"]["status"] == "ready"
+    assert skipped_summary["v1_beta_readiness"]["install_path"] == "skipped"
+    assert "install_path_not_ready" not in skipped_summary["v1_beta_readiness"]["blockers"]
 
 
 def _check_top_level_cli_alias_json(workspace: Path) -> None:
@@ -2862,7 +2878,7 @@ def run_checks(*, results_json: Path) -> dict[str, Any]:
                 func(workspace)
             except Exception as exc:  # noqa: BLE001 - report all smoke failures as structured JSON
                 checks[name] = False
-                failures[name] = f"{type(exc).__name__}: {exc}"
+                failures[name] = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
             else:
                 checks[name] = True
     status = "ok" if all(checks.values()) else "error"
