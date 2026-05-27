@@ -30,13 +30,25 @@ mcp-skeleton quick
 mcp-skeleton recent
 ```
 
+For Windows PowerShell, from a cloned or downloaded checkout:
+
+```powershell
+.\install.ps1 -SetupShell
+mcp-skeleton doctor --install
+mcp-skeleton demo
+mcp-skeleton handoff
+mcp-skeleton quick
+mcp-skeleton recent
+```
+
 What these do:
 
 - `install.sh --setup-shell` installs an isolated local command and adds one managed PATH block for future zsh terminals.
+- `install.ps1 -SetupShell` installs an isolated local command, writes `install-readiness.json`, and adds one managed PATH block for future PowerShell sessions.
 - `demo` runs a safe sample bundle so you can see the workflow before using your own project.
 - `handoff` is the shortest “give this project to AI/IDE” command; it creates the same restore-safe bundle as `quick`.
 - Running `handoff` again automatically reuses the last fresh bundle when the project has not changed.
-- `handoff --copy --open` copies the skeleton to the macOS clipboard and opens the bundle folder in Finder.
+- `handoff --copy --open` uses the native clipboard/open command for your platform where available.
 - `quick` creates a restore-safe bundle for the current directory and prints the skeleton, manifest, inspect, and restore commands.
 - `recent` shows the latest bundle, skeleton, manifest, restore command, and freshness status for the current directory.
 
@@ -125,6 +137,14 @@ sh install.sh --setup-shell
 
 This appends one managed `mcp-skeleton PATH` block to `~/.zshrc`. It does not rewrite the rest of your shell profile; restart the terminal afterwards, or run the printed `export PATH=...` command for the current shell.
 
+Windows PowerShell local install from a cloned or downloaded checkout:
+
+```powershell
+.\install.ps1 -SetupShell
+```
+
+This creates an isolated virtual environment under `%USERPROFILE%\.mcp-skeleton`, installs tokenizer-backed metrics through `.[context-metrics]` when available, writes `%USERPROFILE%\.mcp-skeleton\install-readiness.json`, and creates a local `mcp-skeleton.cmd` shim. `-SetupShell` appends one managed PATH block to your PowerShell profile; restart PowerShell afterwards, or run the printed temporary `$env:PATH = "...;$env:PATH"` command for the current session.
+
 Check the installed command:
 
 ```bash
@@ -150,10 +170,22 @@ Update from a newer downloaded checkout:
 sh install.sh --update
 ```
 
+On Windows:
+
+```powershell
+.\install.ps1 -Update
+```
+
 Uninstall the managed command and virtual environment:
 
 ```bash
 sh install.sh --uninstall
+```
+
+On Windows:
+
+```powershell
+.\install.ps1 -Uninstall
 ```
 
 If `~/.local/bin` is not on your PATH, add:
@@ -174,10 +206,11 @@ Optional tokenizer-backed metrics:
 python3 -m pip install '.[context-metrics]'
 ```
 
-On Windows, prefer:
+If you prefer not to use the Windows installer script, install directly with pip:
 
 ```powershell
 py -3 -m pip install '.[context-metrics]'
+mcp-skeleton doctor --install
 ```
 
 ## Quick start
@@ -212,13 +245,13 @@ Run the same command again during day-to-day work; when the project fingerprint 
 The generated handoff guide includes a recommended prompt you can paste into Cursor, VS Code agents, Claude, ChatGPT, Codex, or similar tools along with `context_skeleton.mcp`.
 `handoff.json` is the machine-readable contract for IDEs and wrappers: it exposes `handoff_status`, `share_with_ai`, `keep_local`, `safety_boundary`, inspect/restore/copy commands, and the recommended prompt.
 
-On macOS, use:
+To copy the skeleton and open the generated bundle folder, use:
 
 ```bash
 mcp-skeleton handoff --copy --open
 ```
 
-`--copy` copies `context_skeleton.mcp` to the clipboard with `pbcopy`; `--open` opens the generated bundle folder in Finder.
+`--copy` uses `pbcopy` on macOS, `Set-Clipboard` on Windows PowerShell, and `xclip` on Linux when available. `--open` uses `open`, `Start-Process`, or `xdg-open` depending on the platform.
 
 To force a new handoff bundle even when the previous one is fresh, use:
 
@@ -234,7 +267,7 @@ One-command bundle creation for your project:
 mcp-skeleton quick
 ```
 
-`context quick` runs the zero-friction setup, checks restore safety, writes a full bundle, and prints the bundle path plus inspect/restore commands. It also points out the exact `context_skeleton.mcp` file to give to an AI or IDE, the bundle folder to keep, and a copy/paste `open <bundle>` command for locating the generated files on macOS.
+`context quick` runs the zero-friction setup, checks restore safety, writes a full bundle, and prints the bundle path plus inspect/restore commands. It also points out the exact `context_skeleton.mcp` file to give to an AI or IDE, the bundle folder to keep, and a platform-specific copy/paste command for locating the generated files.
 The first screen includes a `Use this now` section with the skeleton file, estimated token savings, restore command, and inspect command.
 It also prints performance advice with `fast / ok / slow` status and copy/paste `--fast` / `--reuse-if-fresh` commands when those paths improve the experience.
 The JSON output also includes `performance_summary`, a stable field intended for IDE/plugin integrations and simple dashboards. It reports speed status, slowest measured phase, estimated source/skeleton tokens, estimated tokens saved, default noise-protection impact, and the recommended next command.
@@ -248,13 +281,13 @@ mcp-skeleton quick --preview
 
 `--preview` checks restore safety, estimates token savings, shows the planned bundle/manifest paths, prints performance advice, and gives the exact command to run for real.
 
-To open the bundle folder automatically on macOS after creation:
+To open the bundle folder automatically after creation:
 
 ```bash
 mcp-skeleton quick --open
 ```
 
-To copy the generated skeleton text directly to the macOS clipboard:
+To copy the generated skeleton text directly to the platform clipboard:
 
 ```bash
 mcp-skeleton quick --copy

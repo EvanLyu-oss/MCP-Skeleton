@@ -24,10 +24,18 @@ class SmokeFailure(AssertionError):
     pass
 
 
-def _run(args: list[str], *, cwd: Path = ROOT, expect: int = 0) -> subprocess.CompletedProcess[str]:
+def _run(
+    args: list[str],
+    *,
+    cwd: Path = ROOT,
+    expect: int = 0,
+    env_extra: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT)
     env["MCP_SKELETON_IGNORE_CWD_CONFIG"] = "1"
+    if env_extra:
+        env.update(env_extra)
     proc = subprocess.run(
         args,
         cwd=str(cwd),
@@ -44,16 +52,28 @@ def _run(args: list[str], *, cwd: Path = ROOT, expect: int = 0) -> subprocess.Co
     return proc
 
 
-def _run_cli_json(args: list[str], *, cwd: Path = ROOT, expect: int = 0) -> dict[str, Any]:
-    proc = _run([sys.executable, "-m", "cli", *args], cwd=cwd, expect=expect)
+def _run_cli_json(
+    args: list[str],
+    *,
+    cwd: Path = ROOT,
+    expect: int = 0,
+    env_extra: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    proc = _run([sys.executable, "-m", "cli", *args], cwd=cwd, expect=expect, env_extra=env_extra)
     try:
         return json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
         raise SmokeFailure(f"command did not emit JSON: {' '.join(args)}\nSTDOUT:\n{proc.stdout}") from exc
 
 
-def _run_top_level_cli_json(args: list[str], *, cwd: Path = ROOT, expect: int = 0) -> dict[str, Any]:
-    proc = _run([sys.executable, "-m", "cli", *args], cwd=cwd, expect=expect)
+def _run_top_level_cli_json(
+    args: list[str],
+    *,
+    cwd: Path = ROOT,
+    expect: int = 0,
+    env_extra: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    proc = _run([sys.executable, "-m", "cli", *args], cwd=cwd, expect=expect, env_extra=env_extra)
     try:
         return json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
@@ -1030,6 +1050,42 @@ def _check_context_recent_json(workspace: Path) -> None:
     assert clean["deleted_count"] == 0
     assert Path(quick["bundle_root"]).exists()
     assert "Dry run:" in clean["summary_text"]
+
+
+def _check_context_quick_windows_command_text_json(workspace: Path) -> None:
+    project = workspace / "windows_commands_project"
+    project.mkdir()
+    (project / "app.py").write_text("print('windows command text')\n", encoding="utf-8")
+    bundle_dir = workspace / "windows_commands_bundle"
+    env_extra = {"MCP_SKELETON_TEST_PLATFORM": "win32"}
+    quick = _run_top_level_cli_json(
+        ["quick", "--input-dir", str(project), "--output-dir", str(bundle_dir), "--json"],
+        env_extra=env_extra,
+    )
+    assert quick["status"] == "ok"
+    assert quick["open_command_text"].startswith("Start-Process ")
+    assert "Set-Clipboard" in quick["copy_command_text"]
+    assert "pbcopy" not in quick["copy_command_text"]
+    assert not quick["open_command_text"].startswith("open ")
+    recent = _run_top_level_cli_json(["recent", "--input-dir", str(project), "--json"], env_extra=env_extra)
+    assert recent["status"] == "ok"
+    assert recent["open_command_text"].startswith("Start-Process ")
+    assert "Set-Clipboard" in recent["copy_command_text"]
+    assert "pbcopy" not in recent["copy_command_text"]
+
+
+def _check_windows_installer_script_json(workspace: Path) -> None:
+    del workspace
+    installer = ROOT / "install.ps1"
+    assert installer.exists()
+    text = installer.read_text(encoding="utf-8")
+    assert "param(" in text
+    assert "SetupShell" in text
+    assert "Update" in text
+    assert "Uninstall" in text
+    assert "install-readiness.json" in text
+    assert "context-metrics" in text
+    assert "mcp-skeleton doctor --install" in text
 
 
 def _check_context_quick_fast_json(workspace: Path) -> None:
@@ -2924,6 +2980,7 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("context_doctor_install_json_ok", _check_context_doctor_install_json),
     ("context_start_json_ok", _check_context_start_json),
     ("context_quick_json_ok", _check_context_quick_json),
+    ("context_quick_windows_command_text_json_ok", _check_context_quick_windows_command_text_json),
     ("context_recent_json_ok", _check_context_recent_json),
     ("context_quick_fast_json_ok", _check_context_quick_fast_json),
     ("context_quick_speed_tip_json_ok", _check_context_quick_speed_tip_json),
@@ -2933,6 +2990,7 @@ CHECKS: list[tuple[str, Callable[[Path], None]]] = [
     ("context_clean_json_ok", _check_context_clean_json),
     ("top_level_version_json_ok", _check_top_level_version_json),
     ("installer_lifecycle_json_ok", _check_installer_lifecycle_json),
+    ("windows_installer_script_json_ok", _check_windows_installer_script_json),
     ("context_explain_json_ok", _check_context_explain_json),
     ("release_readiness_summary_json_ok", _check_release_readiness_summary_json),
     ("top_level_cli_alias_json_ok", _check_top_level_cli_alias_json),

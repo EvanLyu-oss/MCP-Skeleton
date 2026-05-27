@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import shutil
 import shlex
 import subprocess
@@ -1302,8 +1303,8 @@ def _render_quick_ai_handoff_guide(payload: dict[str, Any]) -> str:
         "Useful commands:",
         f"- Inspect: {payload.get('inspect_command_text') or '(not available)'}",
         f"- Restore: {payload.get('restore_command_text') or '(not available)'}",
-        f"- Copy skeleton on macOS: {payload.get('copy_command_text') or '(not available)'}",
-        f"- Open bundle on macOS: {payload.get('open_command_text') or '(not available)'}",
+        f"- Copy skeleton: {payload.get('copy_command_text') or '(not available)'}",
+        f"- Open bundle: {payload.get('open_command_text') or '(not available)'}",
         "",
         "Next step:",
         "- Attach or paste context_skeleton.mcp into your AI/IDE, and keep this bundle directory locally.",
@@ -1330,7 +1331,17 @@ def _write_quick_ai_handoff_guide(payload: dict[str, Any]) -> str:
 def _quick_open_command_text(bundle_root: str) -> str:
     if not bundle_root:
         return ""
-    return " ".join(["open", shlex.quote(bundle_root)])
+    target_platform = _runtime_platform()
+    quoted = shlex.quote(bundle_root)
+    if target_platform == "win32":
+        return f"Start-Process {quoted}"
+    if target_platform.startswith("linux"):
+        return f"xdg-open {quoted}"
+    return " ".join(["open", quoted])
+
+
+def _runtime_platform() -> str:
+    return str(os.environ.get("MCP_SKELETON_TEST_PLATFORM") or sys.platform).strip().lower()
 
 
 def _maybe_open_quick_bundle(args: argparse.Namespace, *, bundle_root: str) -> tuple[bool, str]:
@@ -1338,9 +1349,16 @@ def _maybe_open_quick_bundle(args: argparse.Namespace, *, bundle_root: str) -> t
         return False, ""
     if not bundle_root:
         return False, "bundle folder is not available"
-    if sys.platform != "darwin":
-        return False, "--open currently opens Finder only on macOS"
-    proc = subprocess.run(["open", bundle_root], text=True, capture_output=True)
+    target_platform = _runtime_platform()
+    if target_platform == "darwin":
+        command = ["open", bundle_root]
+    elif target_platform == "win32":
+        command = ["powershell", "-NoProfile", "-Command", "Start-Process", bundle_root]
+    elif target_platform.startswith("linux"):
+        command = ["xdg-open", bundle_root]
+    else:
+        return False, f"--open is not supported on {platform.system() or target_platform}; use the printed open command manually"
+    proc = subprocess.run(command, text=True, capture_output=True)
     if proc.returncode != 0:
         detail = (proc.stderr or proc.stdout or "open command failed").strip()
         return False, detail
@@ -1350,7 +1368,13 @@ def _maybe_open_quick_bundle(args: argparse.Namespace, *, bundle_root: str) -> t
 def _quick_copy_command_text(skeleton_file: str) -> str:
     if not skeleton_file:
         return ""
-    return f"cat {shlex.quote(skeleton_file)} | pbcopy"
+    target_platform = _runtime_platform()
+    quoted = shlex.quote(skeleton_file)
+    if target_platform == "win32":
+        return f"Get-Content {quoted} -Raw | Set-Clipboard"
+    if target_platform.startswith("linux"):
+        return f"cat {quoted} | xclip -selection clipboard"
+    return f"cat {quoted} | pbcopy"
 
 
 def _maybe_copy_quick_skeleton(args: argparse.Namespace, *, skeleton_file: str) -> tuple[bool, str]:
@@ -1358,13 +1382,20 @@ def _maybe_copy_quick_skeleton(args: argparse.Namespace, *, skeleton_file: str) 
         return False, ""
     if not skeleton_file:
         return False, "skeleton file is not available"
-    if sys.platform != "darwin":
-        return False, "--copy currently uses pbcopy only on macOS"
     try:
         content = Path(skeleton_file).read_text(encoding="utf-8")
     except OSError as exc:
         return False, str(exc)
-    proc = subprocess.run(["pbcopy"], input=content, text=True, capture_output=True)
+    target_platform = _runtime_platform()
+    if target_platform == "darwin":
+        command = ["pbcopy"]
+    elif target_platform == "win32":
+        command = ["powershell", "-NoProfile", "-Command", "Set-Clipboard"]
+    elif target_platform.startswith("linux"):
+        command = ["xclip", "-selection", "clipboard"]
+    else:
+        return False, f"--copy is not supported on {platform.system() or target_platform}; copy context_skeleton.mcp manually"
+    proc = subprocess.run(command, input=content, text=True, capture_output=True)
     if proc.returncode != 0:
         detail = (proc.stderr or proc.stdout or "pbcopy command failed").strip()
         return False, detail
@@ -1377,7 +1408,7 @@ def _build_daily_handoff_payload(payload: dict[str, Any], *, reason_code: str, r
     copy_error = str(payload.get("copy_error") or "")
     if copy_performed:
         copy_status = "copied"
-        copy_message = "copied the skeleton to the macOS clipboard"
+        copy_message = "copied the skeleton to the platform clipboard"
     elif copy_requested and copy_error:
         copy_status = "failed"
         copy_message = copy_error
@@ -4530,8 +4561,8 @@ def _build_parser() -> argparse.ArgumentParser:
     quick.add_argument("--reuse-if-fresh", action="store_true", help="Reuse the most recent quick bundle when the project fingerprint is unchanged")
     quick.add_argument("--force-refresh", action="store_true", help="Force handoff/quick to create a fresh bundle instead of reusing a fresh recent bundle")
     quick.add_argument("--preview", action="store_true", help="Preview restore safety, token savings, and output paths without writing a bundle")
-    quick.add_argument("--open", dest="open_bundle", action="store_true", help="Open the created bundle folder in Finder on macOS")
-    quick.add_argument("--copy", "--copy-command", dest="copy_command", action="store_true", help="Copy the generated skeleton text to the macOS clipboard with pbcopy")
+    quick.add_argument("--open", dest="open_bundle", action="store_true", help="Open the created bundle folder with the platform file opener")
+    quick.add_argument("--copy", "--copy-command", dest="copy_command", action="store_true", help="Copy the generated skeleton text to the platform clipboard")
     quick.add_argument("--handoff-alias", dest="handoff_alias", action="store_true", help=argparse.SUPPRESS)
     quick.add_argument("--zip", dest="zip_bundle", action="store_true")
     quick.add_argument("--output-config-file", dest="output_config_file", help="Config path to write; defaults to .mcp-skeleton.json near the input")

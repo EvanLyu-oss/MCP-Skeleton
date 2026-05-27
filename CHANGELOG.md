@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- added a Windows PowerShell installer (`install.ps1`) with install/update/uninstall/setup-shell flows and install-readiness manifest generation
+- made quick/handoff/recent open and clipboard command text platform-aware so Windows users see `Start-Process` and `Set-Clipboard` instead of macOS-only `open`/`pbcopy`
+- expanded README quickstart/install guidance with a Windows PowerShell path and tokenizer-backed metrics install option
 - added `SECURITY.md` with the local-only/no-telemetry safety model, share-vs-keep-local boundary, artifact cleanup guidance, and MCP-SKL project identity notes
 - added default AI-facing skeleton redaction for common secret shapes while preserving byte-exact local restore packages
 - added `context clean` / `mcp-skeleton clean` to preview or remove known local MCP-Skeleton generated artifacts such as `.workspace_ail/`
