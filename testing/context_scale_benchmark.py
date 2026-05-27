@@ -46,6 +46,8 @@ REALISTIC_DIRECTORY_EXCLUDES = [
     ".mcp-skeleton.yaml",
     ".mcp-skeleton.yml",
     "mcp-skeleton-onboarding.md",
+    "Ailoom-Context-main/",
+    "Ailoom-Context-*/",
     "ailoom-context-main/",
     "ailoom-context-*/",
     "MCP-Skeleton-main/",
