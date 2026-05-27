@@ -2,7 +2,8 @@
 
 Date: 2026-05-21
 Candidate: v0.1.3
-Repository: https://github.com/EvanLyu-oss/MCP-Skeleton
+Repository: https://github.com/EvanLyu-oss/ailoom-context
+Historical validation source: https://github.com/EvanLyu-oss/MCP-Skeleton
 
 ## Summary
 
